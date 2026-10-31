@@ -42,6 +42,8 @@ export interface PlayoutInfo {
   version: string | null;
   /** CasparCG channel numbers (= DeckLink outputs), when known. */
   channels?: number[] | null;
+  /** Goes up every time the connection to CasparCG is (re)made, e.g. after a CasparCG restart. */
+  session?: number;
 }
 export interface PlayoutDriver extends EventEmitter {
   info(): PlayoutInfo;
@@ -137,10 +139,12 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
   private c: CasparCG;
   private version: string | null = null;
   private channels: number[] | null = null;
+  private session = 0;
   constructor(host: string, port: number) {
     super();
     this.c = new CasparCG({ host, port, autoConnect: true, reconnectTime: 3000 });
     this.c.on("connect", () => {
+      this.session++;
       this.emit("change");
       void this.c
         .version()
@@ -165,7 +169,7 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
     this.c.on("error", (e) => this.emit("log", e.message));
   }
   info(): PlayoutInfo {
-    return { connected: this.c.connected, version: this.c.connected ? this.version : null, channels: this.c.connected ? this.channels : null };
+    return { connected: this.c.connected, version: this.c.connected ? this.version : null, channels: this.c.connected ? this.channels : null, session: this.session };
   }
   private async send(p: Promise<unknown>) {
     if (!this.c.connected) throw new Error("CasparCG not connected");
