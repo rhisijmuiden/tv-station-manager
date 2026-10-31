@@ -37,6 +37,7 @@ export interface UpdateCheck {
 interface Session {
   status: "loading" | "setup" | "anonymous" | "ready";
   user: SessionUser | null;
+  defaultPasswordInUse: boolean;
   info: SystemInfo | null;
   lastCheck: UpdateCheck | null;
   setLastCheck: (c: UpdateCheck | null) => void;
@@ -46,13 +47,13 @@ interface Session {
 const Ctx = createContext<Session | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Omit<Session, "refresh" | "setLastCheck">>({ status: "loading", user: null, info: null, lastCheck: null });
+  const [state, setState] = useState<Omit<Session, "refresh" | "setLastCheck">>({ status: "loading", user: null, defaultPasswordInUse: false, info: null, lastCheck: null });
   const refresh = useCallback(async () => {
-    const s = await get<{ setupRequired: boolean; user: SessionUser | null }>("/api/auth/status");
+    const s = await get<{ setupRequired: boolean; user: SessionUser | null; defaultPasswordInUse?: boolean }>("/api/auth/status");
     if (s.setupRequired) return setState((p) => ({ ...p, status: "setup", user: null }));
     if (!s.user) return setState((p) => ({ ...p, status: "anonymous", user: null }));
     const [info, upd] = await Promise.all([get<SystemInfo>("/api/system/info"), get<{ lastCheck: UpdateCheck | null }>("/api/system/update")]);
-    setState({ status: "ready", user: s.user, info, lastCheck: upd.lastCheck });
+    setState({ status: "ready", user: s.user, defaultPasswordInUse: !!s.defaultPasswordInUse, info, lastCheck: upd.lastCheck });
   }, []);
   useEffect(() => {
     void refresh();

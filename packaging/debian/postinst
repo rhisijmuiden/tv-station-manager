@@ -8,7 +8,13 @@ if [ "$1" = "configure" ]; then
   install -d -o tvsm -g tvsm -m 0750 /var/lib/tvsm "/var/lib/tvsm/$APP" "/var/lib/tvsm/$APP/updates"
   install -d -o tvsm -g tvsm -m 0750 /etc/tvsm "/etc/tvsm/$APP"
   if [ ! -f "/etc/tvsm/$APP/env" ]; then
-    printf '# Environment for tvsm-%s\n#TVSM_PORT=8080\n#TVSM_HOST=0.0.0.0\n' "$APP" > "/etc/tvsm/$APP/env"
+    cat > "/etc/tvsm/$APP/env" <<ENV
+# Environment for tvsm-$APP
+#TVSM_PORT=8080
+#TVSM_HOST=0.0.0.0
+# Account created on first start when no users exist ("off" = setup page instead).
+#TVSM_DEFAULT_ADMIN=admin:admin
+ENV
     chown tvsm:tvsm "/etc/tvsm/$APP/env"
   fi
   visudo -cf "/etc/sudoers.d/tvsm-$APP" >/dev/null
@@ -18,5 +24,6 @@ if [ "$1" = "configure" ]; then
   rm -f /var/lib/tvsm/$APP/updates/*.deb 2>/dev/null || true
   IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   echo "TV Station Manager ($APP) is running: http://${IP:-localhost}:8080"
+  echo "First login: admin / admin (change the password after signing in)"
 fi
 exit 0

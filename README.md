@@ -18,7 +18,25 @@ curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/pro
 curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/install.sh | sudo bash -s -- orchestrator --channel test
 ```
 
-Then open `http://<server>:8080` and create the first administrator.
+Then open `http://<server>:8080` and sign in with **admin / admin**. The UI shows a warning until you change that password (My account). Set `TVSM_DEFAULT_ADMIN=user:password` or `off` in `/etc/tvsm/<app>/env` before the first start to change this.
+
+### Behind a reverse proxy
+
+The apps trust `X-Forwarded-*` headers, so the session cookie is marked `Secure` when the proxy terminates HTTPS. Example for nginx:
+
+```nginx
+location / {
+    proxy_pass http://<orchestrator-ip>:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+Only expose the proxy, not port 8080 directly.
 
 ## Development
 

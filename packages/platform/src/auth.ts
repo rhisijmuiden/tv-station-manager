@@ -51,6 +51,23 @@ function loadSession(ctx: PlatformContext, token: string | undefined): SessionUs
   };
 }
 
+const DEFAULT_FLAG = "auth.defaultPasswordInUse";
+
+/**
+ * Creates the default administrator on first start (no users yet).
+ * TVSM_DEFAULT_ADMIN="user:password" overrides the credentials, "off" disables it (first-run setup page instead).
+ */
+export async function ensureDefaultAdmin(ctx: PlatformContext) {
+  const spec = process.env.TVSM_DEFAULT_ADMIN ?? "admin:admin";
+  if (spec === "off" || userCount(ctx) > 0) return;
+  const i = spec.indexOf(":");
+  const username = i > 0 ? spec.slice(0, i) : "admin";
+  const password = i > 0 ? spec.slice(i + 1) : spec;
+  ctx.db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')").run(username, await hashPassword(password));
+  ctx.settings.set(DEFAULT_FLAG, true);
+  ctx.log.warn({ username }, "created default administrator account; change its password after the first login");
+}
+
 export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
   const startSession = (userId: number) => {
     const token = randomToken();
@@ -73,7 +90,11 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
     if (!req.user && !PUBLIC_API.has(path)) throw new HttpError(401, "unauthorized");
   });
 
-  app.get("/api/auth/status", async (req) => ({ setupRequired: userCount(ctx) === 0, user: req.user ?? null }));
+  app.get("/api/auth/status", async (req) => ({
+    setupRequired: userCount(ctx) === 0,
+    user: req.user ?? null,
+    defaultPasswordInUse: req.user ? ctx.settings.get(DEFAULT_FLAG, false) : undefined,
+  }));
 
   app.post("/api/auth/setup", async (req, reply) => {
     if (userCount(ctx) > 0) throw new HttpError(409, "already_set_up");
@@ -121,6 +142,7 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
     const row = ctx.db.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user!.id) as { password_hash: string };
     if (!(await verifyPassword(body.current, row.password_hash))) throw new HttpError(400, "invalid_current_password");
     ctx.db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(body.next), req.user!.id);
+    ctx.settings.set(DEFAULT_FLAG, false);
     ctx.db.prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?").run(req.user!.id, req.cookies[SESSION_COOKIE] ?? "");
     return { ok: true };
   });

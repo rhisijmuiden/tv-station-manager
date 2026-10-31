@@ -22,6 +22,7 @@ export function AccountPage() {
   const savePassword = async () => {
     try {
       await put("/api/auth/password", pw);
+      await refresh();
       setPw({ current: "", next: "" });
       setMsg({ tone: "ok", text: t("account.passwordChanged") });
     } catch {
