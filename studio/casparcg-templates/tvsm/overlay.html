@@ -1,0 +1,88 @@
+<!doctype html>
+<!--
+  TV Station Manager graphics overlay for CasparCG (HTML template).
+  Loaded by the management node with: CG <ch>-<layer> ADD 1 "tvsm/overlay" 1 "<json>"
+  and updated with CG UPDATE. Data: { channel, hidden, logo{enabled,position,opacity,url}, clock{enabled,position},
+  ticker{enabled,text}, now{title}, upNext{visible,title,startAt} }.
+  Renders at 1920x1080 with a transparent background; keep it on a layer above the playout layer (10).
+-->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { --blue: #3B6CFF; --ink: #0A0E1A; --onair: #FF3D57; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: "Inter", "Segoe UI", Arial, sans-serif; }
+  .safe { position: absolute; inset: 54px 96px; }
+  .pos-top-left { position: absolute; top: 0; left: 0; }
+  .pos-top-right { position: absolute; top: 0; right: 0; }
+  .pos-bottom-left { position: absolute; bottom: 0; left: 0; }
+  .pos-bottom-right { position: absolute; bottom: 0; right: 0; }
+  .fade { transition: opacity 400ms ease, transform 500ms cubic-bezier(.2,.8,.2,1); }
+  .gone { opacity: 0 !important; }
+  #logo img { max-height: 96px; max-width: 280px; display: block; }
+  #clock { color: #fff; font-size: 40px; font-weight: 600; letter-spacing: .02em; text-shadow: 0 2px 10px rgba(0,0,0,.55); font-variant-numeric: tabular-nums; }
+  #upnext { bottom: 120px; left: 0; display: flex; align-items: stretch; transform: translateX(0); }
+  #upnext.gone { transform: translateX(-60px); }
+  #upnext .tag { background: var(--blue); color: #fff; padding: 14px 22px; font-size: 26px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; border-radius: 10px 0 0 10px; }
+  #upnext .title { background: rgba(10,14,26,.88); color: #fff; padding: 14px 28px; font-size: 32px; font-weight: 600; border-radius: 0 10px 10px 0; }
+  #upnext .time { color: #9fb4ff; margin-left: 16px; font-weight: 500; }
+  #ticker { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(10,14,26,.9); border-top: 4px solid var(--blue); overflow: hidden; }
+  #ticker .run { position: absolute; white-space: nowrap; color: #fff; font-size: 30px; line-height: 60px; will-change: transform; }
+</style>
+</head>
+<body>
+  <div class="safe">
+    <div id="logo" class="fade gone"></div>
+    <div id="clock" class="fade gone"></div>
+    <div id="upnext" class="pos-bottom-left fade gone"><span class="tag" id="upnext-tag">Straks</span><span class="title"><span id="upnext-title"></span><span class="time" id="upnext-time"></span></span></div>
+  </div>
+  <div id="ticker" class="fade gone"><div class="run" id="ticker-run"></div></div>
+<script>
+  var state = {};
+  var $ = function (id) { return document.getElementById(id); };
+  function place(el, pos) { el.className = el.className.replace(/pos-\S+/g, "").trim() + " pos-" + (pos || "top-right"); }
+  function show(el, on) { el.classList.toggle("gone", !on); }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function hhmm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  var tickerX = 0, tickerText = null;
+  function render() {
+    var d = state, hidden = !!d.hidden;
+    var logo = $("logo");
+    if (d.logo && d.logo.url && logo.getAttribute("data-url") !== d.logo.url) { logo.innerHTML = '<img src="' + d.logo.url + '" />'; logo.setAttribute("data-url", d.logo.url); }
+    if (d.logo) { place(logo, d.logo.position); logo.style.opacity = d.logo.opacity || 0.9; }
+    show(logo, !hidden && d.logo && d.logo.enabled && !!d.logo.url);
+    var clock = $("clock");
+    if (d.clock) place(clock, d.clock.position);
+    show(clock, !hidden && d.clock && d.clock.enabled);
+    var up = d.upNext || {};
+    $("upnext-title").textContent = up.title || "";
+    $("upnext-time").textContent = up.startAt ? hhmm(new Date(up.startAt)) : "";
+    show($("upnext"), !hidden && up.visible && !!up.title);
+    var t = d.ticker || {};
+    if (t.text !== tickerText) { tickerText = t.text; $("ticker-run").textContent = t.text || ""; tickerX = 1920; }
+    show($("ticker"), !hidden && t.enabled && !!t.text);
+  }
+  function frame() {
+    $("clock").textContent = hhmm(new Date());
+    var run = $("ticker-run");
+    tickerX -= 3;
+    if (tickerX < -run.offsetWidth) tickerX = 1920;
+    run.style.transform = "translateX(" + tickerX + "px)";
+    requestAnimationFrame(frame);
+  }
+  function parse(s) { try { return typeof s === "string" ? JSON.parse(s) : (s || {}); } catch (e) { return {}; } }
+  // CasparCG template API
+  window.update = function (s) { state = parse(s); render(); };
+  window.play = function () { document.body.style.opacity = 1; render(); };
+  window.stop = function () { document.body.style.opacity = 0; };
+  window.next = function () {};
+  document.body.style.transition = "opacity 300ms";
+  requestAnimationFrame(frame);
+  // Preview in a normal browser: overlay.html?demo
+  if (location.search.indexOf("demo") >= 0) {
+    document.body.style.background = "#334";
+    window.update({ logo: { enabled: true, position: "top-right", url: null }, clock: { enabled: true, position: "top-left" }, ticker: { enabled: true, text: "Welkom bij TV Station Manager  •  Dit is de nieuwsticker" }, upNext: { visible: true, title: "Het Journaal", startAt: new Date(Date.now() + 60000).toISOString() } });
+  }
+</script>
+</body>
+</html>

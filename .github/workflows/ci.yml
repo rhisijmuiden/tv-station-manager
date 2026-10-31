@@ -17,4 +17,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @tvsm/orchestrator build
+      - run: pnpm --filter @tvsm/management build
       - run: pnpm --filter @tvsm/agent build

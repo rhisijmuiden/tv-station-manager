@@ -9,3 +9,5 @@ export * from "./semver.js";
 export * from "./backup/engine.js";
 export * from "./backup/manifest.js";
 export * from "./backup/targets/index.js";
+export * from "./users.js";
+export * from "./auth.js";

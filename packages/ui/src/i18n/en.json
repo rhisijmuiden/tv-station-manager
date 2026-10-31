@@ -34,7 +34,8 @@
     "dark": "Dark",
     "language": "Language",
     "collapse": "Collapse menu",
-    "menu": "Menu"
+    "menu": "Menu",
+    "users": "Users"
   },
   "auth": {
     "signIn": "Sign in",
@@ -198,5 +199,33 @@
     "restoreConfirm": "Restore the backup from {{date}}? Current data is replaced and the application restarts.",
     "restoring": "Restoring… the application restarts and you will need to sign in again.",
     "noRemote": "No backups found at this location."
+  },
+  "users": {
+    "title": "Users",
+    "intro": "Who can sign in, and what they may do.",
+    "list": "Accounts",
+    "add": "Add user",
+    "edit": "Edit user",
+    "role": "Role",
+    "newPassword": "New password (leave empty to keep)",
+    "rolesHelp": "Administrators manage the system, editors plan the broadcast, operators run the control room.",
+    "roles": {
+      "admin": "Administrator",
+      "editor": "Editor-in-chief",
+      "operator": "Operator"
+    },
+    "roleHelp": {
+      "admin": "Everything, including mail, backups, updates and users.",
+      "editor": "Media, blocks, schedule, EPG, graphics and the control room.",
+      "operator": "Control room only; can view the schedule."
+    },
+    "confirmDelete": "Delete user {{name}}?",
+    "errors": {
+      "generic": "Could not save the user.",
+      "username_taken": "This username is already in use.",
+      "last_admin": "There must be at least one administrator.",
+      "cannot_delete_self": "You cannot delete your own account.",
+      "validation_failed": "Check the fields: username at least 3 characters, password at least 10."
+    }
   }
 }

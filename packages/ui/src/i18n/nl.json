@@ -34,7 +34,8 @@
     "dark": "Donker",
     "language": "Taal",
     "collapse": "Menu inklappen",
-    "menu": "Menu"
+    "menu": "Menu",
+    "users": "Gebruikers"
   },
   "auth": {
     "signIn": "Inloggen",
@@ -198,5 +199,33 @@
     "restoreConfirm": "De back-up van {{date}} herstellen? De huidige gegevens worden vervangen en de applicatie herstart.",
     "restoring": "Bezig met herstellen… de applicatie herstart en je moet opnieuw inloggen.",
     "noRemote": "Geen back-ups gevonden op deze locatie."
+  },
+  "users": {
+    "title": "Gebruikers",
+    "intro": "Wie kan inloggen en wat mag diegene doen.",
+    "list": "Accounts",
+    "add": "Gebruiker toevoegen",
+    "edit": "Gebruiker bewerken",
+    "role": "Rol",
+    "newPassword": "Nieuw wachtwoord (leeg laten om te behouden)",
+    "rolesHelp": "Beheerders beheren het systeem, hoofdredacteuren plannen de uitzending, operators bedienen de regie.",
+    "roles": {
+      "admin": "Beheerder",
+      "editor": "Hoofdredacteur",
+      "operator": "Operator"
+    },
+    "roleHelp": {
+      "admin": "Alles, inclusief mail, backups, updates en gebruikers.",
+      "editor": "Media, blokken, uitzendschema, EPG, graphics en de regie.",
+      "operator": "Alleen de regie; kan het schema bekijken."
+    },
+    "confirmDelete": "Gebruiker {{name}} verwijderen?",
+    "errors": {
+      "generic": "De gebruiker kon niet worden opgeslagen.",
+      "username_taken": "Deze gebruikersnaam is al in gebruik.",
+      "last_admin": "Er moet minstens één beheerder zijn.",
+      "cannot_delete_self": "Je kunt je eigen account niet verwijderen.",
+      "validation_failed": "Controleer de velden: gebruikersnaam minstens 3 tekens, wachtwoord minstens 10."
+    }
   }
 }

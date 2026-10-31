@@ -14,12 +14,18 @@ export interface NavItem {
   label: string;
   icon: ComponentType<{ className?: string }>;
   end?: boolean;
+  /** Hide unless the user has at least this role (admin > editor > operator). */
+  minRole?: "admin" | "editor" | "operator";
 }
 export interface NavGroup {
   /** i18n key, omit for the first unlabeled group */
   label?: string;
+  minRole?: "admin" | "editor" | "operator";
   items: NavItem[];
 }
+
+const rank = (r?: string) => ({ admin: 3, editor: 2, operator: 1 })[r ?? ""] ?? 0;
+export const roleAtLeast = (role: string | undefined, min?: string) => !min || rank(role) >= rank(min);
 
 export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; logo: string; logoMark: string; children: ReactNode }) {
   const { t, i18n } = useTranslation();
@@ -68,7 +74,10 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-        {nav.map((group, gi) => (
+        {nav
+          .filter((g) => roleAtLeast(user?.role, g.minRole))
+          .map((g) => ({ ...g, items: g.items.filter((i) => roleAtLeast(user?.role, i.minRole)) }))
+          .map((group, gi) => (
           <div key={gi}>
             {group.label && !mini && <p className="mb-2 px-3 text-[11px] font-semibold tracking-wider text-white/35 uppercase">{t(group.label)}</p>}
             {group.label && mini && <div className="mx-3 mb-2 border-t border-white/10" />}
@@ -156,7 +165,7 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
             <>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-white">{user?.displayName || user?.username}</p>
-                <p className="truncate text-[11px] text-white/40">{user?.role}</p>
+                <p className="truncate text-[11px] text-white/40">{t(`users.roles.${user?.role}`, { defaultValue: user?.role })}</p>
               </div>
               <button onClick={logout} className="rounded-md p-1.5 text-white/40 hover:bg-white/5 hover:text-white" title={t("nav.logout")} aria-label={t("nav.logout")}>
                 <LogOut className="size-4" />
