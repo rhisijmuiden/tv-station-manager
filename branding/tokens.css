@@ -1,0 +1,42 @@
+/* TV Station Manager design tokens. Source of truth: branding/tokens.json */
+:root {
+  --tvsm-signal-blue: #3B6CFF;
+  --tvsm-signal-blue-light: #5B8CFF;
+  --tvsm-signal-blue-dark: #2F4FE0;
+  --tvsm-on-air: #FF3D57;
+  --tvsm-ink: #0A0E1A;
+
+  --tvsm-success: #1DB97A;
+  --tvsm-warning: #F5A524;
+  --tvsm-danger: #FF3D57;
+  --tvsm-info: #3B6CFF;
+
+  --tvsm-bg: #F5F7FB;
+  --tvsm-surface: #FFFFFF;
+  --tvsm-surface-2: #EEF1F7;
+  --tvsm-border: #DDE2EC;
+  --tvsm-text: #0E1424;
+  --tvsm-text-muted: #5B6478;
+  --tvsm-sidebar: #0A0E1A;
+  --tvsm-sidebar-text: #C9D1E3;
+
+  --tvsm-font-sans: "Inter Variable", Inter, system-ui, sans-serif;
+  --tvsm-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+  --tvsm-radius-sm: 6px;
+  --tvsm-radius-md: 10px;
+  --tvsm-radius-lg: 14px;
+  --tvsm-radius-xl: 20px;
+  --tvsm-shadow-card: 0 1px 2px rgb(14 20 36 / 0.06), 0 4px 16px rgb(14 20 36 / 0.06);
+}
+
+:root[data-theme="dark"] {
+  --tvsm-bg: #070A13;
+  --tvsm-surface: #0F1422;
+  --tvsm-surface-2: #161D2F;
+  --tvsm-border: #232C42;
+  --tvsm-text: #E8ECF5;
+  --tvsm-text-muted: #8C96AD;
+  --tvsm-sidebar: #05070E;
+  --tvsm-shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.3);
+}

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Installs an update package for tvsm-@APP@. Runs as root via sudo (see /etc/sudoers.d/tvsm-@APP@).
+# apt runs in a transient systemd unit so it survives the restart of the service that triggered it.
+set -eu
+FILE="${1:-}"
+case "$FILE" in
+  /var/lib/tvsm/@APP@/updates/tvsm-@APP@_*.deb) ;;
+  *) echo "refusing to install $FILE" >&2; exit 2 ;;
+esac
+[ -f "$FILE" ] || { echo "missing $FILE" >&2; exit 2; }
+# Package name inside the file must match.
+[ "$(dpkg-deb -f "$FILE" Package)" = "tvsm-@APP@" ] || { echo "wrong package" >&2; exit 2; }
+exec systemd-run --unit="tvsm-@APP@-update-$(date +%s)" --collect --quiet \
+  /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get install -y --allow-downgrades "$FILE"

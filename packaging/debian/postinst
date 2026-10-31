@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+APP=@APP@
+if [ "$1" = "configure" ]; then
+  if ! getent passwd tvsm >/dev/null; then
+    adduser --system --group --home /var/lib/tvsm --no-create-home --disabled-password tvsm >/dev/null
+  fi
+  install -d -o tvsm -g tvsm -m 0750 /var/lib/tvsm "/var/lib/tvsm/$APP" "/var/lib/tvsm/$APP/updates"
+  install -d -o tvsm -g tvsm -m 0750 /etc/tvsm "/etc/tvsm/$APP"
+  if [ ! -f "/etc/tvsm/$APP/env" ]; then
+    printf '# Environment for tvsm-%s\n#TVSM_PORT=8080\n#TVSM_HOST=0.0.0.0\n' "$APP" > "/etc/tvsm/$APP/env"
+    chown tvsm:tvsm "/etc/tvsm/$APP/env"
+  fi
+  visudo -cf "/etc/sudoers.d/tvsm-$APP" >/dev/null
+  systemctl daemon-reload
+  systemctl enable "tvsm-$APP.service" >/dev/null 2>&1 || true
+  systemctl restart "tvsm-$APP.service"
+  rm -f /var/lib/tvsm/$APP/updates/*.deb 2>/dev/null || true
+  IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  echo "TV Station Manager ($APP) is running: http://${IP:-localhost}:8080"
+fi
+exit 0
