@@ -11,7 +11,7 @@ interface Studio {
   host: string;
   publicHost: string | null;
   enabled: boolean;
-  status: { connected: boolean };
+  status: { connected: boolean; channels?: number[] | null };
   ingest: { reachable: boolean; error: string | null };
 }
 interface Form {
@@ -264,7 +264,7 @@ export function RemoteSourcesPage() {
         description={t("mgmt.remote.intro")}
         actions={
           canEdit && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setEdit({ name: "", studioId: String(studios.data?.studios[0]?.id ?? ""), casparChannel: "2", atemInput: "", url: "", pull: false })}>
+            <Button icon={<Plus className="size-4" />} onClick={() => setEdit({ name: "", studioId: String(studios.data?.studios[0]?.id ?? ""), casparChannel: String(studios.data?.studios[0]?.status.channels?.[0] ?? 1), atemInput: "", url: "", pull: false })}>
               {t("mgmt.remote.add")}
             </Button>
           )
@@ -300,6 +300,7 @@ export function RemoteSourcesPage() {
                         </>
                       )}
                     </p>
+                    {s.outputError && <p className="mt-1 text-xs text-danger">{t("mgmt.remote.outputError", { message: s.outputError })}</p>}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button size="sm" variant="secondary" icon={<KeyRound className="size-3.5" />} onClick={() => setConnect(s.id)}>
@@ -384,7 +385,21 @@ export function RemoteSourcesPage() {
             )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t("mgmt.remote.form.output")} hint={t("mgmt.remote.form.outputHint")}>
-                {(id) => <Input id={id} type="number" min={1} max={16} value={edit.casparChannel} onChange={(e) => set("casparChannel", e.target.value)} />}
+                {(id) => {
+                  const chans = studioOf(Number(edit.studioId) || null)?.status.channels;
+                  return chans?.length ? (
+                    <Select id={id} value={edit.casparChannel} onChange={(e) => set("casparChannel", e.target.value)}>
+                      {!chans.includes(Number(edit.casparChannel)) && <option value={edit.casparChannel}>{t("mgmt.remote.form.missingOutput", { n: edit.casparChannel })}</option>}
+                      {chans.map((c) => (
+                        <option key={c} value={c}>
+                          {t("mgmt.remote.form.outputN", { n: c })}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input id={id} type="number" min={1} max={16} value={edit.casparChannel} onChange={(e) => set("casparChannel", e.target.value)} />
+                  );
+                }}
               </Field>
               <Field label={t("mgmt.devices.atemInput")} hint={t("mgmt.remote.form.atemHint")}>
                 {(id) => <Input id={id} type="number" min={0} value={edit.atemInput} onChange={(e) => set("atemInput", e.target.value)} />}

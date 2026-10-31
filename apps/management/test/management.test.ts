@@ -120,8 +120,9 @@ class FakeSwitcher extends EventEmitter implements SwitcherDriver {
 }
 class FakePlayout extends EventEmitter implements PlayoutDriver {
   calls: string[] = [];
+  channels: number[] | null = null;
   info() {
-    return { connected: true, version: "2.4.0" };
+    return { connected: true, version: "2.4.0", channels: this.channels };
   }
   async play(ch: number, layer: number, clip?: string, o: { loop?: boolean; seek?: number } = {}) {
     this.calls.push(`play ${ch}-${layer}${clip ? ` ${clip}` : ""}${o.loop ? " loop" : ""}${o.seek ? ` seek ${o.seek}` : ""}`);
@@ -320,6 +321,16 @@ test("remote sources: own stream key, ingest auth, DeckLink output follows the s
   await api("POST", `/api/control/${chId}/resume`);
   assert.ok(po.calls.includes("stop 2-10"));
   assert.equal((await api("GET", "/api/live-sources")).body.sources.find((x: { id: number }) => x.id === add.body.id).onOutput, false);
+
+  // A studio node with one DeckLink output: output 2 cannot be chosen or started.
+  po.channels = [1];
+  const bad = await api("POST", "/api/live-sources", { name: "Wrong output", kind: "rtmp", atemInput: 2, studioId, casparChannel: 2 });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error, "no_such_output");
+  const out = await api("POST", `/api/live-sources/${src.id}/output`, { on: true });
+  assert.equal(out.status, 502);
+  assert.match(out.body.message, /DeckLink output 2 does not exist/);
+  po.channels = null;
 
   // A new key revokes the old one.
   const oldKey = src.push.streamKey;

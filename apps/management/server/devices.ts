@@ -190,15 +190,22 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
           push: remote.pushInfo(r),
           status: remote.status(r),
           onOutput: remote.isRouted(r),
+          outputError: remote.outputError(r),
         }
       : {}),
   });
   // Editors-in-chief manage remote sources (they invite the contributors); ATEM inputs are part of the setup (admin).
+  /** A studio node that reported its CasparCG channels must have the chosen output. */
+  const checkOutput = (studioId: number | null | undefined, ch: number | null | undefined) => {
+    const channels = studioId != null && ch != null ? hub.playout(studioId)?.info().channels : null;
+    if (channels?.length && !channels.includes(ch!)) throw new HttpError(400, "no_such_output", channels.join(", "));
+  };
   const canEdit = (req: Parameters<typeof requireRole>[0], kind: string) => requireRole(req, kind === "rtmp" ? "editor" : "admin");
   app.get("/api/live-sources", async () => ({ sources: (db.prepare("SELECT * FROM live_sources ORDER BY name").all() as unknown as LiveRow[]).map(liveOut) }));
   app.post("/api/live-sources", async (req) => {
     const b = liveIn.parse(req.body);
     canEdit(req, b.kind);
+    if (b.kind === "rtmp") checkOutput(b.studioId, b.casparChannel);
     const key = b.kind === "rtmp" ? newStreamKey(b.name) : null;
     const r = db.prepare("INSERT INTO live_sources (name, kind, atem_input, studio_id, caspar_channel, url, stream_key) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.name, b.kind, b.atemInput, b.studioId ?? null, b.casparChannel ?? null, b.url || null, key);
     return { ok: true, id: Number(r.lastInsertRowid) };
@@ -208,6 +215,7 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
     const cur = liveRow(id(req));
     canEdit(req, cur.kind);
     canEdit(req, b.kind);
+    if (b.kind === "rtmp") checkOutput(b.studioId, b.casparChannel);
     const key = b.kind === "rtmp" ? (cur.stream_key ?? newStreamKey(b.name)) : null;
     if (cur.studio_id && cur.caspar_channel && (cur.studio_id !== b.studioId || cur.caspar_channel !== b.casparChannel) && remote.isRouted(cur)) await remote.unroute(cur.studio_id, cur.caspar_channel);
     db.prepare("UPDATE live_sources SET name = ?, kind = ?, atem_input = ?, studio_id = ?, caspar_channel = ?, url = ?, stream_key = ? WHERE id = ?").run(

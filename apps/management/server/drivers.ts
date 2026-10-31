@@ -40,6 +40,8 @@ export interface PlayOptions {
 export interface PlayoutInfo {
   connected: boolean;
   version: string | null;
+  /** CasparCG channel numbers (= DeckLink outputs), when known. */
+  channels?: number[] | null;
 }
 export interface PlayoutDriver extends EventEmitter {
   info(): PlayoutInfo;
@@ -132,6 +134,7 @@ type Sent = { error: Error | undefined; request: Promise<{ responseCode: number;
 export class CasparPlayout extends EventEmitter implements PlayoutDriver {
   private c: CasparCG;
   private version: string | null = null;
+  private channels: number[] | null = null;
   constructor(host: string, port: number) {
     super();
     this.c = new CasparCG({ host, port, autoConnect: true, reconnectTime: 3000 });
@@ -146,12 +149,21 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
           this.emit("change");
         })
         .catch(() => undefined);
+      void this.c
+        .info()
+        .then((r) => (r as unknown as Sent).request)
+        .then((res) => {
+          const d = res?.data as { channel: number }[] | undefined;
+          if (Array.isArray(d)) this.channels = d.map((e) => e.channel).filter((n) => Number.isInteger(n));
+          this.emit("change");
+        })
+        .catch(() => undefined);
     });
     this.c.on("disconnect", () => this.emit("change"));
     this.c.on("error", (e) => this.emit("log", e.message));
   }
   info(): PlayoutInfo {
-    return { connected: this.c.connected, version: this.c.connected ? this.version : null };
+    return { connected: this.c.connected, version: this.c.connected ? this.version : null, channels: this.c.connected ? this.channels : null };
   }
   private async send(p: Promise<unknown>) {
     if (!this.c.connected) throw new Error("CasparCG not connected");

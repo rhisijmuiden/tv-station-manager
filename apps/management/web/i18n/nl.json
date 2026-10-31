@@ -319,7 +319,8 @@
       "unsupported_file_name": "Bestandsnamen met aanhalingstekens worden niet ondersteund.",
       "live_failed": "Kon de bron niet live zetten: {{message}}",
       "output_failed": "Kon de DeckLink-uitgang niet starten: {{message}}",
-      "not_remote": "Dit is geen remote bron."
+      "not_remote": "Dit is geen remote bron.",
+      "no_such_output": "Deze studio node heeft die DeckLink-uitgang niet. Beschikbaar: {{message}}."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -452,13 +453,16 @@
         "studioHint": "De studio node waarvan de ingest-server de stream ontvangt.",
         "noStudio": "Voeg eerst een studio node toe onder",
         "output": "DeckLink-uitgang",
-        "outputHint": "De SDI-uitgang (CasparCG-kanaal) die de stream afspeelt. Kies een uitgang die de playout van een kanaal niet gebruikt, bijv. 2.",
+        "outputHint": "De SDI-uitgang (CasparCG-kanaal) die de stream afspeelt. Met één uitgang vervangt de stream de playout van het kanaal zolang hij op DeckLink staat.",
         "atemHint": "De ATEM-ingang waar deze DeckLink-uitgang op aangesloten is.",
         "advanced": "Geavanceerd",
         "pull": "In plaats daarvan ophalen van een URL",
         "pullHint": "CasparCG haalt de stream zelf op (srt://, rtmp://, udp://, rtsp://, https://), bijv. van een encoder die niet kan pushen. Er is dan geen streamkey nodig.",
-        "keyNote": "De streamkey wordt gemaakt als je opslaat; de verbindingsgegevens openen daarna meteen."
-      }
+        "keyNote": "De streamkey wordt gemaakt als je opslaat; de verbindingsgegevens openen daarna meteen.",
+        "outputN": "Uitgang {{n}}",
+        "missingOutput": "Uitgang {{n}} (bestaat niet)"
+      },
+      "outputError": "CasparCG startte de stream niet: {{message}}. Elke 30 seconden opnieuw geprobeerd."
     }
   }
 }
