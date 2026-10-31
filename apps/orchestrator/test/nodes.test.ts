@@ -72,6 +72,20 @@ test("node enrollment, approval, heartbeat and commands", async () => {
   assert.ok(detail.body.events.some((e: { type: string }) => e.type === "approved"));
   assert.equal(detail.body.node.metrics.cpuPercent, 12.5);
 
+  // Studio nodes report CasparCG / ingest; a malformed studio block is dropped, not the heartbeat.
+  const studio = {
+    casparcg: { service: "running", connected: true, version: "2.4.0 Stable", channels: [{ id: 1, format: "1080i5000", status: "PLAYING" }] },
+    ingest: { service: "running", rtmpUrl: "rtmp://10.40.5.11/live", streams: [{ name: "live/remote1", ready: true, readers: 1, tracks: ["H264", "MPEG-4 Audio"] }] },
+    outputs: [{ device: 1, channel: 1, format: "1080i5000" }],
+    mediaPath: "\\\\unas\\TV",
+    mediaReachable: true,
+  };
+  assert.equal((await call("POST", "/agent-api/v1/heartbeat", { ...facts, metrics: { ...metrics, studio } }, auth)).status, 200);
+  assert.equal((await call("GET", `/api/nodes/${nodeId}`)).body.node.metrics.studio.ingest.streams[0].name, "live/remote1");
+  assert.equal((await call("POST", "/agent-api/v1/heartbeat", { ...facts, metrics: { ...metrics, studio: { casparcg: "bad" } } }, auth)).status, 200);
+  assert.equal((await call("GET", `/api/nodes/${nodeId}`)).body.node.metrics.studio, undefined);
+  assert.equal((await call("POST", `/api/nodes/${nodeId}/commands`, { type: "restart-casparcg" })).body.status, "queued");
+
   // Removing the node revokes it.
   await call("DELETE", `/api/nodes/${nodeId}`);
   assert.equal((await call("POST", "/agent-api/v1/heartbeat", { ...facts, metrics }, auth)).status, 401);

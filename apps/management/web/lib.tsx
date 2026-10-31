@@ -86,6 +86,7 @@ export interface Graphics {
   clock: { enabled: boolean; position: Position };
   upNext: { enabled: boolean; secondsBeforeEnd: number; durationSeconds: number };
   ticker: { enabled: boolean; text: string };
+  subtitles: { enabled: boolean; size: "small" | "medium" | "large" };
   hideInCommercials: boolean;
 }
 export interface MediaItem {
@@ -105,6 +106,7 @@ export interface MediaItem {
   probeStatus: "pending" | "ok" | "failed" | "manual";
   probeError: string | null;
   missing: boolean;
+  subtitlePath: string | null;
 }
 export interface BlockSummary {
   id: number;

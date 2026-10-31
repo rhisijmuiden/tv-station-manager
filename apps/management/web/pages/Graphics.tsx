@@ -32,6 +32,13 @@ function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null;
           </span>
         </div>
       )}
+      {g.enabled && g.subtitles.enabled && (
+        <div className="absolute right-[8%] bottom-[14%] left-[8%] text-center">
+          <span className={cx("inline-block rounded px-2 py-0.5 font-semibold", g.subtitles.size === "small" ? "text-[11px]" : g.subtitles.size === "large" ? "text-base" : "text-sm")} style={{ background: "rgb(10 14 26 / 0.72)" }}>
+            {t("mgmt.graphics.subtitleExample")}
+          </span>
+        </div>
+      )}
       {g.enabled && g.ticker.enabled && g.ticker.text && (
         <div className="absolute right-0 bottom-0 left-0 truncate border-t-2 border-brand px-4 py-1.5 text-xs sm:text-sm" style={{ background: "rgb(10 14 26 / 0.9)" }}>
           {g.ticker.text}
@@ -149,6 +156,16 @@ export function GraphicsPage() {
             <div className="space-y-3 border-t border-line pt-4">
               <Switch checked={g.ticker.enabled} onChange={(v) => setG({ ...g, ticker: { ...g.ticker, enabled: v } })} label={t("mgmt.graphics.ticker")} />
               <Textarea className="min-h-16 font-sans text-sm" value={g.ticker.text} placeholder={t("mgmt.graphics.tickerPlaceholder")} onChange={(e) => setG({ ...g, ticker: { ...g.ticker, text: e.target.value } })} />
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+              <Switch checked={g.subtitles.enabled} onChange={(v) => setG({ ...g, subtitles: { ...g.subtitles, enabled: v } })} label={t("mgmt.graphics.subtitles")} description={t("mgmt.graphics.subtitlesHint")} />
+              <Select className="h-8 w-auto! text-[13px]" value={g.subtitles.size} onChange={(e) => setG({ ...g, subtitles: { ...g.subtitles, size: e.target.value as Graphics["subtitles"]["size"] } })}>
+                {(["small", "medium", "large"] as const).map((sz) => (
+                  <option key={sz} value={sz}>
+                    {t(`mgmt.graphics.size_${sz}`)}
+                  </option>
+                ))}
+              </Select>
             </div>
             <details className="border-t border-line pt-4 text-sm">
               <summary className="cursor-pointer font-medium">{t("mgmt.graphics.advanced")}</summary>

@@ -189,6 +189,7 @@ test("director: plays the schedule on CasparCG and switches the ATEM", async () 
   const media = join(root, "media");
   mkdirSync(join(media, "Reclame"), { recursive: true });
   writeFileSync(join(media, "show.mp4"), "x");
+  writeFileSync(join(media, "show.srt"), "1\n00:00:00,500 --> 00:00:02,000\nWelkom\n");
   writeFileSync(join(media, "Reclame", "spot.mp4"), "x");
   // Local source; durations are set by hand because the files are not real video.
   const src = await api("POST", "/api/media/sources", { name: "Test", type: "local", config: { path: media } });
@@ -232,6 +233,13 @@ test("director: plays the schedule on CasparCG and switches the ATEM", async () 
   await run(t0 + 100);
   assert.ok(po.calls.includes("play 1-10"), po.calls.join("\n"));
   assert.equal(sw.programIn, 1);
+  // Subtitles: sidecar show.srt found by the scan, timed from the clip's first frame.
+  assert.equal(show.subtitlePath, "show.srt");
+  const subs = d.status(p.ctx.db.prepare("SELECT * FROM channels").get() as never).graphics.subtitles;
+  assert.equal(subs.enabled, true);
+  assert.equal(subs.clipStart, t0);
+  const cues = await api("GET", new URL(subs.url).pathname);
+  assert.deepEqual(cues.body.cues, [{ s: 500, e: 2000, t: "Welkom" }]);
   await run(t0 + 61_000); // in the ad break: logo hidden
   assert.equal(d.status((p.ctx.db.prepare("SELECT * FROM channels").get() as never)).graphics.hidden, true);
   po.calls.length = 0;
@@ -245,4 +253,27 @@ test("director: plays the schedule on CasparCG and switches the ATEM", async () 
   const epg = await api("GET", `/epg/xmltv.xml?token=${settings.body.epgToken}`);
   assert.equal(epg.status, 200);
   assert.equal((await api("GET", "/epg/xmltv.xml?token=wrong")).status, 403);
+});
+
+test("subtitles: parse srt/vtt, match sidecar files, decode windows-1252", async () => {
+  const { parseSubtitles, matchSubtitles } = await import("../server/subtitles.ts");
+  const { decodeText } = await import("../server/media.ts");
+  const srt = "\uFEFF1\r\n00:00:01,000 --> 00:00:03,500\r\n<i>Hallo</i> daar\r\nTweede regel\r\n\r\n2\r\n00:01:02,25 --> 00:01:04,000\r\nKlaar\r\n\r\n3\r\nbroken\r\n";
+  assert.deepEqual(parseSubtitles(srt), [
+    { s: 1000, e: 3500, t: "Hallo daar\nTweede regel" },
+    { s: 62250, e: 64000, t: "Klaar" },
+  ]);
+  const vtt = "WEBVTT\n\nNOTE x\n\nintro\n00:05.000 --> 00:06.000 align:center\nVTT cue\n\n01:00:00.000 --> 01:00:01.000\nLate";
+  assert.deepEqual(parseSubtitles(vtt), [
+    { s: 5000, e: 6000, t: "VTT cue" },
+    { s: 3600_000, e: 3601_000, t: "Late" },
+  ]);
+  const m = matchSubtitles(["Programmas/Journaal.mp4", "Programmas/Film.mov", "Reclame/A.mov"], ["programmas/JOURNAAL.en.srt", "Programmas/Journaal.nl.srt", "Programmas/Film.vtt", "Programmas/Film.srt", "Other.srt"]);
+  assert.equal(m.get("Programmas/Journaal.mp4"), "Programmas/Journaal.nl.srt");
+  assert.equal(m.get("Programmas/Film.mov"), "Programmas/Film.srt");
+  assert.equal(m.has("Reclame/A.mov"), false);
+  assert.equal(decodeText(Buffer.from([0x63, 0x61, 0x66, 0xe9])), "café");
+  assert.equal(decodeText(Buffer.from("café", "utf8")), "café");
+  const listing = parseSmbListing("\\TV\r\n  Show.mp4    A 10  Fri Oct 30 09:15:42 2026\r\n  Show.srt    A 2  Fri Oct 30 09:15:42 2026\r\n", "TV");
+  assert.deepEqual(listing.map((f) => f.path), ["Show.mp4", "Show.srt"]);
 });

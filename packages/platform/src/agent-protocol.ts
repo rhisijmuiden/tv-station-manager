@@ -4,7 +4,7 @@ export const AGENT_API = "/agent-api/v1";
 
 export type NodeRole = "unassigned" | "management" | "studio" | "other";
 export type NodeStatus = "pending" | "approved" | "rejected";
-export type CommandType = "restart-agent" | "reboot" | "update-agent";
+export type CommandType = "restart-agent" | "reboot" | "update-agent" | "restart-casparcg" | "restart-ingest";
 
 export interface NodeFacts {
   hostname: string;
@@ -25,6 +25,29 @@ export interface NodeMetrics {
   disks: { mount: string; total: number; used: number }[];
   uptimeSeconds: number;
   agentUptimeSeconds: number;
+  /** Only on studio nodes (Windows + CasparCG), set up with install-studio.ps1. */
+  studio?: StudioStatus;
+}
+
+export interface StudioStatus {
+  casparcg: {
+    /** Windows service state, e.g. "running", "stopped", "missing". */
+    service: string;
+    /** AMCP (TCP 5250) answers. */
+    connected: boolean;
+    version: string | null;
+    channels: { id: number; format: string; status: string }[];
+  };
+  ingest: {
+    service: string;
+    /** Push URL for remote contributors, e.g. rtmp://10.40.5.11/live (stream key = name). */
+    rtmpUrl: string | null;
+    streams: { name: string; ready: boolean; readers: number; tracks: string[] }[];
+  };
+  /** DeckLink outputs as configured in casparcg.config (device -> CasparCG channel). */
+  outputs: { device: number; channel: number; format: string }[];
+  mediaPath: string | null;
+  mediaReachable: boolean | null;
 }
 
 export interface EnrollRequest extends NodeFacts {}

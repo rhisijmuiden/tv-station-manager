@@ -1,11 +1,12 @@
 import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { SUB_EXT, matchSubtitles, parseSubtitles, type Cue } from "./subtitles.js";
 
 /**
  * Media library. Files are read from the UniFi UNAS Pro (or any SMB server) with `smbclient`, which works inside
@@ -57,7 +58,7 @@ export function guessCategory(path: string): "program" | "commercial" | "jingle"
   return "program";
 }
 
-/** Parses `smbclient -c "recurse ON; ls"` output into files (paths relative to `base`). */
+/** Parses `smbclient -c "recurse ON; ls"` output into video and subtitle files (paths relative to `base`). */
 export function parseSmbListing(out: string, base = ""): ListedFile[] {
   const files: ListedFile[] = [];
   let dir = "";
@@ -73,7 +74,7 @@ export function parseSmbListing(out: string, base = ""): ListedFile[] {
     if (!m) continue;
     const [, name, attrs, size, date] = m;
     if (!name || name === "." || name === ".." || attrs!.includes("D")) continue;
-    if (!VIDEO_EXT.test(name)) continue;
+    if (!VIDEO_EXT.test(name) && !SUB_EXT.test(name)) continue;
     const t = new Date(date!.replace(/\s+/g, " "));
     files.push({ path: dir ? `${dir}/${name}` : name, size: Number(size), mtime: Number.isNaN(t.getTime()) ? date! : t.toISOString() });
   }
@@ -150,7 +151,7 @@ export function listLocal(root: string): ListedFile[] {
       if (e.name.startsWith(".")) continue;
       const full = join(dir, e.name);
       if (e.isDirectory()) walk(full, depth + 1);
-      else if (e.isFile() && VIDEO_EXT.test(e.name)) {
+      else if (e.isFile() && (VIDEO_EXT.test(e.name) || SUB_EXT.test(e.name))) {
         const st = statSync(full);
         files.push({ path: relative(root, full).split(sep).join("/"), size: st.size, mtime: st.mtime.toISOString() });
       }
@@ -209,6 +210,39 @@ async function probeSmb(cfg: SmbConfig, path: string) {
   });
 }
 
+/** Reads a small file (subtitles) from the share. */
+async function readSmb(cfg: SmbConfig, path: string): Promise<Buffer> {
+  return withAuthFile(cfg, (args) => {
+    const full = cfg.path ? `${cfg.path.replace(/\/+$/, "")}/${path}` : path;
+    return new Promise<Buffer>((resolve, reject) => {
+      const p = spawn("smbclient", [...args, "-c", `get ${smbQuote(full)} -`], { stdio: ["ignore", "pipe", "pipe"] });
+      const chunks: Buffer[] = [];
+      let err = "";
+      const timer = setTimeout(() => p.kill("SIGKILL"), 60_000);
+      p.stdout.on("data", (d: Buffer) => chunks.push(d));
+      p.stderr.on("data", (d) => (err += d));
+      p.on("error", (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+      p.on("close", (code) => {
+        clearTimeout(timer);
+        if (code === 0) resolve(Buffer.concat(chunks));
+        else reject(new Error(smbError(err, "")));
+      });
+    });
+  });
+}
+
+/** Subtitle files are often saved in Windows-1252 rather than UTF-8. */
+export function decodeText(buf: Buffer) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buf);
+  }
+}
+
 interface SourceRow {
   id: number;
   name: string;
@@ -260,20 +294,29 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     const row = getRow(id);
     db.prepare("UPDATE media_sources SET scan_status = 'scanning', last_error = NULL WHERE id = ?").run(id);
     try {
-      const files = await list(row);
+      const listed = await list(row);
+      const files = listed.filter((f) => VIDEO_EXT.test(f.path));
+      const subtitles = matchSubtitles(
+        files.map((f) => f.path),
+        listed.filter((f) => SUB_EXT.test(f.path)).map((f) => f.path),
+      );
       const seen = new Set<string>();
       db.exec("BEGIN");
       try {
         const find = db.prepare("SELECT id, size, mtime FROM media WHERE source_id = ? AND path = ?");
-        const ins = db.prepare("INSERT INTO media (source_id, path, name, folder, size, mtime, category) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        const ins = db.prepare("INSERT INTO media (source_id, path, name, folder, size, mtime, category, subtitle_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        const sub = db.prepare("UPDATE media SET subtitle_path = ? WHERE id = ?");
         const upd = db.prepare("UPDATE media SET size = ?, mtime = ?, missing = 0, probe_status = CASE WHEN probe_status = 'manual' THEN 'manual' WHEN size IS ? AND mtime IS ? THEN probe_status ELSE 'pending' END WHERE id = ?");
         for (const f of files) {
           seen.add(f.path);
           const cur = find.get(id, f.path) as { id: number; size: number; mtime: string } | undefined;
           const slash = f.path.lastIndexOf("/");
           const name = f.path.slice(slash + 1).replace(/\.[^.]+$/, "");
-          if (!cur) ins.run(id, f.path, name, slash > 0 ? f.path.slice(0, slash) : "", f.size, f.mtime, guessCategory(f.path));
-          else upd.run(f.size, f.mtime, f.size, f.mtime, cur.id);
+          if (!cur) ins.run(id, f.path, name, slash > 0 ? f.path.slice(0, slash) : "", f.size, f.mtime, guessCategory(f.path), subtitles.get(f.path) ?? null);
+          else {
+            upd.run(f.size, f.mtime, f.size, f.mtime, cur.id);
+            sub.run(subtitles.get(f.path) ?? null, cur.id);
+          }
         }
         const all = db.prepare("SELECT id, path FROM media WHERE source_id = ? AND missing = 0").all(id) as { id: number; path: string }[];
         const miss = db.prepare("UPDATE media SET missing = 1 WHERE id = ?");
@@ -373,7 +416,7 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
       cfg = { ...b.config, password: existingId ? String((readConfig(getRow(existingId)) as SmbConfig).password) : "" };
     }
     const started = Date.now();
-    const files = b.type === "smb" ? await listSmb(cfg as SmbConfig) : listLocal((cfg as { path: string }).path);
+    const files = (b.type === "smb" ? await listSmb(cfg as SmbConfig) : listLocal((cfg as { path: string }).path)).filter((f) => VIDEO_EXT.test(f.path));
     return { ok: true, files: files.length, sample: files.slice(0, 5).map((f) => f.path), ms: Date.now() - started };
   });
 
@@ -407,7 +450,7 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     const items = db
       .prepare(
         `SELECT m.id, m.source_id AS sourceId, m.path, m.name, m.title, m.folder, m.size, m.mtime, m.duration_ms AS durationMs, m.fps, m.width, m.height, m.codec,
-                m.category, m.probe_status AS probeStatus, m.probe_error AS probeError, m.missing
+                m.category, m.probe_status AS probeStatus, m.probe_error AS probeError, m.missing, m.subtitle_path AS subtitlePath
            FROM media m WHERE ${w} ORDER BY m.folder COLLATE NOCASE, m.name COLLATE NOCASE LIMIT ? OFFSET ?`,
       )
       .all(...args, q.limit, q.offset)
@@ -448,6 +491,31 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     for (const id of b.ids) st.run(b.category, id);
     onChange();
     return { ok: true };
+  });
+
+  // ---- subtitles ---------------------------------------------------------------
+
+  const cueCache = new Map<string, Cue[]>();
+  const cues = async (mediaId: number): Promise<Cue[]> => {
+    const m = db.prepare("SELECT source_id, subtitle_path, mtime FROM media WHERE id = ?").get(mediaId) as { source_id: number; subtitle_path: string | null; mtime: string | null } | undefined;
+    if (!m?.subtitle_path) throw new HttpError(404, "not_found");
+    const key = `${mediaId}:${m.subtitle_path}:${m.mtime}`;
+    const hit = cueCache.get(key);
+    if (hit) return hit;
+    const row = getRow(m.source_id);
+    const cfg = readConfig(row);
+    const text = decodeText(row.type === "smb" ? await readSmb(cfg as SmbConfig, m.subtitle_path) : readFileSync(join((cfg as { path: string }).path, m.subtitle_path)));
+    const parsed = parseSubtitles(text);
+    if (cueCache.size > 50) cueCache.delete(cueCache.keys().next().value!);
+    cueCache.set(key, parsed);
+    return parsed;
+  };
+
+  /** Public: the CasparCG overlay on the studio node loads the cues of the clip on air from here. */
+  app.get("/graphics/subtitles/:id", async (req, reply) => {
+    const list = await cues(Number((req.params as { id: string }).id));
+    reply.header("Access-Control-Allow-Origin", "*").header("Cache-Control", "max-age=60");
+    return { cues: list };
   });
 
   return { scan, probeQueue };

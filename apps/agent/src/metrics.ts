@@ -3,6 +3,7 @@ import { cpus, freemem, hostname, loadavg, networkInterfaces, release, totalmem,
 import { readFileSync } from "node:fs";
 import type { NodeFacts, NodeMetrics } from "@tvsm/platform/agent-protocol";
 import { AGENT_VERSION } from "./config.js";
+import { readStudioConfig, studioStatus } from "./studio.js";
 
 let lastCpu = cpuTimes();
 const started = Date.now();
@@ -68,6 +69,7 @@ export async function metrics(): Promise<NodeMetrics> {
   const dTotal = now.total - lastCpu.total;
   const dIdle = now.idle - lastCpu.idle;
   lastCpu = now;
+  const studio = readStudioConfig();
   return {
     cpuCount: cpus().length,
     cpuPercent: dTotal > 0 ? Math.round((1 - dIdle / dTotal) * 1000) / 10 : 0,
@@ -77,5 +79,6 @@ export async function metrics(): Promise<NodeMetrics> {
     disks: await disks(),
     uptimeSeconds: Math.round(uptime()),
     agentUptimeSeconds: Math.round((Date.now() - started) / 1000),
+    ...(studio ? { studio: await studioStatus(studio) } : {}),
   };
 }

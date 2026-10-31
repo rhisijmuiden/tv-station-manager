@@ -117,7 +117,8 @@
       "resolution": "Resolutie",
       "size": "Grootte",
       "pick": "Media kiezen",
-      "selected": "geselecteerd"
+      "selected": "geselecteerd",
+      "subtitles": "Ondertitels"
     },
     "blocks": {
       "title": "TV-blokken",
@@ -192,7 +193,7 @@
       "copy": "Kopiëren",
       "copied": "Gekopieerd",
       "publicUrl": "Openbaar adres van deze server",
-      "publicUrlHint": "Bijvoorbeeld https://manager.example.com achter de reverse proxy. Wordt ook door de studio-node gebruikt om het logo te laden.",
+      "publicUrlHint": "Bijvoorbeeld https://manager.example.com achter de reverse proxy. Wordt ook door de studio-node gebruikt om het logo en de ondertitels te laden.",
       "days": "Dagen vooruit",
       "regenerate": "Nieuwe link",
       "regenerateConfirm": "De huidige link werkt dan niet meer. Doorgaan?"
@@ -225,7 +226,13 @@
         "top-right": "Rechtsboven",
         "bottom-left": "Linksonder",
         "bottom-right": "Rechtsonder"
-      }
+      },
+      "subtitles": "Ondertitels",
+      "subtitlesHint": "Toont een .srt- of .vtt-bestand met dezelfde naam als de clip (bijv. Show.srt of Show.nl.srt naast Show.mp4).",
+      "subtitleExample": "Zo ziet een ondertitel eruit",
+      "size_small": "Klein",
+      "size_medium": "Middel",
+      "size_large": "Groot"
     },
     "channels": {
       "title": "Kanalen",
