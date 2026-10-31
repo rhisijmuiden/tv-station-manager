@@ -56,7 +56,7 @@ const HEARTBEAT_SECONDS = 10;
 const OFFLINE_AFTER_SECONDS = 45;
 const MAX_PENDING = 50;
 const ROLES = ["unassigned", "management", "studio", "other"] as const;
-const COMMANDS = ["restart-agent", "reboot", "update-agent"] as const;
+const COMMANDS = ["restart-agent", "reboot", "update-agent", "restart-casparcg", "restart-ingest"] as const;
 
 const hashSecret = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -77,6 +77,26 @@ const metricsSchema = z.object({
   disks: z.array(z.object({ mount: z.string().max(255), total: z.number(), used: z.number() })).max(64),
   uptimeSeconds: z.number(),
   agentUptimeSeconds: z.number(),
+  studio: z
+    .object({
+      casparcg: z.object({
+        service: z.string().max(40),
+        connected: z.boolean(),
+        version: z.string().max(200).nullable(),
+        channels: z.array(z.object({ id: z.number().int(), format: z.string().max(40), status: z.string().max(80) })).max(32),
+      }),
+      ingest: z.object({
+        service: z.string().max(40),
+        rtmpUrl: z.string().max(500).nullable(),
+        streams: z.array(z.object({ name: z.string().max(200), ready: z.boolean(), readers: z.number().int(), tracks: z.array(z.string().max(40)).max(16) })).max(100),
+      }),
+      outputs: z.array(z.object({ device: z.number().int(), channel: z.number().int(), format: z.string().max(40) })).max(16),
+      mediaPath: z.string().max(1000).nullable(),
+      mediaReachable: z.boolean().nullable(),
+    })
+    .optional()
+    // A malformed studio block must never cost the node its heartbeat.
+    .catch(undefined),
 });
 const heartbeatSchema = factsSchema.extend({
   metrics: metricsSchema,

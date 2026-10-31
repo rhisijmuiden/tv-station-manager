@@ -1,18 +1,69 @@
 # Studio node (Windows)
 
-The studio node runs **CasparCG Server** with a Blackmagic DeckLink card (4 SDI outputs, up to 2 TV channels).
-The management node controls it over AMCP (TCP 5250): it plays clips from the UNAS share, starts RTMP streams and
-drives the graphics overlay. Full installer follows in step 4; until then, set it up by hand:
+A studio node is a Windows PC with a Blackmagic DeckLink card (4 SDI outputs, up to 2 TV channels). It runs:
 
-1. Install CasparCG Server 2.4+ and the DeckLink Desktop Video driver.
-2. In `casparcg.config`:
-   - `<media>`: the UNAS share root, the same folder the management node scans (e.g. `\\unas\TV\`). Clip names in
-     the management node are paths relative to that folder.
-   - `<template-path>`: a folder that contains `casparcg-templates/tvsm` from this repository (the overlay template).
-   - One `<channel>` per output, each with a `<decklink><device>N</device></decklink>` consumer. Typical layout:
-     channel 1 = TV 1 playout (DeckLink 1), channel 2 = TV 1 live/RTMP (DeckLink 2), channel 3 = TV 2 playout, channel 4 = TV 2 live.
-3. Allow TCP 5250 from the management node in the Windows firewall.
-4. Install the TV Station Manager agent (`packaging/windows/install-agent.ps1`) so the orchestrator monitors it.
+| Service | What | Port |
+| --- | --- | --- |
+| `tvsm-agent` | TV Station Manager agent: registers with the orchestrator, reports CasparCG / ingest / media share status, runs commands (update, restart CasparCG, restart ingest, reboot) | outbound only |
+| `tvsm-casparcg` | CasparCG Server 2.4: plays clips from the UNAS share, RTMP streams and the graphics overlay to the DeckLink outputs. Controlled by the management node over AMCP | TCP 5250 (management node only) |
+| `tvsm-ingest` | MediaMTX: receives RTMP/SRT pushes from remote sources, CasparCG plays them from `rtmp://127.0.0.1/live/<name>` | TCP 1935, UDP 8890 |
 
-In the management node: **Devices → Studio nodes** (host + port 5250), then **Channels** (CasparCG channel, ATEM input
-each DeckLink output is cabled to). The overlay can be previewed in a browser with `overlay.html?demo`.
+## Install
+
+1. Install **Blackmagic Desktop Video** (DeckLink driver) and reboot.
+2. In an elevated PowerShell:
+
+   ```powershell
+   iwr -useb https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/windows/install-studio.ps1 -OutFile $env:TEMP\install-studio.ps1
+   & $env:TEMP\install-studio.ps1 -Orchestrator http://<orchestrator>:8080 -ManagementHost <management-ip> -MediaPath \\<unas>\<share> -SmbUser <user>
+   ```
+
+   Use `test` instead of `production` in the URL plus `-Channel test` for the test channel. Other options:
+   `-Outputs 4` (DeckLink outputs = CasparCG channels), `-VideoMode 1080i5000` (`1080p5000`, `720p5000`, ...),
+   `-PublicHost` (address shown in the RTMP push URL), `-CasparVersion 2.4`, `-MediaMtxVersion latest`, `-SkipAgent`.
+   The script asks for the share password and stores it encrypted for this machine (DPAPI).
+3. Approve the node in the orchestrator (**Nodes**) and give it the role **studio**. The node page then shows
+   CasparCG, the DeckLink outputs, incoming streams and whether the media share is reachable.
+
+Running the installer again updates CasparCG/MediaMTX and rewrites the configuration (the old `casparcg.config` is
+kept as `casparcg.config.bak`). Agent updates (orchestrator → node → Update agent) also update the overlay template,
+because CasparCG loads it straight from `%ProgramFiles%\TVSM\agent\studio\templates`.
+
+## Channel layout
+
+CasparCG channel N plays to DeckLink output N. The usual layout for two TV channels:
+
+| CasparCG channel | DeckLink / SDI | Use |
+| --- | --- | --- |
+| 1 | 1 | TV 1 playout (+ overlay) |
+| 2 | 2 | TV 1 live / RTMP |
+| 3 | 3 | TV 2 playout (+ overlay) |
+| 4 | 4 | TV 2 live / RTMP |
+
+## Management node settings
+
+1. **Devices → Studio nodes**: host = this machine, port 5250.
+2. **Channels**: per TV channel the CasparCG channel, and the ATEM input each DeckLink output is cabled to.
+3. **Devices → Live sources** (RTMP): studio node, CasparCG channel (e.g. 2) and URL `rtmp://127.0.0.1/live/<name>`.
+4. **EPG → Public address of this server** must be reachable from the studio node: the overlay loads the logo and subtitles from it.
+
+Remote contributors push to `rtmp://<studio node>/live` with stream key `<name>?user=publish&pass=<password>`
+(the installer prints the password; it is in `%ProgramData%\TVSM\studio\studio.json`). SRT works too:
+`srt://<studio node>:8890?streamid=publish:live/<name>:publish:<password>`.
+
+## Graphics overlay
+
+`casparcg-templates/tvsm/overlay.html` is an HTML template (1920×1080, transparent): logo, clock, "up next" bar,
+news ticker and subtitles. The management node loads it with `CG ADD` on layer 20 and updates it with `CG UPDATE`.
+Preview it in a browser with `overlay.html?demo`.
+
+Subtitles come from a `.srt` or `.vtt` file next to the clip with the same name (`Show.mp4` + `Show.srt`, or
+`Show.nl.srt`). The media scan finds them; the overlay times the cues from the clip's start, so the studio node and
+the management node must have NTP-synced clocks (Windows Time / systemd-timesyncd).
+
+## Files
+
+- `%ProgramFiles%\TVSM\agent`: agent, WinSW, `studio\start-casparcg.ps1` (CasparCG launcher) and templates.
+- `%ProgramFiles%\TVSM\casparcg`: CasparCG Server and `casparcg.config` (generated).
+- `%ProgramFiles%\TVSM\ingest`: MediaMTX.
+- `%ProgramData%\TVSM\studio`: `studio.json`, `smb.cred`, `mediamtx.yml`, `logs\` (SYSTEM and Administrators only).

@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, Mono, PageHeader, Select, Textarea, cx, del, formatBytes, get, post, put } from "@tvsm/ui";
-import { Clock, Cpu, HardDrive, MemoryStick, Plus, Power, RefreshCw, RotateCw, ShieldCheck, Trash2, X } from "lucide-react";
+import { Clapperboard, Clock, Cpu, HardDrive, MemoryStick, Plus, Power, Radio, RefreshCw, RotateCw, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +11,14 @@ interface Metrics {
   memUsed: number;
   disks: { mount: string; total: number; used: number }[];
   uptimeSeconds: number;
+  studio?: StudioStatus;
+}
+interface StudioStatus {
+  casparcg: { service: string; connected: boolean; version: string | null; channels: { id: number; format: string; status: string }[] };
+  ingest: { service: string; rtmpUrl: string | null; streams: { name: string; ready: boolean; readers: number; tracks: string[] }[] };
+  outputs: { device: number; channel: number; format: string }[];
+  mediaPath: string | null;
+  mediaReachable: boolean | null;
 }
 export interface NodeInfo {
   id: string;
@@ -36,6 +44,108 @@ interface Detail {
   commands: { id: number; type: string; status: string; result: string | null; createdAt: string }[];
 }
 const ROLES: Role[] = ["management", "studio", "other", "unassigned"];
+
+/** CasparCG, DeckLink outputs, RTMP ingest and media share of a studio node. */
+function StudioPanel({ s, onCommand, approved }: { s: StudioStatus; onCommand: (type: string) => void; approved: boolean }) {
+  const { t } = useTranslation();
+  const svc = (state: string) => (
+    <Badge tone={state === "running" ? "ok" : state === "missing" ? "neutral" : "danger"}>{t(`orch.studio.svc_${state}`, { defaultValue: state })}</Badge>
+  );
+  const chan = (id: number) => s.casparcg.channels.find((c) => c.id === id);
+  return (
+    <div className="mt-6 border-t border-line pt-5">
+      <p className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold">
+        <Clapperboard className="size-4" /> {t("orch.studio.title")}
+      </p>
+      <div className="grid gap-6 md:grid-cols-2">
+        <dl className="divide-y divide-line text-sm">
+          <div className="flex items-center justify-between gap-4 py-2">
+            <dt className="text-muted">CasparCG</dt>
+            <dd className="flex items-center gap-2">
+              {svc(s.casparcg.service)}
+              <Badge tone={s.casparcg.connected ? "ok" : "danger"}>{s.casparcg.connected ? t("orch.studio.amcpUp") : t("orch.studio.amcpDown")}</Badge>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2">
+            <dt className="text-muted">{t("orch.studio.version")}</dt>
+            <dd>
+              <Mono>{s.casparcg.version ?? "–"}</Mono>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2">
+            <dt className="text-muted">{t("orch.studio.ingest")}</dt>
+            <dd>{svc(s.ingest.service)}</dd>
+          </div>
+          {s.ingest.rtmpUrl && (
+            <div className="flex items-center justify-between gap-4 py-2">
+              <dt className="text-muted">{t("orch.studio.rtmpUrl")}</dt>
+              <dd>
+                <Mono>{s.ingest.rtmpUrl}</Mono>
+              </dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4 py-2">
+            <dt className="text-muted">{t("orch.studio.media")}</dt>
+            <dd className="flex items-center gap-2">
+              <Mono>{s.mediaPath ?? "–"}</Mono>
+              {s.mediaReachable != null && <Badge tone={s.mediaReachable ? "ok" : "danger"}>{s.mediaReachable ? t("orch.studio.reachable") : t("orch.studio.unreachable")}</Badge>}
+            </dd>
+          </div>
+        </dl>
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs text-muted">{t("orch.studio.outputs")}</p>
+            <ul className="space-y-1.5 text-sm">
+              {s.outputs.length === 0 && <li className="text-muted">{t("orch.studio.noOutputs")}</li>}
+              {s.outputs.map((o) => (
+                <li key={o.device} className="flex items-center gap-2">
+                  <Mono>SDI {o.device}</Mono>
+                  <span className="text-muted">→</span>
+                  <span>
+                    {t("orch.studio.channel")} {o.channel}
+                  </span>
+                  <Mono>{chan(o.channel)?.format ?? o.format}</Mono>
+                  <span className="ml-auto">
+                    <Badge tone={chan(o.channel) ? "ok" : "neutral"}>{chan(o.channel)?.status ?? t("orch.studio.unknown")}</Badge>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-xs text-muted">
+              <Radio className="size-3.5" /> {t("orch.studio.streams")}
+            </p>
+            <ul className="space-y-1.5 text-sm">
+              {s.ingest.streams.length === 0 && <li className="text-muted">{t("orch.studio.noStreams")}</li>}
+              {s.ingest.streams.map((st) => (
+                <li key={st.name} className="flex items-center gap-2">
+                  <Mono>{st.name}</Mono>
+                  <span className="text-xs text-muted">{st.tracks.join(", ")}</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    {st.readers > 0 && <Badge tone="brand">{t("orch.studio.onAir")}</Badge>}
+                    <Badge tone={st.ready ? "ok" : "neutral"}>{st.ready ? t("orch.studio.live") : t("orch.studio.waiting")}</Badge>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+      {approved && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" icon={<RotateCw className="size-4" />} onClick={() => onCommand("restart-casparcg")}>
+            {t("orch.studio.restartCaspar")}
+          </Button>
+          <Button size="sm" variant="secondary" icon={<RotateCw className="size-4" />} onClick={() => onCommand("restart-ingest")}>
+            {t("orch.studio.restartIngest")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function useAgo() {
   const { t } = useTranslation();
@@ -89,6 +199,7 @@ function InstallDialog({ open, onClose, install }: { open: boolean; onClose: () 
   const repo = install?.repository ?? "rhisijmuiden/tv-station-manager";
   const raw = `https://raw.githubusercontent.com/${repo}/${channel}/packaging`;
   const linux = `curl -fsSL ${raw}/install.sh | sudo bash -s -- agent --channel ${channel} --repo ${repo} --orchestrator ${url}`;
+  const studio = `iwr -useb ${raw}/windows/install-studio.ps1 -OutFile $env:TEMP\\install-studio.ps1; & $env:TEMP\\install-studio.ps1 -Orchestrator ${url} -Channel ${channel} -Repo ${repo} -MediaPath \\\\<unas>\\<share> -SmbUser <user> -ManagementHost <management-ip>`;
   const win = `iwr -useb ${raw}/windows/install-agent.ps1 -OutFile $env:TEMP\\install-agent.ps1; & $env:TEMP\\install-agent.ps1 -Orchestrator ${url} -Channel ${channel} -Repo ${repo}`;
   const Block = ({ title, cmd, hint }: { title: string; cmd: string; hint?: string }) => (
     <div className="space-y-1.5">
@@ -102,6 +213,7 @@ function InstallDialog({ open, onClose, install }: { open: boolean; onClose: () 
       <p className="mb-4 text-sm text-muted">{t("orch.nodes.installIntro")}</p>
       <div className="space-y-4">
         <Block title={t("orch.nodes.linux")} cmd={linux} />
+        <Block title={t("orch.nodes.studio")} cmd={studio} hint={t("orch.nodes.studioHint")} />
         <Block title={t("orch.nodes.windows")} cmd={win} hint={t("orch.nodes.windowsHint")} />
         <Alert tone="brand">{t("orch.nodes.afterInstall")}</Alert>
       </div>
@@ -242,6 +354,8 @@ function NodeDetail({ id, onClose, onChanged }: { id: string; onClose: () => voi
             </div>
           )}
         </div>
+
+        {m?.studio && <StudioPanel s={m.studio} approved={n.status === "approved"} onCommand={(type) => void send(type)} />}
 
         <div className="mt-6 flex flex-wrap gap-2 border-t border-line pt-5">
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>

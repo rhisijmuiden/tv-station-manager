@@ -17,6 +17,8 @@ export const graphicsSchema = z.object({
   clock: z.object({ enabled: z.boolean().default(true), position: position.default("top-left") }).default({ enabled: true, position: "top-left" }),
   upNext: z.object({ enabled: z.boolean().default(true), secondsBeforeEnd: z.number().int().min(5).max(600).default(60), durationSeconds: z.number().int().min(3).max(120).default(12) }).default({ enabled: true, secondsBeforeEnd: 60, durationSeconds: 12 }),
   ticker: z.object({ enabled: z.boolean().default(false), text: z.string().max(2000).default("") }).default({ enabled: false, text: "" }),
+  /** Subtitles from a .srt/.vtt file next to the clip on the media share. */
+  subtitles: z.object({ enabled: z.boolean().default(true), size: z.enum(["small", "medium", "large"]).default("medium") }).default({ enabled: true, size: "medium" }),
   /** No logo, clock or ticker during commercial breaks. */
   hideInCommercials: z.boolean().default(true),
 });

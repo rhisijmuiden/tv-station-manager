@@ -7,7 +7,8 @@ Monorepo (pnpm workspaces, TypeScript, Node 24).
 - `packages/ui`: shared React UI (Tailwind 4, i18next EN/NL, left sidebar, Info dialog, system pages). Apps call `mountPlatformApp`.
 - `apps/orchestrator`: enrolls and manages nodes (Debian 13 .deb).
 - `apps/management`: the director. `server/timeline.ts` (pure schedule/block expansion, tested), `director.ts` (playout loop), `drivers.ts` (ATEM via atem-connection, CasparCG via casparcg-connection; fakes in tests), `media.ts` (UNAS over smbclient + ffprobe).
-- `studio/`: CasparCG overlay template and notes for the Windows studio node (installer follows).
+- `studio/`: Windows studio node: CasparCG overlay template (logo, clock, up next, ticker, subtitles), `windows/start-casparcg.ps1` launcher, README. Installer: `packaging/windows/install-studio.ps1` (agent + CasparCG 2.4 + MediaMTX RTMP/SRT ingest as WinSW services, generated casparcg.config, firewall). The agent reports studio status (`apps/agent/src/studio.ts`, AMCP + MediaMTX API) when `%ProgramData%\TVSM\studio\studio.json` exists; Windows self-update runs `update-agent.ps1` as a one-off scheduled task.
+- Subtitles: `.srt`/`.vtt` next to a clip (`apps/management/server/subtitles.ts`), served at `/graphics/subtitles/:mediaId`.
 - Roles: `admin` > `editor` (editor-in-chief) > `operator`. Use `requireRole(req, ...)` from `@tvsm/platform` on write routes.
 - `packaging/`: .deb builder (bundles Node), systemd unit, update helper, `install.sh`.
 

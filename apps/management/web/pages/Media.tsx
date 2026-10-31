@@ -293,7 +293,14 @@ export function MediaPage() {
               {media.data?.items.map((m) => (
                 <tr key={m.id} className="hover:bg-surface-2/50">
                   <td className="max-w-80 px-5 py-2.5">
-                    <p className="truncate font-medium">{m.title || m.name}</p>
+                    <p className="flex items-center gap-2 truncate font-medium">
+                      <span className="truncate">{m.title || m.name}</span>
+                      {m.subtitlePath && (
+                        <span title={m.subtitlePath}>
+                          <Badge tone="brand">{t("mgmt.media.subtitles")}</Badge>
+                        </span>
+                      )}
+                    </p>
                     {m.width && (
                       <p className="text-xs text-muted">
                         {m.width}×{m.height} · {m.fps} fps · {m.codec}

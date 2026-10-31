@@ -117,7 +117,8 @@
       "resolution": "Resolution",
       "size": "Size",
       "pick": "Choose media",
-      "selected": "selected"
+      "selected": "selected",
+      "subtitles": "Subtitles"
     },
     "blocks": {
       "title": "TV blocks",
@@ -192,7 +193,7 @@
       "copy": "Copy",
       "copied": "Copied",
       "publicUrl": "Public address of this server",
-      "publicUrlHint": "For example https://manager.example.com behind the reverse proxy. Also used by the studio node to load the logo.",
+      "publicUrlHint": "For example https://manager.example.com behind the reverse proxy. Also used by the studio node to load the logo and subtitles.",
       "days": "Days ahead",
       "regenerate": "New link",
       "regenerateConfirm": "The current link stops working. Continue?"
@@ -225,7 +226,13 @@
         "top-right": "Top right",
         "bottom-left": "Bottom left",
         "bottom-right": "Bottom right"
-      }
+      },
+      "subtitles": "Subtitles",
+      "subtitlesHint": "Shows a .srt or .vtt file with the same name as the clip (e.g. Show.srt or Show.nl.srt next to Show.mp4).",
+      "subtitleExample": "This is what a subtitle looks like",
+      "size_small": "Small",
+      "size_medium": "Medium",
+      "size_large": "Large"
     },
     "channels": {
       "title": "Channels",

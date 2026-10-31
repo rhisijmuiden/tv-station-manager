@@ -235,7 +235,17 @@ export class Director {
       ticker: g.ticker,
       now: { title: current?.programTitle || current?.title || "" },
       upNext: { visible: upNextVisible, title: nextProgram?.programTitle ?? "", startAt: nextProgram ? new Date(nextProgram.start).toISOString() : null },
+      subtitles: this.subtitlesFor(g, current),
     };
+  }
+
+  /** Cues URL + the wall-clock time of the clip's first frame; the overlay times the cues itself (NTP-synced clocks). */
+  private subtitlesFor(g: Graphics, current: TimelineEvent | null) {
+    const off = { enabled: false, url: null, clipStart: null, size: g.subtitles.size };
+    if (!g.enabled || !g.subtitles.enabled || current?.type !== "media" || !current.leaf?.mediaId) return off;
+    const m = this.platform.ctx.db.prepare("SELECT subtitle_path FROM media WHERE id = ?").get(current.leaf.mediaId) as { subtitle_path: string | null } | undefined;
+    if (!m?.subtitle_path) return off;
+    return { enabled: true, url: `${publicUrl(this.platform)}/graphics/subtitles/${current.leaf.mediaId}?v=${encodeURIComponent(m.subtitle_path)}`, clipStart: current.start - current.offsetMs, size: g.subtitles.size };
   }
 
   private async updateGraphics(ch: ChannelRow, s: ChannelState, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {

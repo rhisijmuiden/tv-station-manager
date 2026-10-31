@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx src/main.ts run",
     "build": "node build.mjs",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@tvsm/platform": "workspace:*"

@@ -3,7 +3,9 @@
   TV Station Manager graphics overlay for CasparCG (HTML template).
   Loaded by the management node with: CG <ch>-<layer> ADD 1 "tvsm/overlay" 1 "<json>"
   and updated with CG UPDATE. Data: { channel, hidden, logo{enabled,position,opacity,url}, clock{enabled,position},
-  ticker{enabled,text}, now{title}, upNext{visible,title,startAt} }.
+  ticker{enabled,text}, now{title}, upNext{visible,title,startAt}, subtitles{enabled,url,clipStart,size} }.
+  Subtitles: `url` returns { cues: [{ s, e, t }] } (ms from the clip start); `clipStart` is the wall-clock time (epoch ms)
+  of the clip's first frame. Studio and management node clocks must be NTP-synced.
   Renders at 1920x1080 with a transparent background; keep it on a layer above the playout layer (10).
 -->
 <html>
@@ -26,6 +28,12 @@
   #upnext .tag { background: var(--blue); color: #fff; padding: 14px 22px; font-size: 26px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; border-radius: 10px 0 0 10px; }
   #upnext .title { background: rgba(10,14,26,.88); color: #fff; padding: 14px 28px; font-size: 32px; font-weight: 600; border-radius: 0 10px 10px 0; }
   #upnext .time { color: #9fb4ff; margin-left: 16px; font-weight: 500; }
+  #subs { position: absolute; left: 160px; right: 160px; bottom: 150px; text-align: center; pointer-events: none; }
+  #subs span { display: inline-block; white-space: pre-line; color: #fff; background: rgba(10,14,26,.72); padding: 6px 18px; border-radius: 8px; font-weight: 600; line-height: 1.3; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  #subs.small span { font-size: 34px; }
+  #subs.medium span { font-size: 42px; }
+  #subs.large span { font-size: 52px; }
+  body.ticker-on #subs { bottom: 170px; }
   #ticker { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(10,14,26,.9); border-top: 4px solid var(--blue); overflow: hidden; }
   #ticker .run { position: absolute; white-space: nowrap; color: #fff; font-size: 30px; line-height: 60px; will-change: transform; }
 </style>
@@ -36,6 +44,7 @@
     <div id="clock" class="fade gone"></div>
     <div id="upnext" class="pos-bottom-left fade gone"><span class="tag" id="upnext-tag">Straks</span><span class="title"><span id="upnext-title"></span><span class="time" id="upnext-time"></span></span></div>
   </div>
+  <div id="subs" class="medium"><span id="subs-text" style="display:none"></span></div>
   <div id="ticker" class="fade gone"><div class="run" id="ticker-run"></div></div>
 <script>
   var state = {};
@@ -60,10 +69,43 @@
     show($("upnext"), !hidden && up.visible && !!up.title);
     var t = d.ticker || {};
     if (t.text !== tickerText) { tickerText = t.text; $("ticker-run").textContent = t.text || ""; tickerX = 1920; }
-    show($("ticker"), !hidden && t.enabled && !!t.text);
+    var tickerOn = !hidden && t.enabled && !!t.text;
+    show($("ticker"), tickerOn);
+    document.body.classList.toggle("ticker-on", tickerOn);
+    var sub = d.subtitles || {};
+    $("subs").className = sub.size || "medium";
+    if (!sub.enabled || !sub.url) { cues = []; cuesUrl = null; }
+    else if (sub.url !== cuesUrl) loadCues(sub.url);
+  }
+  // ---- subtitles ----
+  var cues = [], cuesUrl = null, cueIdx = -1;
+  function loadCues(url) {
+    cuesUrl = url; cues = []; cueIdx = -1;
+    var x = new XMLHttpRequest();
+    x.open("GET", url);
+    x.onload = function () { if (cuesUrl !== url) return; try { cues = JSON.parse(x.responseText).cues || []; } catch (e) { cues = []; } };
+    x.onerror = function () { if (cuesUrl === url) setTimeout(function () { if (cuesUrl === url) loadCues(url); }, 5000); };
+    x.send();
+  }
+  function subtitleAt(ms) {
+    // Cues are sorted; start from the previous hit (playback moves forward).
+    if (cueIdx >= 0 && cues[cueIdx] && cues[cueIdx].s <= ms && ms < cues[cueIdx].e) return cues[cueIdx].t;
+    for (var i = 0; i < cues.length; i++) { if (cues[i].s > ms) break; if (ms < cues[i].e) { cueIdx = i; return cues[i].t; } }
+    return "";
+  }
+  var shownSub = null;
+  function renderSubs() {
+    var sub = state.subtitles || {};
+    var text = sub.enabled && cues.length && sub.clipStart ? subtitleAt(Date.now() - sub.clipStart) : "";
+    if (text === shownSub) return;
+    shownSub = text;
+    var el = $("subs-text");
+    el.textContent = text;
+    el.style.display = text ? "inline-block" : "none";
   }
   function frame() {
     $("clock").textContent = hhmm(new Date());
+    renderSubs();
     var run = $("ticker-run");
     tickerX -= 3;
     if (tickerX < -run.offsetWidth) tickerX = 1920;
@@ -81,7 +123,8 @@
   // Preview in a normal browser: overlay.html?demo
   if (location.search.indexOf("demo") >= 0) {
     document.body.style.background = "#334";
-    window.update({ logo: { enabled: true, position: "top-right", url: null }, clock: { enabled: true, position: "top-left" }, ticker: { enabled: true, text: "Welkom bij TV Station Manager  •  Dit is de nieuwsticker" }, upNext: { visible: true, title: "Het Journaal", startAt: new Date(Date.now() + 60000).toISOString() } });
+    window.update({ logo: { enabled: true, position: "top-right", url: null }, clock: { enabled: true, position: "top-left" }, ticker: { enabled: true, text: "Welkom bij TV Station Manager  •  Dit is de nieuwsticker" }, upNext: { visible: true, title: "Het Journaal", startAt: new Date(Date.now() + 60000).toISOString() }, subtitles: { enabled: true, url: null, clipStart: Date.now(), size: "medium" } });
+    cues = [{ s: 0, e: 60000, t: "Dit is een voorbeeld van een ondertitel\nover twee regels." }]; cuesUrl = "demo";
   }
 </script>
 </body>

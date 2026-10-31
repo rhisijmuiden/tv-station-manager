@@ -127,4 +127,6 @@ export const MANAGEMENT_MIGRATIONS = [
      ok INTEGER NOT NULL DEFAULT 1
    );
    CREATE INDEX asrun_channel_at ON asrun(channel_id, at);`,
+  // Step 4: subtitle file (.srt/.vtt) next to the clip, found by the media scan.
+  `ALTER TABLE media ADD COLUMN subtitle_path TEXT;`,
 ];
