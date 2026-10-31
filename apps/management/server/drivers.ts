@@ -49,6 +49,8 @@ export interface PlayoutDriver extends EventEmitter {
   play(channel: number, layer: number, clip?: string, opts?: PlayOptions): Promise<void>;
   loadbg(channel: number, layer: number, clip: string, opts?: PlayOptions): Promise<void>;
   stop(channel: number, layer: number): Promise<void>;
+  /** Plays a web page (CasparCG HTML producer). */
+  playHtml(channel: number, layer: number, url: string): Promise<void>;
   clear(channel: number, layer?: number): Promise<void>;
   cgAdd(channel: number, layer: number, template: string, data: unknown): Promise<void>;
   cgUpdate(channel: number, layer: number, data: unknown): Promise<void>;
@@ -180,6 +182,9 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
   }
   stop(channel: number, layer: number) {
     return this.send(this.c.stop({ channel, layer }));
+  }
+  playHtml(channel: number, layer: number, url: string) {
+    return this.send(this.c.playHtml({ channel, layer, url }));
   }
   clear(channel: number, layer?: number) {
     return this.send(this.c.clear({ channel, layer }));

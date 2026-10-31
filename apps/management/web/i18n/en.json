@@ -303,7 +303,20 @@
       "ingestDown": "Ingest server not reachable (port 9997)",
       "publicHost": "Address for remote senders",
       "publicHostHint": "Public IP or host name contributors stream to. Empty = the IP address above.",
-      "ingestApiPort": "Ingest API port"
+      "ingestApiPort": "Ingest API port",
+      "identify": "Identify outputs",
+      "identifyStop": "Stop test card",
+      "identifyHint": "Shows a large numbered test card on every DeckLink output for 60 seconds.",
+      "identifyConfirm": "Show a numbered test card on ALL DeckLink outputs of {{name}} for 60 seconds? It covers whatever is on those outputs, including what is on air.",
+      "outputs_one": "{{count}} DeckLink output",
+      "outputs_other": "{{count}} DeckLink outputs",
+      "numberingTitle": "Which SDI connector is which output?",
+      "numbering": [
+        "Output N is CasparCG channel N, which plays to DeckLink device N.",
+        "The Blackmagic driver decides the numbering, not the slot on the motherboard. With several cards the order follows the PCIe bus, which can change when you add or move a card.",
+        "A card can have more SDI connectors than outputs: fill + key or monitoring connectors belong to the same output. A Duo 2 or Quad 2 shows up as 2 or 4 separate devices.",
+        "Click Identify outputs: every output shows its own colour and a large number for 60 seconds. With fill + key, the key connector shows a white picture."
+      ]
     },
     "errors": {
       "generic": "Something went wrong.",
@@ -320,7 +333,9 @@
       "live_failed": "Could not take the source live: {{message}}",
       "output_failed": "Could not start the DeckLink output: {{message}}",
       "not_remote": "This is not a remote source.",
-      "no_such_output": "This studio node does not have that DeckLink output. Available: {{message}}."
+      "no_such_output": "This studio node does not have that DeckLink output. Available: {{message}}.",
+      "studio_offline": "CasparCG on this studio node is not connected.",
+      "identify_failed": "Could not show the test card: {{message}}"
     },
     "remote": {
       "title": "Remote sources",

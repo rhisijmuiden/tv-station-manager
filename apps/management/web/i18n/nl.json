@@ -303,7 +303,20 @@
       "ingestDown": "Ingest-server niet bereikbaar (poort 9997)",
       "publicHost": "Adres voor remote inzenders",
       "publicHostHint": "Publiek IP-adres of hostnaam waar inzenders naartoe streamen. Leeg = het IP-adres hierboven.",
-      "ingestApiPort": "Ingest API-poort"
+      "ingestApiPort": "Ingest API-poort",
+      "identify": "Uitgangen identificeren",
+      "identifyStop": "Testbeeld stoppen",
+      "identifyHint": "Toont 60 seconden een groot genummerd testbeeld op elke DeckLink-uitgang.",
+      "identifyConfirm": "Een genummerd testbeeld tonen op ALLE DeckLink-uitgangen van {{name}}, 60 seconden lang? Het komt over alles heen wat op die uitgangen staat, ook wat op de lucht is.",
+      "outputs_one": "{{count}} DeckLink-uitgang",
+      "outputs_other": "{{count}} DeckLink-uitgangen",
+      "numberingTitle": "Welke SDI-aansluiting is welke uitgang?",
+      "numbering": [
+        "Uitgang N is CasparCG-kanaal N, en dat speelt af op DeckLink-apparaat N.",
+        "De Blackmagic-driver bepaalt de nummering, niet het slot op het moederbord. Bij meerdere kaarten volgt de volgorde de PCIe-bus, en die kan veranderen als je een kaart toevoegt of verplaatst.",
+        "Een kaart kan meer SDI-aansluitingen hebben dan uitgangen: fill + key of monitoraansluitingen horen bij dezelfde uitgang. Een Duo 2 of Quad 2 doet zich voor als 2 of 4 losse apparaten.",
+        "Klik op Uitgangen identificeren: elke uitgang toont 60 seconden een eigen kleur en een groot nummer. Bij fill + key geeft de key-aansluiting een wit beeld."
+      ]
     },
     "errors": {
       "generic": "Er ging iets mis.",
@@ -320,7 +333,9 @@
       "live_failed": "Kon de bron niet live zetten: {{message}}",
       "output_failed": "Kon de DeckLink-uitgang niet starten: {{message}}",
       "not_remote": "Dit is geen remote bron.",
-      "no_such_output": "Deze studio node heeft die DeckLink-uitgang niet. Beschikbaar: {{message}}."
+      "no_such_output": "Deze studio node heeft die DeckLink-uitgang niet. Beschikbaar: {{message}}.",
+      "studio_offline": "CasparCG op deze studio node is niet verbonden.",
+      "identify_failed": "Kon het testbeeld niet tonen: {{message}}"
     },
     "remote": {
       "title": "Remote bronnen",

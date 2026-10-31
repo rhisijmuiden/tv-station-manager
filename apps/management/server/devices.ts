@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DriverFactory, PlayoutDriver, SwitcherDriver } from "./drivers.js";
 import { publicUrl } from "./director.js";
+import { IDENTIFY_LAYER, IDENTIFY_SECONDS, identifyPage } from "./identify.js";
 import { newStreamKey, type IngestAuthRequest, type LiveRow, type RemoteSources } from "./remote.js";
 
 /** Keeps one live connection per ATEM switcher and per studio node (CasparCG), and their CRUD API. */
@@ -135,7 +136,50 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
     enabled: !!r.enabled,
     status: hub.playout(r.id)?.info() ?? { connected: false, version: null },
     ingest: remote.ingest(r.id),
+    identifyUntil: identifying.get(r.id)?.until ?? null,
   });
+  // ---- Identify outputs: a numbered test card on every DeckLink output of a studio node --------
+  const identifying = new Map<number, { until: string; timer: NodeJS.Timeout; channels: number[] }>();
+  const stopIdentify = async (studioId: number) => {
+    const cur = identifying.get(studioId);
+    if (!cur) return;
+    clearTimeout(cur.timer);
+    identifying.delete(studioId);
+    const p = hub.playout(studioId);
+    for (const ch of cur.channels) await p?.clear(ch, IDENTIFY_LAYER).catch(() => undefined);
+  };
+  app.post("/api/studios/:id/identify", async (req) => {
+    requireRole(req, "admin");
+    const sid = id(req);
+    const { on } = z.object({ on: z.boolean() }).parse(req.body);
+    await stopIdentify(sid);
+    if (!on) return { ok: true };
+    const row = db.prepare("SELECT name FROM studio_nodes WHERE id = ?").get(sid) as { name: string } | undefined;
+    if (!row) throw new HttpError(404, "not_found");
+    const p = hub.playout(sid);
+    if (!p?.info().connected) throw new HttpError(409, "studio_offline");
+    const channels = p.info().channels?.length ? p.info().channels! : [1];
+    const until = new Date(Date.now() + IDENTIFY_SECONDS * 1000).toISOString();
+    const base = publicUrl(platform);
+    try {
+      for (const ch of channels) await p.playHtml(ch, IDENTIFY_LAYER, `${base}/graphics/identify?n=${ch}&of=${channels.length}&node=${encodeURIComponent(row.name)}`);
+    } catch (e) {
+      for (const ch of channels) await p.clear(ch, IDENTIFY_LAYER).catch(() => undefined);
+      throw new HttpError(502, "identify_failed", (e as Error).message);
+    }
+    const timer = setTimeout(() => void stopIdentify(sid), IDENTIFY_SECONDS * 1000);
+    timer.unref();
+    identifying.set(sid, { until, timer, channels });
+    platform.ctx.log.info({ studio: row.name, channels, by: req.user!.username }, "identify outputs");
+    return { ok: true, until, channels };
+  });
+  /** Public: the test card CasparCG shows (HTML producer). */
+  app.get("/graphics/identify", async (req, reply) => {
+    const q = z.object({ n: z.coerce.number().int().min(1).max(64), of: z.coerce.number().int().min(1).max(64).default(1), node: z.string().max(80).default("") }).parse(req.query);
+    reply.header("Content-Type", "text/html; charset=utf-8").header("Cache-Control", "no-store");
+    return identifyPage(q.n, q.of, q.node);
+  });
+
   app.get("/api/studios", async () => ({ studios: (db.prepare("SELECT * FROM studio_nodes ORDER BY name").all() as unknown as StudioDb[]).map(studioOut) }));
   app.post("/api/studios", async (req) => {
     requireRole(req, "admin");

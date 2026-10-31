@@ -133,7 +133,12 @@ class FakePlayout extends EventEmitter implements PlayoutDriver {
   async stop(ch: number, layer: number) {
     this.calls.push(`stop ${ch}-${layer}`);
   }
-  async clear() {}
+  async clear(ch: number, layer?: number) {
+    this.calls.push(`clear ${ch}-${layer}`);
+  }
+  async playHtml(ch: number, layer: number, url: string) {
+    this.calls.push(`html ${ch}-${layer} ${url}`);
+  }
   async cgAdd(ch: number, layer: number, template: string) {
     this.calls.push(`cgadd ${ch}-${layer} ${template}`);
   }
@@ -330,6 +335,19 @@ test("remote sources: own stream key, ingest auth, DeckLink output follows the s
   const out = await api("POST", `/api/live-sources/${src.id}/output`, { on: true });
   assert.equal(out.status, 502);
   assert.match(out.body.message, /DeckLink output 2 does not exist/);
+  // Identify outputs: a numbered test card on every output, removed again on stop.
+  po.channels = [1, 2];
+  po.calls.length = 0;
+  const idf = await api("POST", `/api/studios/${studioId}/identify`, { on: true });
+  assert.equal(idf.status, 200);
+  assert.deepEqual(idf.body.channels, [1, 2]);
+  assert.ok(po.calls.some((c) => c.startsWith("html 2-90 ") && c.includes("/graphics/identify?n=2&of=2")), po.calls.join("\n"));
+  assert.ok((await api("GET", "/api/studios")).body.studios[0].identifyUntil);
+  const card = await api("GET", "/graphics/identify?n=2&of=2&node=Studio%20%3Cb%3E");
+  assert.match(card.body, /UITGANG 2/);
+  assert.ok(!card.body.includes("<b>"));
+  await api("POST", `/api/studios/${studioId}/identify`, { on: false });
+  assert.ok(po.calls.includes("clear 1-90") && po.calls.includes("clear 2-90"));
   po.channels = null;
 
   // A new key revokes the old one.

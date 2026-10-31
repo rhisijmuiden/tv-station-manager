@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Select, Switch, del, post, put } from "@tvsm/ui";
-import { MonitorPlay, Pencil, Plus, Radio, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Hash, MonitorPlay, Pencil, Plus, Radio, SlidersHorizontal, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -21,8 +21,9 @@ interface Studio {
   publicHost: string | null;
   ingestApiPort: number;
   enabled: boolean;
-  status: { connected: boolean; version: string | null };
+  status: { connected: boolean; version: string | null; channels?: number[] | null };
   ingest: { reachable: boolean; error: string | null };
+  identifyUntil: string | null;
 }
 type Kind = "atem" | "studio" | "live";
 type Form = Record<string, string | number | boolean | null | undefined> & { id?: number };
@@ -34,6 +35,17 @@ export function DevicesPage() {
   const live = useGet<{ sources: LiveSource[] }>("/api/live-sources");
   const [edit, setEdit] = useState<{ kind: Kind; form: Form } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [idErr, setIdErr] = useState<string | null>(null);
+  const identify = async (s: Studio, on: boolean) => {
+    setIdErr(null);
+    if (on && !confirm(t("mgmt.devices.identifyConfirm", { name: s.name }))) return;
+    try {
+      await post(`/api/studios/${s.id}/identify`, { on });
+      await studios.reload();
+    } catch (e) {
+      setIdErr(errorText(t, e));
+    }
+  };
   const url = { atem: "/api/atems", studio: "/api/studios", live: "/api/live-sources" };
   const reloadAll = () => {
     void atems.reload();
@@ -134,6 +146,17 @@ export function DevicesPage() {
               </Button>
             }
           />
+          <div className="space-y-2 border-b border-line px-5 py-3 text-[13px] text-muted">
+            {idErr && <Alert tone="danger">{idErr}</Alert>}
+            <details>
+              <summary className="cursor-pointer font-medium text-brand">{t("mgmt.devices.numberingTitle")}</summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {(t("mgmt.devices.numbering", { returnObjects: true }) as string[]).map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+              </ul>
+            </details>
+          </div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-line">
               {studios.data?.studios.map((s) => (
@@ -150,6 +173,18 @@ export function DevicesPage() {
                   <td className="px-3 py-3 text-muted">
                     <p>{s.status.connected ? `CasparCG ${s.status.version ?? ""}` : s.enabled ? t("mgmt.devices.connecting") : t("common.disabled")}</p>
                     {s.enabled && <p className={s.ingest.reachable ? "text-xs" : "text-xs text-warn"}>{s.ingest.reachable ? t("mgmt.devices.ingestOk") : t("mgmt.devices.ingestDown")}</p>}
+                    {s.status.channels?.length ? <p className="text-xs">{t("mgmt.devices.outputs", { count: s.status.channels.length })}</p> : null}
+                  </td>
+                  <td className="px-3 py-3 text-right whitespace-nowrap">
+                    {s.identifyUntil ? (
+                      <Button size="sm" variant="danger" icon={<Square className="size-3.5" />} onClick={() => void identify(s, false)}>
+                        {t("mgmt.devices.identifyStop")}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" disabled={!s.status.connected} icon={<Hash className="size-3.5" />} title={t("mgmt.devices.identifyHint")} onClick={() => void identify(s, true)}>
+                        {t("mgmt.devices.identify")}
+                      </Button>
+                    )}
                   </td>
                   {actions("studio", { id: s.id, name: s.name, host: s.host, port: s.port, publicHost: s.publicHost, ingestApiPort: s.ingestApiPort, enabled: s.enabled }, s.name)}
                 </tr>
