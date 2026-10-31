@@ -85,7 +85,12 @@ function Get-Verified($asset, [string]$expected) {
 }
 function Install-WinSW([string]$dir, [string]$id, [string]$xml) {
   $exe = Join-Path $dir "$id-service.exe"
-  if (Get-Service $id -ErrorAction SilentlyContinue) { & $exe stop 2>$null | Out-Null; Start-Sleep 2 }
+  if (Get-Service $id -ErrorAction SilentlyContinue) {
+    & $exe stop 2>$null | Out-Null
+    # CasparCG can take a while to release the DeckLink; WinSW keeps its exe locked until the service has stopped.
+    try { (Get-Service $id).WaitForStatus("Stopped", [TimeSpan]::FromSeconds(60)) } catch { Warn "$id did not stop within 60 seconds" }
+    for ($i = 0; $i -lt 20 -and (Get-Process | Where-Object { $_.Path -eq $exe }); $i++) { Start-Sleep 1 }
+  }
   Copy-Item (Join-Path $agentDir "tvsm-agent-service.exe") $exe -Force
   Write-Utf8 (Join-Path $dir "$id-service.xml") $xml
   if (-not (Get-Service $id -ErrorAction SilentlyContinue)) { & $exe install | Out-Null }
