@@ -2,6 +2,7 @@
 @import "@brand/tokens.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/epilogue";
 
 @source "./";
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -23,6 +24,7 @@
   --color-warn: var(--tvsm-warning);
   --color-danger: var(--tvsm-danger);
   --font-sans: var(--tvsm-font-sans);
+  --font-display: var(--tvsm-font-display);
   --font-mono: var(--tvsm-font-mono);
   --radius-sm: var(--tvsm-radius-sm);
   --radius-md: var(--tvsm-radius-md);

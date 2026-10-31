@@ -20,7 +20,7 @@ function AuthLayout({ logo, title, intro, children }: { logo: string; title: str
       <div className="relative w-full max-w-md">
         <img src={logo} alt="" className="mx-auto mb-8 h-12" />
         <div className="rounded-xl border border-line bg-surface p-8 shadow-2xl">
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="font-display text-xl font-semibold">{title}</h1>
           {intro && <p className="mt-1 text-sm text-muted">{intro}</p>}
           <div className="mt-6">{children}</div>
         </div>

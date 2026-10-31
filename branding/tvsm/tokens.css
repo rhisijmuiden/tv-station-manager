@@ -22,6 +22,7 @@
   --tvsm-sidebar-text: #C9D1E3;
 
   --tvsm-font-sans: "Inter Variable", Inter, system-ui, sans-serif;
+  --tvsm-font-display: var(--tvsm-font-sans);
   --tvsm-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 
   --tvsm-radius-sm: 6px;
