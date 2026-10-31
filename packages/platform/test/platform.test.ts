@@ -14,6 +14,8 @@ const root = mkdtempSync(join(tmpdir(), "tvsm-test-"));
 process.env.TVSM_DATA_DIR = join(root, "data");
 process.env.TVSM_CONF_DIR = join(root, "conf");
 const media = join(root, "media");
+// These tests exercise the first-run setup flow; the default admin has its own test below.
+process.env.TVSM_DEFAULT_ADMIN = "off";
 mkdirSync(media, { recursive: true });
 
 let p: Platform;
@@ -63,6 +65,38 @@ test("mail: secrets are encrypted at rest and masked in the API", async () => {
   // Saving the mask again keeps the stored secret.
   await api("PUT", "/api/settings/mail", { ...saved.body, host: "smtp2.example.com" });
   assert.equal(p.mail.getConfig().auth.password, "s3cret-pass");
+});
+
+test("default admin is created on first start and flagged until the password changes", async () => {
+  const dRoot = mkdtempSync(join(tmpdir(), "tvsm-default-"));
+  const saved = { data: process.env.TVSM_DATA_DIR, conf: process.env.TVSM_CONF_DIR };
+  process.env.TVSM_DATA_DIR = join(dRoot, "data");
+  process.env.TVSM_CONF_DIR = join(dRoot, "conf");
+  delete process.env.TVSM_DEFAULT_ADMIN;
+  const d = await createPlatform({ app: { id: "testapp", name: "Test App", defaultPort: 0 } });
+  let c = "";
+  const call = async (method: string, url: string, payload?: unknown) => {
+    const res = await d.server.inject({ method: method as "GET", url, payload: payload as object, headers: c ? { cookie: c } : {} });
+    const set = res.headers["set-cookie"];
+    if (set) c = String(Array.isArray(set) ? set[0] : set).split(";")[0]!;
+    return { status: res.statusCode, body: res.body ? JSON.parse(res.body) : null };
+  };
+  try {
+    assert.equal((await call("GET", "/api/auth/status")).body.setupRequired, false);
+    assert.equal((await call("POST", "/api/auth/login", { username: "admin", password: "admin" })).status, 200);
+    assert.equal((await call("GET", "/api/auth/status")).body.defaultPasswordInUse, true);
+    // Behind a reverse proxy the session cookie is marked Secure based on X-Forwarded-Proto.
+    const proxied = await d.server.inject({ method: "POST", url: "/api/auth/login", payload: { username: "admin", password: "admin" }, headers: { "x-forwarded-proto": "https" } });
+    assert.match(String(proxied.headers["set-cookie"]), /Secure/);
+    assert.equal((await call("PUT", "/api/auth/password", { current: "admin", next: "a much better password" })).status, 200);
+    assert.equal((await call("GET", "/api/auth/status")).body.defaultPasswordInUse, false);
+  } finally {
+    await d.server.close();
+    process.env.TVSM_DEFAULT_ADMIN = "off";
+    process.env.TVSM_DATA_DIR = saved.data;
+    process.env.TVSM_CONF_DIR = saved.conf;
+    rmSync(dRoot, { recursive: true, force: true });
+  }
 });
 
 const targets: { name: string; protocol: "ftp" | "ftps" | "scp"; config: Record<string, unknown> }[] = [];

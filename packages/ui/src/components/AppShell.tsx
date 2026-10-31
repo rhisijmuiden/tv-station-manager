@@ -1,4 +1,4 @@
-import { ChevronsLeft, Info, LogOut, Menu, Moon, Sun, UserRound } from "lucide-react";
+import { ChevronsLeft, Info, LogOut, Menu, Moon, ShieldAlert, Sun, UserRound } from "lucide-react";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
@@ -23,7 +23,7 @@ export interface NavGroup {
 
 export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; logo: string; logoMark: string; children: ReactNode }) {
   const { t, i18n } = useTranslation();
-  const { info, user, lastCheck, refresh } = useSession();
+  const { info, user, lastCheck, refresh, defaultPasswordInUse } = useSession();
   const [theme, setTheme] = useTheme();
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -186,6 +186,15 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
           <img src={logoMark} alt="" className="size-7" />
           <span className="font-semibold">{info?.app.name}</span>
         </header>
+        {defaultPasswordInUse && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-warn/30 bg-warn/15 px-4 py-2.5 text-sm sm:px-8">
+            <ShieldAlert className="size-4 shrink-0 text-warn" />
+            <span className="flex-1">{t("auth.defaultPasswordWarning")}</span>
+            <NavLink to="/account" className="font-semibold text-brand hover:underline">
+              {t("auth.changeNow")}
+            </NavLink>
+          </div>
+        )}
         <main key={location.pathname} className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8">{children}</div>
         </main>

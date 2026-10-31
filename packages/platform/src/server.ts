@@ -3,7 +3,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { ZodError } from "zod";
-import { registerAuth } from "./auth.js";
+import { ensureDefaultAdmin, registerAuth } from "./auth.js";
 import { BackupEngine, applyPendingRestore, type BackupSources } from "./backup/engine.js";
 import { BackupScheduler, registerBackup } from "./backup/routes.js";
 import { loadRuntimeConfig, type AppIdentity } from "./config.js";
@@ -57,6 +57,7 @@ export async function createPlatform(opts: PlatformOptions): Promise<Platform> {
   });
 
   await server.register(cookie);
+  await ensureDefaultAdmin(ctx);
   registerAuth(server, ctx);
 
   const mail = new MailService(ctx);
