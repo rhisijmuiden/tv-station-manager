@@ -12,6 +12,7 @@ import { SecretBox } from "./crypto.js";
 import { Settings, migrate, openDb } from "./db.js";
 import { MailService, registerMail } from "./mail.js";
 import { UpdateService, registerUpdate } from "./update.js";
+import { registerUsers } from "./users.js";
 
 export interface PlatformOptions {
   app: AppIdentity;
@@ -59,6 +60,7 @@ export async function createPlatform(opts: PlatformOptions): Promise<Platform> {
   await server.register(cookie);
   await ensureDefaultAdmin(ctx);
   registerAuth(server, ctx);
+  registerUsers(server, ctx);
 
   const mail = new MailService(ctx);
   registerMail(server, ctx, mail);
