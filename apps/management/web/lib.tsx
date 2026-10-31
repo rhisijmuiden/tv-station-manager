@@ -128,6 +128,11 @@ export interface LiveSource {
   studioId: number | null;
   casparChannel: number | null;
   url: string | null;
+  /** Remote sources (kind "rtmp") only. */
+  mode?: "push" | "pull";
+  push?: { host: string; rtmpServer: string; streamKey: string; rtmpUrl: string; srtUrl: string } | null;
+  status?: { state: "pull" | "unknown" | "waiting" | "live"; onlineSince: string | null; tracks: string[]; kbps: number | null };
+  onOutput?: boolean;
 }
 export interface AtemStatus {
   connected: boolean;

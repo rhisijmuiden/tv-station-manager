@@ -165,18 +165,22 @@ export async function restartService(name: string) {
 interface MtxPath {
   name: string;
   ready?: boolean;
+  online?: boolean;
   readers?: unknown[];
   tracks?: (string | { codec?: string })[];
   tracks2?: { codec?: string }[];
 }
+
+/** Stream keys are passwords: report "live/reporter-3f9c…a1b2" instead of the full key. */
+export const maskStreamName = (name: string) => name.replace(/([0-9a-f]{4})[0-9a-f]{16}([0-9a-f]{4})$/, "$1…$2");
 
 async function ingestStreams(port: number) {
   const res = await fetch(`http://127.0.0.1:${port}/v3/paths/list?itemsPerPage=100`, { signal: AbortSignal.timeout(2000) });
   if (!res.ok) throw new Error(`MediaMTX API ${res.status}`);
   const j = (await res.json()) as { items?: MtxPath[] };
   return (j.items ?? []).map((p) => ({
-    name: p.name,
-    ready: !!p.ready,
+    name: maskStreamName(p.name),
+    ready: !!(p.online ?? p.ready),
     readers: p.readers?.length ?? 0,
     tracks: (p.tracks2 ?? p.tracks ?? []).map((t) => (typeof t === "string" ? t : (t.codec ?? "?"))),
   }));

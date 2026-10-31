@@ -129,4 +129,9 @@ export const MANAGEMENT_MIGRATIONS = [
    CREATE INDEX asrun_channel_at ON asrun(channel_id, at);`,
   // Step 4: subtitle file (.srt/.vtt) next to the clip, found by the media scan.
   `ALTER TABLE media ADD COLUMN subtitle_path TEXT;`,
+  // Remote sources: own stream key per source, checked by the studio node's ingest server through this node.
+  `ALTER TABLE studio_nodes ADD COLUMN public_host TEXT;
+   ALTER TABLE studio_nodes ADD COLUMN ingest_api_port INTEGER NOT NULL DEFAULT 9997;
+   ALTER TABLE live_sources ADD COLUMN stream_key TEXT;
+   CREATE UNIQUE INDEX live_sources_stream_key ON live_sources(stream_key);`,
 ];

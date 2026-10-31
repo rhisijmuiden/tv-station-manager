@@ -3,6 +3,7 @@ import { AlertTriangle, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { StatusBadge } from "./RemoteSources";
 import { errorText, fmtDuration, fmtTime, useGet, type AtemStatus, type Channel, type LiveSource } from "../lib";
 
 interface Ev {
@@ -199,9 +200,11 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                   {live.map((l) => (
                     <Button key={l.id} size="sm" variant={s.override?.liveSourceId === l.id ? "danger" : "secondary"} icon={<Play className="size-3.5" />} onClick={() => void act(`/api/control/${id}/live`, { liveSourceId: l.id })}>
                       {l.name}
+                      {l.kind === "rtmp" && <StatusBadge s={l} />}
                     </Button>
                   ))}
                   {!live.length && <span className="text-sm text-muted">{t("mgmt.control.noLive")}</span>}
+                  {live.some((l) => l.kind === "rtmp" && l.status?.state === "waiting") && <p className="w-full text-xs text-muted">{t("mgmt.control.remoteWaiting")}</p>}
                   {s.override && (
                     <Button size="sm" icon={<RotateCcw className="size-3.5" />} onClick={() => void act(`/api/control/${id}/resume`)}>
                       {t("mgmt.control.resume")}
@@ -233,7 +236,7 @@ export function ControlPage() {
   const { t } = useTranslation();
   const { user } = useSession();
   const { data, reload } = useGet<{ serverTime: string; channels: ChannelStatus[] }>("/api/control", 1000);
-  const { data: live } = useGet<{ sources: LiveSource[] }>("/api/live-sources");
+  const { data: live } = useGet<{ sources: LiveSource[] }>("/api/live-sources", 3000);
   const [offset, setOffset] = useState(0);
   useEffect(() => {
     if (data) setOffset(Date.parse(data.serverTime) - Date.now());

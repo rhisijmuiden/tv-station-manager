@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeade
 import { MonitorPlay, Pencil, Plus, Radio, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { Dot } from "./Dashboard";
 import { errorText, useGet, type AtemStatus, type LiveSource } from "../lib";
 
@@ -17,8 +18,11 @@ interface Studio {
   name: string;
   host: string;
   port: number;
+  publicHost: string | null;
+  ingestApiPort: number;
   enabled: boolean;
   status: { connected: boolean; version: string | null };
+  ingest: { reachable: boolean; error: string | null };
 }
 type Kind = "atem" | "studio" | "live";
 type Form = Record<string, string | number | boolean | null | undefined> & { id?: number };
@@ -44,8 +48,8 @@ export function DevicesPage() {
       edit.kind === "atem"
         ? { name: f.name, host: f.host, enabled: f.enabled ?? true }
         : edit.kind === "studio"
-          ? { name: f.name, host: f.host, port: Number(f.port) || 5250, enabled: f.enabled ?? true }
-          : { name: f.name, kind: f.kind ?? "atem", atemInput: Number(f.atemInput) || 0, studioId: f.kind === "rtmp" ? Number(f.studioId) || null : null, casparChannel: f.kind === "rtmp" ? Number(f.casparChannel) || null : null, url: f.kind === "rtmp" ? f.url : null };
+          ? { name: f.name, host: f.host, port: Number(f.port) || 5250, publicHost: f.publicHost || null, ingestApiPort: Number(f.ingestApiPort) || 9997, enabled: f.enabled ?? true }
+          : { name: f.name, kind: "atem", atemInput: Number(f.atemInput) || 0 };
     try {
       if (id) await put(`${url[edit.kind]}/${id}`, body);
       else await post(url[edit.kind], body);
@@ -125,7 +129,7 @@ export function DevicesPage() {
             title={t("mgmt.devices.studios")}
             description={t("mgmt.devices.studiosIntro")}
             actions={
-              <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setEdit({ kind: "studio", form: { port: 5250, enabled: true } })}>
+              <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setEdit({ kind: "studio", form: { port: 5250, ingestApiPort: 9997, enabled: true } })}>
                 {t("mgmt.devices.addStudio")}
               </Button>
             }
@@ -143,8 +147,11 @@ export function DevicesPage() {
                       {s.host}:{s.port}
                     </p>
                   </td>
-                  <td className="px-3 py-3 text-muted">{s.status.connected ? `CasparCG ${s.status.version ?? ""}` : s.enabled ? t("mgmt.devices.connecting") : t("common.disabled")}</td>
-                  {actions("studio", { id: s.id, name: s.name, host: s.host, port: s.port, enabled: s.enabled }, s.name)}
+                  <td className="px-3 py-3 text-muted">
+                    <p>{s.status.connected ? `CasparCG ${s.status.version ?? ""}` : s.enabled ? t("mgmt.devices.connecting") : t("common.disabled")}</p>
+                    {s.enabled && <p className={s.ingest.reachable ? "text-xs" : "text-xs text-warn"}>{s.ingest.reachable ? t("mgmt.devices.ingestOk") : t("mgmt.devices.ingestDown")}</p>}
+                  </td>
+                  {actions("studio", { id: s.id, name: s.name, host: s.host, port: s.port, publicHost: s.publicHost, ingestApiPort: s.ingestApiPort, enabled: s.enabled }, s.name)}
                 </tr>
               ))}
               {studios.data && !studios.data.studios.length && (
@@ -160,29 +167,36 @@ export function DevicesPage() {
           <CardHeader
             icon={<Radio className="size-4" />}
             title={t("mgmt.devices.live")}
-            description={t("mgmt.devices.liveIntro")}
+            description={
+              <>
+                {t("mgmt.devices.liveIntro")}{" "}
+                <Link to="/remote" className="font-medium text-brand">
+                  {t("mgmt.devices.remoteLink")} →
+                </Link>
+              </>
+            }
             actions={
-              <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setEdit({ kind: "live", form: { kind: "atem" } })}>
+              <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setEdit({ kind: "live", form: {} })}>
                 {t("mgmt.devices.addLive")}
               </Button>
             }
           />
           <table className="w-full text-sm">
             <tbody className="divide-y divide-line">
-              {live.data?.sources.map((l) => (
+              {live.data?.sources.filter((l) => l.kind === "atem").map((l) => (
                 <tr key={l.id}>
                   <td className="px-5 py-3">
                     <p className="font-medium">{l.name}</p>
                     {l.url && <p className="truncate font-mono text-xs text-muted">{l.url}</p>}
                   </td>
                   <td className="px-3 py-3">
-                    <Badge tone={l.kind === "rtmp" ? "brand" : "neutral"}>{l.kind === "rtmp" ? "RTMP" : "ATEM"}</Badge>
+                    <Badge tone="neutral">ATEM</Badge>
                   </td>
                   <td className="px-3 py-3 text-muted">ATEM input {l.atemInput}</td>
-                  {actions("live", { id: l.id, name: l.name, kind: l.kind, atemInput: l.atemInput, studioId: l.studioId, casparChannel: l.casparChannel, url: l.url }, l.name)}
+                  {actions("live", { id: l.id, name: l.name, atemInput: l.atemInput }, l.name)}
                 </tr>
               ))}
-              {live.data && !live.data.sources.length && (
+              {live.data && !live.data.sources.some((l) => l.kind === "atem") && (
                 <tr>
                   <td className="px-5 py-6 text-center text-muted">{t("mgmt.devices.noLive")}</td>
                 </tr>
@@ -220,39 +234,15 @@ export function DevicesPage() {
               </div>
             )}
             {edit.kind === "live" && (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label={t("mgmt.devices.liveKind")}>
-                    {(id) => (
-                      <Select id={id} value={String(f.kind ?? "atem")} onChange={(e) => set("kind", e.target.value)}>
-                        <option value="atem">{t("mgmt.devices.liveAtem")}</option>
-                        <option value="rtmp">{t("mgmt.devices.liveRtmp")}</option>
-                      </Select>
-                    )}
-                  </Field>
-                  <Field label={t("mgmt.devices.atemInput")} hint={t("mgmt.devices.atemInputHint")}>{(id) => <Input id={id} type="number" min={0} value={String(f.atemInput ?? "")} onChange={(e) => set("atemInput", e.target.value)} />}</Field>
-                </div>
-                {f.kind === "rtmp" && (
-                  <>
-                    <Field label={t("mgmt.devices.streamUrl")} hint={t("mgmt.devices.streamUrlHint")}>{(id) => <Input id={id} value={String(f.url ?? "")} placeholder="rtmp://0.0.0.0:1935/live/remote" onChange={(e) => set("url", e.target.value)} />}</Field>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={t("mgmt.channels.studio")}>
-                        {(id) => (
-                          <Select id={id} value={String(f.studioId ?? "")} onChange={(e) => set("studioId", e.target.value)}>
-                            <option value="">–</option>
-                            {studios.data?.studios.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                      </Field>
-                      <Field label={t("mgmt.channels.casparChannel")}>{(id) => <Input id={id} type="number" min={1} max={16} value={String(f.casparChannel ?? "")} onChange={(e) => set("casparChannel", e.target.value)} />}</Field>
-                    </div>
-                  </>
-                )}
-              </>
+              <Field label={t("mgmt.devices.atemInput")} hint={t("mgmt.devices.atemInputHint")}>{(id) => <Input id={id} type="number" min={0} value={String(f.atemInput ?? "")} onChange={(e) => set("atemInput", e.target.value)} />}</Field>
+            )}
+            {edit.kind === "studio" && (
+              <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
+                <Field label={t("mgmt.devices.publicHost")} hint={t("mgmt.devices.publicHostHint")}>
+                  {(id) => <Input id={id} value={String(f.publicHost ?? "")} placeholder="stream.example.org" onChange={(e) => set("publicHost", e.target.value)} />}
+                </Field>
+                <Field label={t("mgmt.devices.ingestApiPort")}>{(id) => <Input id={id} type="number" value={String(f.ingestApiPort ?? 9997)} onChange={(e) => set("ingestApiPort", e.target.value)} />}</Field>
+              </div>
             )}
             {edit.kind !== "live" && <Switch checked={f.enabled !== false} onChange={(v) => set("enabled", v)} label={t("common.enabled")} />}
           </div>

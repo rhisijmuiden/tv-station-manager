@@ -38,6 +38,7 @@ The director of the station. Sign in as editor-in-chief (role *Editor-in-chief*)
 | Media library | Files on the UniFi UNAS Pro over SMB (`smbclient`, works in an unprivileged LXC), rescanned every 15 minutes. Durations are measured with ffprobe; folders named *Reclame*, *Jingles*, *Bumpers*, *Filler* are categorised automatically |
 | Programme guide | EPG grid and a token protected XMLTV feed (`/epg/xmltv.xml?token=…`) |
 | Graphics | Per channel logo, clock, up-next bar and ticker, with a live preview. Rendered on the studio node by the CasparCG template in `studio/casparcg-templates/tvsm/overlay.html` |
+| Remote sources | RTMP/SRT streams from outside (OBS, vMix, a phone): own stream key per source, live status, send to a DeckLink output and take on air. See [docs/remote-sources.md](docs/remote-sources.md) ([NL](docs/remote-sources.nl.md)) |
 | Channels / Devices | ATEM switchers (any model; model, inputs and M/E rows are read from the switcher), studio nodes (CasparCG AMCP, port 5250), live sources and the per-channel wiring |
 
 How it plays out: for every channel the management node tells CasparCG on the studio node to play the clip

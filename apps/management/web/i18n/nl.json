@@ -12,7 +12,8 @@
       "graphics": "Graphics",
       "setup": "Inrichting",
       "channels": "Kanalen",
-      "devices": "Apparatuur"
+      "devices": "Apparatuur",
+      "remote": "Remote bronnen"
     },
     "categories": {
       "program": "Programma",
@@ -66,7 +67,8 @@
       "resume": "Terug naar schema",
       "asrun": "As-run log",
       "noChannels": "Nog geen kanalen",
-      "noChannelsIntro": "Maak eerst een kanaal aan en koppel het aan een ATEM en een studio-node."
+      "noChannelsIntro": "Maak eerst een kanaal aan en koppel het aan een ATEM en een studio-node.",
+      "remoteWaiting": "Een remote bron met Wacht op stream geeft zwart beeld tot de inzender begint met streamen."
     },
     "media": {
       "title_page": "Mediabibliotheek",
@@ -275,7 +277,7 @@
       "addStudio": "Studio-node toevoegen",
       "noStudios": "Nog geen studio-nodes.",
       "live": "Live bronnen",
-      "liveIntro": "Camera's of studio's op een ATEM-input, of een RTMP-stream die een studio-node op SDI zet.",
+      "liveIntro": "Camera's of studio's op een ATEM-ingang. Streams van buiten (RTMP/SRT) staan onder Remote bronnen.",
       "addLive": "Live bron toevoegen",
       "noLive": "Nog geen live bronnen.",
       "host": "IP-adres",
@@ -295,7 +297,13 @@
       "add_studio": "Studio-node toevoegen",
       "edit_studio": "Studio-node bewerken",
       "add_live": "Live bron toevoegen",
-      "edit_live": "Live bron bewerken"
+      "edit_live": "Live bron bewerken",
+      "remoteLink": "Remote bronnen",
+      "ingestOk": "Ingest-server bereikbaar",
+      "ingestDown": "Ingest-server niet bereikbaar (poort 9997)",
+      "publicHost": "Adres voor remote inzenders",
+      "publicHostHint": "Publiek IP-adres of hostnaam waar inzenders naartoe streamen. Leeg = het IP-adres hierboven.",
+      "ingestApiPort": "Ingest API-poort"
     },
     "errors": {
       "generic": "Er ging iets mis.",
@@ -308,7 +316,149 @@
       "unsupported_image": "Gebruik een PNG-, SVG-, WebP- of JPEG-afbeelding.",
       "no_atem": "Geen ATEM aan dit kanaal gekoppeld.",
       "atem_failed": "De ATEM reageerde niet: {{message}}",
-      "unsupported_file_name": "Bestandsnamen met aanhalingstekens worden niet ondersteund."
+      "unsupported_file_name": "Bestandsnamen met aanhalingstekens worden niet ondersteund.",
+      "live_failed": "Kon de bron niet live zetten: {{message}}",
+      "output_failed": "Kon de DeckLink-uitgang niet starten: {{message}}",
+      "not_remote": "Dit is geen remote bron."
+    },
+    "remote": {
+      "title": "Remote bronnen",
+      "intro": "Livestreams van buiten de studio (een verslaggever, een andere studio, een kerkdienst), verstuurd via RTMP of SRT. De studio node speelt ze af op een DeckLink-uitgang en die uitgang schakel je op de lucht.",
+      "add": "Remote bron toevoegen",
+      "edit": "Remote bron bewerken",
+      "list": "Je remote bronnen",
+      "listIntro": "Elke bron heeft een eigen streamkey. Geef die alleen aan degene die deze stream verstuurt.",
+      "none": "Nog geen remote bronnen. Voeg er een toe en stuur de verbindingsgegevens naar de inzender.",
+      "route": "{{studio}} · DeckLink-uitgang {{output}} → ATEM-ingang {{input}}",
+      "since": "sinds {{time}}",
+      "onOutput": "Op DeckLink",
+      "connectBtn": "Verbindingsgegevens",
+      "toOutput": "Naar DeckLink",
+      "offOutput": "Uitgang stoppen",
+      "toAir": "Op de lucht via Regie",
+      "copy": "Kopiëren",
+      "show": "Tonen",
+      "hide": "Verbergen",
+      "ingestUnreachable": "De ingest-server op {{name}} reageert niet ({{error}}), dus de status van de streams is onbekend.",
+      "ingestFix": "Draai de installer van de studio node opnieuw met -ManagementHost naar deze server, zodat de ingest-server de streamkeys controleert via {{url}} en zijn statuspoort (9997) openzet voor deze server.",
+      "state": {
+        "live": "Ontvangt",
+        "waiting": "Wacht op stream",
+        "pull": "Opgehaald van URL",
+        "unknown": "Status onbekend"
+      },
+      "how": {
+        "title": "Zo werken remote bronnen",
+        "intro": "Van de encoder van de inzender tot op de lucht in vijf stappen.",
+        "chain": {
+          "contributor": "Inzender (OBS, vMix, telefoon)",
+          "ingest": "Ingest-server op de studio node",
+          "casparcg": "CasparCG",
+          "decklink": "DeckLink SDI-uitgang",
+          "atem": "ATEM-ingang",
+          "air": "Op de lucht"
+        },
+        "add": {
+          "title": "Bron toevoegen",
+          "text": "Kies een naam, de studio node, de DeckLink-uitgang die de stream afspeelt en de ATEM-ingang waar die uitgang op aangesloten is. Er wordt automatisch een streamkey gemaakt."
+        },
+        "send": {
+          "title": "Gegevens versturen",
+          "text": "Open Verbindingsgegevens en stuur de server en streamkey naar de inzender. Er staan stap-voor-stap-instructies bij voor OBS, vMix, Larix (telefoon) en ffmpeg."
+        },
+        "check": {
+          "title": "Signaal controleren",
+          "text": "Zodra de inzender begint met streamen, verandert de status in Ontvangt, met de codecs en de bitrate."
+        },
+        "decklink": {
+          "title": "Op DeckLink zetten",
+          "text": "Naar DeckLink speelt de stream af op de SDI-uitgang, zodat je hem op de preview of multiview van de ATEM ziet terwijl hij nog niet op de lucht is. Valt de stream weg en komt hij terug, dan start hij vanzelf opnieuw."
+        },
+        "air": {
+          "title": "Op de lucht zetten",
+          "text": "Klik in Regie op de bron onder Live nemen: de stream start en de ATEM schakelt naar zijn ingang. Terug naar schema beëindigt het. Je kunt de bron ook in een TV-blok zetten om op een vast tijdstip live te gaan."
+        },
+        "network": "Van buiten je netwerk moet de inzender de studio node kunnen bereiken op TCP 1935 (RTMP) of UDP 8890 (SRT): zet die poorten door op je router of firewall, of gebruik een VPN, en vul het publieke adres in onder Apparatuur → Studio-nodes. Gebruik via internet bij voorkeur SRT: dat kan veel beter tegen pakketverlies."
+      },
+      "connect": {
+        "title": "Verbindingsgegevens: {{name}}",
+        "intro": "Stuur deze gegevens naar de inzender. De streamkey is een wachtwoord: wie hem heeft, kan beeld naar deze uitgang sturen.",
+        "server": "Server (RTMP)",
+        "key": "Streamkey",
+        "fullUrl": "Volledige RTMP-URL",
+        "fullUrlHint": "Voor apps met één URL-veld.",
+        "srt": "SRT-URL",
+        "srtHint": "Aangeraden via internet (OBS 28+, vMix, Larix, hardware-encoders).",
+        "newKey": "Nieuwe streamkey",
+        "newKeyConfirm": "Nieuwe streamkey maken? De huidige key werkt niet meer voor nieuwe verbindingen; een inzender die nu streamt, wordt pas afgekapt als hij opnieuw verbindt.",
+        "pullInfo": "CasparCG haalt deze bron zelf op van {{url}}. De inzender heeft geen verbindingsgegevens nodig."
+      },
+      "apps": {
+        "obs": {
+          "name": "OBS Studio",
+          "steps": [
+            "Instellingen → Stream: dienst \"Aangepast…\".",
+            "Server: {{server}}",
+            "Streamsleutel: {{key}}",
+            "Instellingen → Uitvoer (Geavanceerd): encoder x264 of NVENC H.264, rate control CBR, bitrate 4000–6000 kbps, keyframe-interval 2 s.",
+            "Instellingen → Video: 1920×1080, 25 of 50 fps (gelijk aan het kanaal). Klik op Streamen starten.",
+            "Voor SRT: Server = de SRT-URL, streamsleutel leeg laten."
+          ]
+        },
+        "vmix": {
+          "name": "vMix",
+          "steps": [
+            "Klik op het tandwiel naast Stream.",
+            "Destination: Custom RTMP Server.",
+            "URL: {{server}}",
+            "Stream Name or Key: {{key}}",
+            "Quality: H.264, 1080p, 4–6 Mbit/s, keyframe elke 2 s. Klik op Start.",
+            "Voor SRT: kies SRT (Caller) als destination en plak de SRT-URL."
+          ]
+        },
+        "larix": {
+          "name": "Larix (telefoon)",
+          "steps": [
+            "Settings → Connections → New connection.",
+            "URL: {{server}}/{{key}}",
+            "Mode: Audio + Video. Opslaan en de verbinding selecteren.",
+            "Settings → Video: 1920×1080, 25 fps, 4–6 Mbit/s, keyframe 2 s.",
+            "Tik op de opnameknop om te gaan streamen.",
+            "Voor SRT: plak in plaats daarvan de SRT-URL als URL."
+          ]
+        },
+        "ffmpeg": {
+          "name": "ffmpeg",
+          "steps": [
+            "Verstuur een bestand of opnameapparaat met het commando hieronder.",
+            "-re speelt een bestand in echte tijd af; vervang input.mp4 door je bron."
+          ]
+        }
+      },
+      "encoder": {
+        "title": "Aanbevolen encoderinstellingen",
+        "items": [
+          "Video H.264, audio AAC 48 kHz, 128–192 kbit/s",
+          "1920×1080 op de framerate van het kanaal (25 of 50)",
+          "Constante bitrate (CBR), 4–6 Mbit/s",
+          "Keyframe-interval 2 seconden",
+          "Uploadsnelheid minstens 1,5× de bitrate",
+          "Waar mogelijk bekabeld netwerk in plaats van wifi"
+        ]
+      },
+      "form": {
+        "nameHint": "Wie of wat er verstuurt, bijv. de verslaggever of locatie. Wordt ook het begin van de streamkey.",
+        "namePlaceholder": "Verslaggever Zandvoort",
+        "studioHint": "De studio node waarvan de ingest-server de stream ontvangt.",
+        "noStudio": "Voeg eerst een studio node toe onder",
+        "output": "DeckLink-uitgang",
+        "outputHint": "De SDI-uitgang (CasparCG-kanaal) die de stream afspeelt. Kies een uitgang die de playout van een kanaal niet gebruikt, bijv. 2.",
+        "atemHint": "De ATEM-ingang waar deze DeckLink-uitgang op aangesloten is.",
+        "advanced": "Geavanceerd",
+        "pull": "In plaats daarvan ophalen van een URL",
+        "pullHint": "CasparCG haalt de stream zelf op (srt://, rtmp://, udp://, rtsp://, https://), bijv. van een encoder die niet kan pushen. Er is dan geen streamkey nodig.",
+        "keyNote": "De streamkey wordt gemaakt als je opslaat; de verbindingsgegevens openen daarna meteen."
+      }
     }
   }
 }

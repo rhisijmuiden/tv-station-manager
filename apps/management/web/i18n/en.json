@@ -12,7 +12,8 @@
       "graphics": "Graphics",
       "setup": "Setup",
       "channels": "Channels",
-      "devices": "Devices"
+      "devices": "Devices",
+      "remote": "Remote sources"
     },
     "categories": {
       "program": "Programme",
@@ -66,7 +67,8 @@
       "resume": "Back to schedule",
       "asrun": "As-run log",
       "noChannels": "No channels yet",
-      "noChannelsIntro": "Create a channel first and link it to an ATEM and a studio node."
+      "noChannelsIntro": "Create a channel first and link it to an ATEM and a studio node.",
+      "remoteWaiting": "A remote source marked Waiting for stream shows black until the contributor starts streaming."
     },
     "media": {
       "title_page": "Media library",
@@ -275,7 +277,7 @@
       "addStudio": "Add studio node",
       "noStudios": "No studio nodes yet.",
       "live": "Live sources",
-      "liveIntro": "Cameras or studios on an ATEM input, or an RTMP stream that a studio node puts on SDI.",
+      "liveIntro": "Cameras or studios on an ATEM input. Streams from outside (RTMP/SRT) are under Remote sources.",
       "addLive": "Add live source",
       "noLive": "No live sources yet.",
       "host": "IP address",
@@ -295,7 +297,13 @@
       "add_studio": "Add studio node",
       "edit_studio": "Edit studio node",
       "add_live": "Add live source",
-      "edit_live": "Edit live source"
+      "edit_live": "Edit live source",
+      "remoteLink": "Remote sources",
+      "ingestOk": "Ingest server reachable",
+      "ingestDown": "Ingest server not reachable (port 9997)",
+      "publicHost": "Address for remote senders",
+      "publicHostHint": "Public IP or host name contributors stream to. Empty = the IP address above.",
+      "ingestApiPort": "Ingest API port"
     },
     "errors": {
       "generic": "Something went wrong.",
@@ -308,7 +316,149 @@
       "unsupported_image": "Use a PNG, SVG, WebP or JPEG image.",
       "no_atem": "No ATEM linked to this channel.",
       "atem_failed": "The ATEM did not respond: {{message}}",
-      "unsupported_file_name": "File names with quotes are not supported."
+      "unsupported_file_name": "File names with quotes are not supported.",
+      "live_failed": "Could not take the source live: {{message}}",
+      "output_failed": "Could not start the DeckLink output: {{message}}",
+      "not_remote": "This is not a remote source."
+    },
+    "remote": {
+      "title": "Remote sources",
+      "intro": "Live streams from outside the studio (a reporter, a remote studio, a church service) sent over RTMP or SRT. The studio node plays them to a DeckLink output, and you switch that output on air.",
+      "add": "Add remote source",
+      "edit": "Edit remote source",
+      "list": "Your remote sources",
+      "listIntro": "Every source has its own stream key. Give it only to the person who sends that stream.",
+      "none": "No remote sources yet. Add one, then send the connection details to the contributor.",
+      "route": "{{studio}} · DeckLink output {{output}} → ATEM input {{input}}",
+      "since": "since {{time}}",
+      "onOutput": "On DeckLink",
+      "connectBtn": "Connection details",
+      "toOutput": "Send to DeckLink",
+      "offOutput": "Stop output",
+      "toAir": "On air via control room",
+      "copy": "Copy",
+      "show": "Show",
+      "hide": "Hide",
+      "ingestUnreachable": "The ingest server on {{name}} does not answer ({{error}}), so the status of the streams is unknown.",
+      "ingestFix": "Run the studio node installer again with -ManagementHost set to this server, so the ingest server checks the stream keys at {{url}} and opens its status port (9997) to this server.",
+      "state": {
+        "live": "Receiving",
+        "waiting": "Waiting for stream",
+        "pull": "Pulled from URL",
+        "unknown": "Status unknown"
+      },
+      "how": {
+        "title": "How remote sources work",
+        "intro": "From the contributor's encoder to on air in five steps.",
+        "chain": {
+          "contributor": "Contributor (OBS, vMix, phone)",
+          "ingest": "Ingest server on the studio node",
+          "casparcg": "CasparCG",
+          "decklink": "DeckLink SDI output",
+          "atem": "ATEM input",
+          "air": "On air"
+        },
+        "add": {
+          "title": "Add the source",
+          "text": "Choose a name, the studio node and the DeckLink output that plays the stream, and the ATEM input that output is cabled to. A stream key is created for you."
+        },
+        "send": {
+          "title": "Send the details",
+          "text": "Open Connection details and send the server and stream key to the contributor. There are step-by-step instructions for OBS, vMix, Larix (phone) and ffmpeg."
+        },
+        "check": {
+          "title": "Check the signal",
+          "text": "As soon as the contributor starts streaming, the status changes to Receiving, with the codecs and the bitrate."
+        },
+        "decklink": {
+          "title": "Put it on DeckLink",
+          "text": "Send to DeckLink plays the stream on the SDI output, so you see it on the ATEM preview or multiview while it is not on air yet. If the stream drops and comes back, it is restarted automatically."
+        },
+        "air": {
+          "title": "Switch it on air",
+          "text": "In the Control room, click the source under Take live: the stream is started and the ATEM switches to its input. Back to schedule ends it. You can also put the source in a TV block to go live at a set time."
+        },
+        "network": "From outside your network, the contributor needs to reach the studio node on TCP 1935 (RTMP) or UDP 8890 (SRT): forward those ports on your router or firewall, or use a VPN, and set the public address under Devices → Studio nodes. Use SRT over the internet when you can: it copes much better with packet loss."
+      },
+      "connect": {
+        "title": "Connection details: {{name}}",
+        "intro": "Send these details to the contributor. The stream key is a password: whoever has it can send a picture to this output.",
+        "server": "Server (RTMP)",
+        "key": "Stream key",
+        "fullUrl": "Full RTMP URL",
+        "fullUrlHint": "For apps with a single URL field.",
+        "srt": "SRT URL",
+        "srtHint": "Recommended over the internet (OBS 28+, vMix, Larix, hardware encoders).",
+        "newKey": "New stream key",
+        "newKeyConfirm": "Create a new stream key? The current key stops working for new connections; a contributor who is streaming now is not cut off until they reconnect.",
+        "pullInfo": "CasparCG pulls this source itself from {{url}}. The contributor does not need connection details."
+      },
+      "apps": {
+        "obs": {
+          "name": "OBS Studio",
+          "steps": [
+            "Settings → Stream: Service \"Custom…\".",
+            "Server: {{server}}",
+            "Stream key: {{key}}",
+            "Settings → Output (Advanced): encoder x264 or NVENC H.264, rate control CBR, bitrate 4000–6000 kbps, keyframe interval 2 s.",
+            "Settings → Video: 1920×1080, 25 or 50 fps (same as the channel). Click Start Streaming.",
+            "For SRT: Server = the SRT URL, leave the stream key empty."
+          ]
+        },
+        "vmix": {
+          "name": "vMix",
+          "steps": [
+            "Click the cog next to Stream.",
+            "Destination: Custom RTMP Server.",
+            "URL: {{server}}",
+            "Stream Name or Key: {{key}}",
+            "Quality: H.264, 1080p, 4–6 Mbit/s, keyframe every 2 s. Click Start.",
+            "For SRT: choose SRT (Caller) as destination and paste the SRT URL."
+          ]
+        },
+        "larix": {
+          "name": "Larix (phone)",
+          "steps": [
+            "Settings → Connections → New connection.",
+            "URL: {{server}}/{{key}}",
+            "Mode: Audio + Video. Save and select the connection.",
+            "Settings → Video: 1920×1080, 25 fps, 4–6 Mbit/s, keyframe 2 s.",
+            "Tap the record button to start streaming.",
+            "For SRT: paste the SRT URL as the URL instead."
+          ]
+        },
+        "ffmpeg": {
+          "name": "ffmpeg",
+          "steps": [
+            "Send a file or capture device with the command below.",
+            "-re plays a file in real time; replace input.mp4 with your source."
+          ]
+        }
+      },
+      "encoder": {
+        "title": "Recommended encoder settings",
+        "items": [
+          "Video H.264, audio AAC 48 kHz, 128–192 kbit/s",
+          "1920×1080 at the channel's frame rate (25 or 50)",
+          "Constant bitrate (CBR), 4–6 Mbit/s",
+          "Keyframe interval 2 seconds",
+          "Upload speed at least 1.5× the bitrate",
+          "Wired network instead of Wi-Fi where possible"
+        ]
+      },
+      "form": {
+        "nameHint": "Who or what is sending, e.g. the reporter or location. Also used at the start of the stream key.",
+        "namePlaceholder": "Reporter Zandvoort",
+        "studioHint": "The studio node whose ingest server receives the stream.",
+        "noStudio": "Add a studio node first under",
+        "output": "DeckLink output",
+        "outputHint": "The SDI output (CasparCG channel) that plays the stream. Use an output that the playout of a channel does not use, e.g. 2.",
+        "atemHint": "The ATEM input this DeckLink output is cabled to.",
+        "advanced": "Advanced",
+        "pull": "Pull from a URL instead",
+        "pullHint": "CasparCG fetches the stream itself (srt://, rtmp://, udp://, rtsp://, https://), e.g. from an encoder that cannot push. No stream key is needed then.",
+        "keyNote": "The stream key is created when you save; the connection details open straight after."
+      }
     }
   }
 }

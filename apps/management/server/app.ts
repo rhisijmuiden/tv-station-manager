@@ -7,10 +7,12 @@ import { Director } from "./director.js";
 import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
+import { RemoteSources } from "./remote.js";
 
 export interface ManagementHandles {
   hub: DeviceHub;
   director: Director;
+  remote: RemoteSources;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
@@ -22,10 +24,11 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
     backupSources: (ctx) => ({ graphics: join(ctx.config.dataDir, "graphics") }),
     register: async (server, platform: Platform) => {
       const hub = new DeviceHub(platform, opts.drivers ?? realDrivers);
-      const director = new Director(platform, hub);
+      const remote = new RemoteSources(platform, hub);
+      const director = new Director(platform, hub, remote);
       const changed = () => director.invalidate();
       registerMedia(server, platform, changed);
-      registerDevices(server, platform, hub);
+      registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
       director.register(server);
@@ -47,12 +50,16 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       });
 
       await hub.reload();
-      if (opts.autostart !== false) director.start();
+      if (opts.autostart !== false) {
+        director.start();
+        remote.start();
+      }
       server.addHook("onClose", async () => {
         director.stop();
+        remote.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director });
+      opts.onReady?.({ hub, director, remote });
     },
   };
 }
