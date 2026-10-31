@@ -72,6 +72,7 @@ Description: TV Station Manager - $APP
 CONTROL
 
 mkdir -p "$OUT"
-FILE="$OUT/${PKG}_${DEB_VERSION}_${ARCH}.deb"
+# GitHub release assets cannot contain "~", so the file name uses "." (the package version inside keeps "~").
+FILE="$OUT/${PKG}_${VERSION//[-~]/.}_${ARCH}.deb"
 dpkg-deb --root-owner-group -Zxz --build "$STAGE" "$FILE" >/dev/null
 echo "$FILE"
