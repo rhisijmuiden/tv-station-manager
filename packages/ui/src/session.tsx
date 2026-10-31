@@ -8,6 +8,11 @@ export interface SessionUser {
   email: string | null;
   role: string;
   language: string;
+  authProvider?: "local" | "entra";
+}
+export interface SsoInfo {
+  provider: "entra";
+  label: string | null;
 }
 export interface SystemInfo {
   app: { id: string; name: string };
@@ -37,6 +42,8 @@ export interface UpdateCheck {
 interface Session {
   status: "loading" | "setup" | "anonymous" | "ready";
   user: SessionUser | null;
+  /** Single sign-on offered on the login page, if configured. */
+  sso: SsoInfo | null;
   defaultPasswordInUse: boolean;
   info: SystemInfo | null;
   lastCheck: UpdateCheck | null;
@@ -47,13 +54,14 @@ interface Session {
 const Ctx = createContext<Session | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Omit<Session, "refresh" | "setLastCheck">>({ status: "loading", user: null, defaultPasswordInUse: false, info: null, lastCheck: null });
+  const [state, setState] = useState<Omit<Session, "refresh" | "setLastCheck">>({ status: "loading", user: null, sso: null, defaultPasswordInUse: false, info: null, lastCheck: null });
   const refresh = useCallback(async () => {
-    const s = await get<{ setupRequired: boolean; user: SessionUser | null; defaultPasswordInUse?: boolean }>("/api/auth/status");
-    if (s.setupRequired) return setState((p) => ({ ...p, status: "setup", user: null }));
-    if (!s.user) return setState((p) => ({ ...p, status: "anonymous", user: null }));
+    const s = await get<{ setupRequired: boolean; user: SessionUser | null; defaultPasswordInUse?: boolean; sso?: SsoInfo | null }>("/api/auth/status");
+    const sso = s.sso ?? null;
+    if (s.setupRequired) return setState((p) => ({ ...p, status: "setup", user: null, sso }));
+    if (!s.user) return setState((p) => ({ ...p, status: "anonymous", user: null, sso }));
     const [info, upd] = await Promise.all([get<SystemInfo>("/api/system/info"), get<{ lastCheck: UpdateCheck | null }>("/api/system/update")]);
-    setState({ status: "ready", user: s.user, defaultPasswordInUse: !!s.defaultPasswordInUse, info, lastCheck: upd.lastCheck });
+    setState({ status: "ready", user: s.user, sso, defaultPasswordInUse: !!s.defaultPasswordInUse, info, lastCheck: upd.lastCheck });
   }, []);
   useEffect(() => {
     void refresh();

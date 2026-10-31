@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PlatformContext } from "./context.js";
 import { HttpError } from "./context.js";
 import { hashPassword, randomToken, verifyPassword } from "./crypto.js";
+import { SSO_PUBLIC_PATHS, SsoService, registerSso } from "./sso.js";
 
 export const SESSION_COOKIE = "tvsm_session";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -14,6 +15,8 @@ export interface SessionUser {
   email: string | null;
   role: string;
   language: string;
+  /** "local" (password) or "entra" (Microsoft sign-in). */
+  authProvider: string;
 }
 
 declare module "fastify" {
@@ -22,7 +25,7 @@ declare module "fastify" {
   }
 }
 
-const PUBLIC_API = new Set(["/api/auth/status", "/api/auth/setup", "/api/auth/login", "/api/system/health"]);
+const PUBLIC_API = new Set(["/api/auth/status", "/api/auth/setup", "/api/auth/login", "/api/system/health", ...SSO_PUBLIC_PATHS]);
 
 const credentials = z.object({ username: z.string().trim().min(3).max(64), password: z.string().min(10).max(256) });
 
@@ -34,7 +37,7 @@ function loadSession(ctx: PlatformContext, token: string | undefined): SessionUs
   if (!token) return undefined;
   const row = ctx.db
     .prepare(
-      `SELECT u.id, u.username, u.display_name, u.email, u.role, u.language, s.expires_at
+      `SELECT u.id, u.username, u.display_name, u.email, u.role, u.language, u.auth_provider, s.expires_at
          FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`,
     )
     .get(token) as Record<string, unknown> | undefined;
@@ -48,6 +51,7 @@ function loadSession(ctx: PlatformContext, token: string | undefined): SessionUs
     email: (row.email as string) ?? null,
     role: String(row.role),
     language: String(row.language),
+    authProvider: String(row.auth_provider ?? "local"),
   };
 }
 
@@ -68,7 +72,7 @@ export async function ensureDefaultAdmin(ctx: PlatformContext) {
   ctx.log.warn({ username }, "created default administrator account; change its password after the first login");
 }
 
-export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
+export function registerAuth(app: FastifyInstance, ctx: PlatformContext, sso = new SsoService(ctx)) {
   const startSession = (userId: number) => {
     const token = randomToken();
     ctx.db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(token, userId, Date.now() + SESSION_TTL_MS);
@@ -83,6 +87,8 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
     maxAge: SESSION_TTL_MS / 1000,
   });
 
+  registerSso(app, ctx, sso, (req, reply, userId) => reply.setCookie(SESSION_COOKIE, startSession(userId), cookieOpts(req)));
+
   app.addHook("onRequest", async (req) => {
     if (!req.url.startsWith("/api/")) return;
     req.user = loadSession(ctx, req.cookies[SESSION_COOKIE]);
@@ -94,6 +100,7 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
     setupRequired: userCount(ctx) === 0,
     user: req.user ?? null,
     defaultPasswordInUse: req.user ? ctx.settings.get(DEFAULT_FLAG, false) : undefined,
+    sso: sso.isEnabled() ? { provider: "entra", label: sso.getConfig().buttonLabel || null } : null,
   }));
 
   app.post("/api/auth/setup", async (req, reply) => {
@@ -109,7 +116,8 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
 
   app.post("/api/auth/login", async (req, reply) => {
     const body = z.object({ username: z.string(), password: z.string() }).parse(req.body);
-    const row = ctx.db.prepare("SELECT id, password_hash FROM users WHERE username = ?").get(body.username) as
+    // Microsoft accounts have no password; they only sign in through SSO.
+    const row = ctx.db.prepare("SELECT id, password_hash FROM users WHERE username = ? AND auth_provider = 'local'").get(body.username) as
       | { id: number; password_hash: string }
       | undefined;
     // Always run a hash comparison to keep timing similar for unknown users.
@@ -139,6 +147,7 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext) {
 
   app.put("/api/auth/password", async (req) => {
     const body = z.object({ current: z.string(), next: z.string().min(10).max(256) }).parse(req.body);
+    if (req.user!.authProvider !== "local") throw new HttpError(400, "sso_account");
     const row = ctx.db.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user!.id) as { password_hash: string };
     if (!(await verifyPassword(body.current, row.password_hash))) throw new HttpError(400, "invalid_current_password");
     ctx.db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(body.next), req.user!.id);

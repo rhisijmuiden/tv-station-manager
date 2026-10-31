@@ -64,6 +64,11 @@ location / {
 
 Only expose the proxy, not port 8080 directly.
 
+### Sign in with Office 365
+
+**System → Single sign-on** lets people sign in with their Microsoft Entra ID (Office 365) account; local accounts keep
+working as a fallback. See [docs/sso.md](docs/sso.md) ([NL](docs/sso.nl.md)) for the app registration.
+
 ## Development
 
 ```bash

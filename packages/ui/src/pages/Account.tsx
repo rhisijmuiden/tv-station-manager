@@ -60,6 +60,14 @@ export function AccountPage() {
             </div>
           </CardBody>
         </Card>
+        {user?.authProvider === "entra" ? (
+          <Card>
+            <CardHeader icon={<KeyRound className="size-4" />} title={t("account.signInMethod")} />
+            <CardBody>
+              <p className="text-sm text-muted">{t("account.microsoftManaged")}</p>
+            </CardBody>
+          </Card>
+        ) : (
         <Card>
           <CardHeader icon={<KeyRound className="size-4" />} title={t("account.changePassword")} />
           <CardBody className="space-y-4">
@@ -76,6 +84,7 @@ export function AccountPage() {
             </div>
           </CardBody>
         </Card>
+        )}
       </div>
     </>
   );
