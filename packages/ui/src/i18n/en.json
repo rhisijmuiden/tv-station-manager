@@ -1,0 +1,75 @@
+{
+  "common": {
+    "save": "Save", "saved": "Saved", "cancel": "Cancel", "delete": "Delete", "edit": "Edit", "add": "Add", "close": "Close",
+    "test": "Test", "enabled": "Enabled", "disabled": "Disabled", "loading": "Loading…", "yes": "Yes", "no": "No",
+    "name": "Name", "status": "Status", "actions": "Actions", "never": "Never", "optional": "optional", "error": "Something went wrong"
+  },
+  "nav": {
+    "dashboard": "Dashboard", "system": "System", "mail": "Mail server", "backup": "Backup & restore",
+    "updates": "Software & updates", "account": "My account", "info": "Info", "logout": "Sign out",
+    "theme": "Theme", "light": "Light", "dark": "Dark", "language": "Language", "collapse": "Collapse menu", "menu": "Menu"
+  },
+  "auth": {
+    "signIn": "Sign in", "signInTitle": "Sign in to {{app}}", "username": "Username", "password": "Password",
+    "invalid": "Invalid username or password",
+    "setupTitle": "Welcome to {{app}}", "setupIntro": "Create the first administrator account to get started.",
+    "email": "Email address", "passwordConfirm": "Confirm password", "passwordHint": "At least 10 characters.",
+    "passwordMismatch": "Passwords do not match", "createAccount": "Create account"
+  },
+  "account": {
+    "title": "My account", "profile": "Profile", "displayName": "Display name", "language": "Language",
+    "changePassword": "Change password", "currentPassword": "Current password", "newPassword": "New password",
+    "passwordChanged": "Password changed", "wrongPassword": "Current password is incorrect"
+  },
+  "info": {
+    "title": "About this installation", "version": "Version", "channel": "Release channel", "hostname": "Host",
+    "os": "Operating system", "runtime": "Runtime", "uptime": "Uptime",
+    "checkUpdates": "Check for updates", "checking": "Checking…", "upToDate": "You are running the latest version.",
+    "available": "Version {{version}} is available.", "downgradeAvailable": "Production version {{version}} is available (switch back from test).",
+    "updateNow": "Update now", "installing": "Installing update… the application restarts automatically.",
+    "devBuild": "This is a development build. Updates can only be installed on a packaged installation.",
+    "openUpdates": "Update settings", "lastChecked": "Last checked {{time}}", "releaseNotes": "Release notes",
+    "updated": "Updated to {{version}}.", "updateFailed": "Update failed: {{error}}"
+  },
+  "channel": {
+    "production": "Production", "test": "Test",
+    "productionHint": "Stable releases. Recommended for live broadcasting.",
+    "testHint": "Pre-releases for testing new features before they go to production."
+  },
+  "updates": {
+    "title": "Software & updates", "intro": "Choose the release channel and install updates from GitHub releases.",
+    "channel": "Release channel", "repository": "GitHub repository", "token": "Access token",
+    "tokenHint": "Only needed when the repository is private (fine-grained token with read access to Contents).",
+    "autoCheck": "Check for updates automatically every 6 hours", "current": "Installed version"
+  },
+  "mail": {
+    "title": "Mail server", "intro": "Outgoing mail (SMTP) used for alerts and notifications.",
+    "enabled": "Send email", "server": "Server", "host": "SMTP host", "port": "Port", "security": "Encryption",
+    "sec_starttls": "STARTTLS (port 587)", "sec_tls": "TLS / SSL (port 465)", "sec_none": "None (not recommended)",
+    "minTls": "Minimum TLS version", "verifyCert": "Verify server certificate",
+    "authentication": "Authentication", "authMethod": "Method", "auth_none": "None", "auth_password": "Username and password", "auth_oauth2": "OAuth 2.0 (Microsoft 365, Google)",
+    "username": "Username", "password": "Password", "clientId": "Client ID", "clientSecret": "Client secret", "refreshToken": "Refresh token", "tokenUrl": "Token URL",
+    "sender": "Sender", "fromName": "From name", "fromAddress": "From address", "replyTo": "Reply-to",
+    "dkim": "DKIM signing", "dkimEnabled": "Sign outgoing mail with DKIM", "dkimDomain": "Domain", "dkimSelector": "Selector", "dkimKey": "Private key (PEM)",
+    "alerts": "Alerts", "alertRecipients": "Alert recipients", "alertRecipientsHint": "Comma separated. Receives backup failures, node alerts and update notices.",
+    "verify": "Test connection", "verifyOk": "Connection and login successful", "sendTest": "Send test email", "testTo": "Send test to", "testSent": "Test email sent"
+  },
+  "backup": {
+    "title": "Backup & restore", "intro": "Full and incremental backups to remote FTP, FTPS or SCP locations.",
+    "targets": "Remote locations", "addTarget": "Add location", "noTargets": "No remote locations yet.",
+    "protocol": "Protocol", "host": "Host", "port": "Port", "username": "Username", "password": "Password", "directory": "Directory",
+    "tlsMode": "FTPS mode", "tls_explicit": "Explicit (AUTH TLS)", "tls_implicit": "Implicit (port 990)", "verifyCert": "Verify server certificate",
+    "authMethod": "Authentication", "auth_key": "SSH key", "auth_password": "Password", "privateKey": "Private key", "passphrase": "Key passphrase",
+    "hostKey": "Pinned host key", "hostKeyHint": "Filled in automatically on the first successful test.",
+    "testOk": "Connection OK", "schedule": "Schedule", "scheduleEnabled": "Run backups automatically",
+    "fullCron": "Full backup (cron)", "incrementalCron": "Incremental backup (cron)", "cronHint": "Cron format: minute hour day month weekday. Default: full on Sunday 03:00, incremental the other days.",
+    "retention": "Keep full backups", "retentionHint": "Older full backups and their incrementals are removed from the remote location.",
+    "notifyFailure": "Email on failure", "notifySuccess": "Email on success", "useTargets": "Back up to", "nextRun": "Next run",
+    "runNow": "Back up now", "full": "Full", "incremental": "Incremental", "history": "History", "noRuns": "No backups yet.",
+    "started": "Started", "size": "Size", "files": "Files", "kind": "Type", "location": "Location",
+    "st_success": "Completed", "st_failed": "Failed", "st_running": "Running",
+    "restore": "Restore", "restoreTitle": "Restore from remote location", "restoreIntro": "Pick a location to list the backups stored there. This also works on a fresh installation.",
+    "loadRemote": "List backups", "restoreConfirm": "Restore the backup from {{date}}? Current data is replaced and the application restarts.",
+    "restoring": "Restoring… the application restarts and you will need to sign in again.", "noRemote": "No backups found at this location."
+  }
+}

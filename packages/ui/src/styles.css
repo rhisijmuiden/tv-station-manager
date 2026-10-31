@@ -1,0 +1,42 @@
+@import "tailwindcss";
+@import "../../../branding/tokens.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@source "./";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-bg: var(--tvsm-bg);
+  --color-surface: var(--tvsm-surface);
+  --color-surface-2: var(--tvsm-surface-2);
+  --color-line: var(--tvsm-border);
+  --color-fg: var(--tvsm-text);
+  --color-muted: var(--tvsm-text-muted);
+  --color-sidebar: var(--tvsm-sidebar);
+  --color-sidebar-fg: var(--tvsm-sidebar-text);
+  --color-brand: var(--tvsm-signal-blue);
+  --color-brand-light: var(--tvsm-signal-blue-light);
+  --color-brand-dark: var(--tvsm-signal-blue-dark);
+  --color-onair: var(--tvsm-on-air);
+  --color-ok: var(--tvsm-success);
+  --color-warn: var(--tvsm-warning);
+  --color-danger: var(--tvsm-danger);
+  --font-sans: var(--tvsm-font-sans);
+  --font-mono: var(--tvsm-font-mono);
+  --radius-sm: var(--tvsm-radius-sm);
+  --radius-md: var(--tvsm-radius-md);
+  --radius-lg: var(--tvsm-radius-lg);
+  --radius-xl: var(--tvsm-radius-xl);
+  --shadow-card: var(--tvsm-shadow-card);
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--tvsm-bg);
+  color: var(--tvsm-text);
+  font-family: var(--tvsm-font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: color-mix(in srgb, var(--tvsm-signal-blue) 30%, transparent); }

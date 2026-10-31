@@ -1,0 +1,16 @@
+{
+  "orch": {
+    "nav": { "nodes": "Nodes" },
+    "dashboard": {
+      "title": "Dashboard", "intro": "Overzicht van deze orchestrator en de nodes die hij beheert.",
+      "nodes": "Nodes", "online": "Online", "pending": "Wacht op goedkeuring", "total": "Totaal",
+      "setup": "Aan de slag", "setupIntro": "Rond deze stappen af om de orchestrator klaar te maken voor productie.",
+      "stepMail": "Stel de mailserver in voor meldingen", "stepBackup": "Voeg een externe back-uplocatie toe", "stepFirstBackup": "Maak de eerste volledige back-up",
+      "stepNodes": "Meld de eerste node aan", "open": "Openen", "lastBackup": "Laatste back-up", "none": "Nog geen"
+    },
+    "nodes": {
+      "title": "Nodes", "intro": "Studio- en management-nodes die bij deze orchestrator zijn aangemeld.",
+      "comingSoon": "Het aanmelden van nodes komt in de volgende stap: installeer de client op een node, wijs hem naar deze orchestrator en keur hem hier goed."
+    }
+  }
+}

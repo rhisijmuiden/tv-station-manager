@@ -1,0 +1,16 @@
+{
+  "orch": {
+    "nav": { "nodes": "Nodes" },
+    "dashboard": {
+      "title": "Dashboard", "intro": "Overview of this orchestrator and the nodes it manages.",
+      "nodes": "Nodes", "online": "Online", "pending": "Waiting for approval", "total": "Total",
+      "setup": "Getting started", "setupIntro": "Complete these steps to make the orchestrator production ready.",
+      "stepMail": "Configure the mail server for alerts", "stepBackup": "Add a remote backup location", "stepFirstBackup": "Run the first full backup",
+      "stepNodes": "Enroll the first node", "open": "Open", "lastBackup": "Last backup", "none": "None yet"
+    },
+    "nodes": {
+      "title": "Nodes", "intro": "Studio and management nodes enrolled with this orchestrator.",
+      "comingSoon": "Node enrollment arrives in the next step: install the client on a node, point it at this orchestrator and approve it here."
+    }
+  }
+}

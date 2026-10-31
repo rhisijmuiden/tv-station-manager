@@ -1,0 +1,75 @@
+{
+  "common": {
+    "save": "Opslaan", "saved": "Opgeslagen", "cancel": "Annuleren", "delete": "Verwijderen", "edit": "Bewerken", "add": "Toevoegen", "close": "Sluiten",
+    "test": "Testen", "enabled": "Ingeschakeld", "disabled": "Uitgeschakeld", "loading": "Laden…", "yes": "Ja", "no": "Nee",
+    "name": "Naam", "status": "Status", "actions": "Acties", "never": "Nooit", "optional": "optioneel", "error": "Er ging iets mis"
+  },
+  "nav": {
+    "dashboard": "Dashboard", "system": "Systeem", "mail": "Mailserver", "backup": "Back-up en herstel",
+    "updates": "Software en updates", "account": "Mijn account", "info": "Info", "logout": "Uitloggen",
+    "theme": "Thema", "light": "Licht", "dark": "Donker", "language": "Taal", "collapse": "Menu inklappen", "menu": "Menu"
+  },
+  "auth": {
+    "signIn": "Inloggen", "signInTitle": "Inloggen bij {{app}}", "username": "Gebruikersnaam", "password": "Wachtwoord",
+    "invalid": "Onjuiste gebruikersnaam of wachtwoord",
+    "setupTitle": "Welkom bij {{app}}", "setupIntro": "Maak het eerste beheerdersaccount aan om te beginnen.",
+    "email": "E-mailadres", "passwordConfirm": "Bevestig wachtwoord", "passwordHint": "Minimaal 10 tekens.",
+    "passwordMismatch": "Wachtwoorden komen niet overeen", "createAccount": "Account aanmaken"
+  },
+  "account": {
+    "title": "Mijn account", "profile": "Profiel", "displayName": "Weergavenaam", "language": "Taal",
+    "changePassword": "Wachtwoord wijzigen", "currentPassword": "Huidig wachtwoord", "newPassword": "Nieuw wachtwoord",
+    "passwordChanged": "Wachtwoord gewijzigd", "wrongPassword": "Huidig wachtwoord is onjuist"
+  },
+  "info": {
+    "title": "Over deze installatie", "version": "Versie", "channel": "Releasekanaal", "hostname": "Host",
+    "os": "Besturingssysteem", "runtime": "Runtime", "uptime": "Actief sinds",
+    "checkUpdates": "Controleren op updates", "checking": "Controleren…", "upToDate": "Je gebruikt de nieuwste versie.",
+    "available": "Versie {{version}} is beschikbaar.", "downgradeAvailable": "Productieversie {{version}} is beschikbaar (terug van test).",
+    "updateNow": "Nu bijwerken", "installing": "Update wordt geïnstalleerd… de applicatie herstart automatisch.",
+    "devBuild": "Dit is een ontwikkelversie. Updates kunnen alleen op een geïnstalleerd pakket worden toegepast.",
+    "openUpdates": "Update-instellingen", "lastChecked": "Laatst gecontroleerd {{time}}", "releaseNotes": "Releasenotes",
+    "updated": "Bijgewerkt naar {{version}}.", "updateFailed": "Update mislukt: {{error}}"
+  },
+  "channel": {
+    "production": "Productie", "test": "Test",
+    "productionHint": "Stabiele releases. Aanbevolen voor live uitzenden.",
+    "testHint": "Voorlopige releases om nieuwe functies te testen voordat ze naar productie gaan."
+  },
+  "updates": {
+    "title": "Software en updates", "intro": "Kies het releasekanaal en installeer updates vanuit GitHub-releases.",
+    "channel": "Releasekanaal", "repository": "GitHub-repository", "token": "Toegangstoken",
+    "tokenHint": "Alleen nodig als de repository privé is (fine-grained token met leesrechten op Contents).",
+    "autoCheck": "Elke 6 uur automatisch op updates controleren", "current": "Geïnstalleerde versie"
+  },
+  "mail": {
+    "title": "Mailserver", "intro": "Uitgaande mail (SMTP) voor meldingen en notificaties.",
+    "enabled": "E-mail versturen", "server": "Server", "host": "SMTP-host", "port": "Poort", "security": "Versleuteling",
+    "sec_starttls": "STARTTLS (poort 587)", "sec_tls": "TLS / SSL (poort 465)", "sec_none": "Geen (niet aanbevolen)",
+    "minTls": "Minimale TLS-versie", "verifyCert": "Servercertificaat controleren",
+    "authentication": "Authenticatie", "authMethod": "Methode", "auth_none": "Geen", "auth_password": "Gebruikersnaam en wachtwoord", "auth_oauth2": "OAuth 2.0 (Microsoft 365, Google)",
+    "username": "Gebruikersnaam", "password": "Wachtwoord", "clientId": "Client-ID", "clientSecret": "Clientgeheim", "refreshToken": "Refresh-token", "tokenUrl": "Token-URL",
+    "sender": "Afzender", "fromName": "Naam afzender", "fromAddress": "Adres afzender", "replyTo": "Antwoordadres",
+    "dkim": "DKIM-ondertekening", "dkimEnabled": "Uitgaande mail ondertekenen met DKIM", "dkimDomain": "Domein", "dkimSelector": "Selector", "dkimKey": "Privésleutel (PEM)",
+    "alerts": "Meldingen", "alertRecipients": "Ontvangers van meldingen", "alertRecipientsHint": "Gescheiden door komma's. Ontvangt mislukte back-ups, node-meldingen en updates.",
+    "verify": "Verbinding testen", "verifyOk": "Verbinding en inloggen gelukt", "sendTest": "Testmail versturen", "testTo": "Testmail naar", "testSent": "Testmail verstuurd"
+  },
+  "backup": {
+    "title": "Back-up en herstel", "intro": "Volledige en incrementele back-ups naar externe FTP-, FTPS- of SCP-locaties.",
+    "targets": "Externe locaties", "addTarget": "Locatie toevoegen", "noTargets": "Nog geen externe locaties.",
+    "protocol": "Protocol", "host": "Host", "port": "Poort", "username": "Gebruikersnaam", "password": "Wachtwoord", "directory": "Map",
+    "tlsMode": "FTPS-modus", "tls_explicit": "Expliciet (AUTH TLS)", "tls_implicit": "Impliciet (poort 990)", "verifyCert": "Servercertificaat controleren",
+    "authMethod": "Authenticatie", "auth_key": "SSH-sleutel", "auth_password": "Wachtwoord", "privateKey": "Privésleutel", "passphrase": "Wachtwoordzin sleutel",
+    "hostKey": "Vastgelegde hostsleutel", "hostKeyHint": "Wordt automatisch ingevuld bij de eerste geslaagde test.",
+    "testOk": "Verbinding OK", "schedule": "Planning", "scheduleEnabled": "Back-ups automatisch uitvoeren",
+    "fullCron": "Volledige back-up (cron)", "incrementalCron": "Incrementele back-up (cron)", "cronHint": "Cron-formaat: minuut uur dag maand weekdag. Standaard: volledig op zondag 03:00, incrementeel de andere dagen.",
+    "retention": "Volledige back-ups bewaren", "retentionHint": "Oudere volledige back-ups en hun incrementele back-ups worden van de externe locatie verwijderd.",
+    "notifyFailure": "E-mail bij mislukken", "notifySuccess": "E-mail bij succes", "useTargets": "Back-up naar", "nextRun": "Volgende run",
+    "runNow": "Nu back-up maken", "full": "Volledig", "incremental": "Incrementeel", "history": "Geschiedenis", "noRuns": "Nog geen back-ups.",
+    "started": "Gestart", "size": "Grootte", "files": "Bestanden", "kind": "Type", "location": "Locatie",
+    "st_success": "Voltooid", "st_failed": "Mislukt", "st_running": "Bezig",
+    "restore": "Herstellen", "restoreTitle": "Herstellen vanaf externe locatie", "restoreIntro": "Kies een locatie om de daar opgeslagen back-ups te tonen. Dit werkt ook op een nieuwe installatie.",
+    "loadRemote": "Back-ups tonen", "restoreConfirm": "De back-up van {{date}} herstellen? De huidige gegevens worden vervangen en de applicatie herstart.",
+    "restoring": "Bezig met herstellen… de applicatie herstart en je moet opnieuw inloggen.", "noRemote": "Geen back-ups gevonden op deze locatie."
+  }
+}
