@@ -26,8 +26,8 @@ param(
   [string]$SmbUser = "",
   [SecureString]$SmbPassword,
   [ValidateRange(1, 8)][int]$Outputs = 4,
-  # CasparCG video mode for every channel, e.g. 1080p5000, 1080i5000, 720p5000, 1080p2500.
-  # Default: the mode of the previous install, else 1080p5000 (progressive also shows on the DeckLink HDMI output).
+  # CasparCG video mode for every channel, e.g. 1080i5000, 1080p5000, 720p5000, 1080p2500. Must match the ATEM / receiver.
+  # Default: the mode of the previous install, else 1080i5000.
   [string]$VideoMode = "",
   # DeckLink keyer: default (fill only, HDMI shows the programme), external (fill + key on two connectors), internal.
   [ValidateSet("", "default", "external", "internal")][string]$Keyer = "",
@@ -67,7 +67,8 @@ icacls $data /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)
 $old = $null
 if (Test-Path (Join-Path $data "studio.json")) { $old = Get-Content (Join-Path $data "studio.json") -Raw | ConvertFrom-Json }
 if (-not $MediaPath -and $old) { $MediaPath = $old.mediaPath }
-if (-not $VideoMode) { $VideoMode = if ($old -and $old.videoMode) { $old.videoMode } else { "1080p5000" } }
+if (-not $VideoMode -and $old) { $VideoMode = if ($old.videoMode) { $old.videoMode } elseif ($old.outputs) { @($old.outputs)[0].format } else { "" } }
+if (-not $VideoMode) { $VideoMode = "1080i5000" }
 if (-not $Keyer) { $Keyer = if ($old -and $old.keyer) { $old.keyer } else { "default" } }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
