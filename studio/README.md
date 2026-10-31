@@ -6,7 +6,7 @@ A studio node is a Windows PC with a Blackmagic DeckLink card (4 SDI outputs, up
 | --- | --- | --- |
 | `tvsm-agent` | TV Station Manager agent: registers with the orchestrator, reports CasparCG / ingest / media share status, runs commands (update, restart CasparCG, restart ingest, reboot) | outbound only |
 | `tvsm-casparcg` | CasparCG Server 2.4: plays clips from the UNAS share, RTMP streams and the graphics overlay to the DeckLink outputs. Controlled by the management node over AMCP | TCP 5250 (management node only) |
-| `tvsm-ingest` | MediaMTX: receives RTMP/SRT pushes from remote sources, CasparCG plays them from `rtmp://127.0.0.1/live/<name>` | TCP 1935, UDP 8890 |
+| `tvsm-ingest` | MediaMTX: receives RTMP/SRT pushes from remote sources, CasparCG plays them from `rtmp://127.0.0.1/live/<stream key>`. Stream keys are checked by the management node | TCP 1935, UDP 8890, TCP 9997 (status API, management node only) |
 
 ## Install
 
@@ -20,6 +20,7 @@ A studio node is a Windows PC with a Blackmagic DeckLink card (4 SDI outputs, up
 
    Use `test` instead of `production` in the URL plus `-Channel test` for the test channel. Other options:
    `-Outputs 4` (DeckLink outputs = CasparCG channels), `-VideoMode 1080i5000` (`1080p5000`, `720p5000`, ...),
+   `-ManagementUrl` (where the ingest server checks stream keys; default `http://<first -ManagementHost>:8080`),
    `-PublicHost` (address shown in the RTMP push URL), `-CasparVersion 2.4`, `-MediaMtxVersion latest`, `-SkipAgent`.
    The script asks for the share password and stores it encrypted for this machine (DPAPI).
 3. Approve the node in the orchestrator (**Nodes**) and give it the role **studio**. The node page then shows
@@ -44,12 +45,17 @@ CasparCG channel N plays to DeckLink output N. The usual layout for two TV chann
 
 1. **Devices → Studio nodes**: host = this machine, port 5250.
 2. **Channels**: per TV channel the CasparCG channel, and the ATEM input each DeckLink output is cabled to.
-3. **Devices → Live sources** (RTMP): studio node, CasparCG channel (e.g. 2) and URL `rtmp://127.0.0.1/live/<name>`.
+3. **Remote sources**: one per contributor, with the studio node, the DeckLink output (CasparCG channel, e.g. 2) and the
+   ATEM input. See [docs/remote-sources.md](../docs/remote-sources.md).
 4. **EPG → Public address of this server** must be reachable from the studio node: the overlay loads the logo and subtitles from it.
 
-Remote contributors push to `rtmp://<studio node>/live` with stream key `<name>?user=publish&pass=<password>`
-(the installer prints the password; it is in `%ProgramData%\TVSM\studio\studio.json`). SRT works too:
-`srt://<studio node>:8890?streamid=publish:live/<name>:publish:<password>`.
+Remote contributors push to `rtmp://<studio node>/live` with the stream key of their remote source, or over SRT to
+`srt://<studio node>:8890?streamid=publish:live/<stream key>`. The management node shows the details per source
+(**Remote sources → Connection details**) and whether the stream is coming in. Full guide:
+[docs/remote-sources.md](../docs/remote-sources.md) ([Nederlands](../docs/remote-sources.nl.md)).
+
+Without `-ManagementHost`/`-ManagementUrl` the installer falls back to one shared publish password (stream key
+`<name>?user=publish&pass=<password>`, stored in `studio.json`), and the management node cannot show stream status.
 
 ## Graphics overlay
 

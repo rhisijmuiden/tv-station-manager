@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { assetName } from "../src/commands.ts";
-import { amcp, parseAmcp, parseInfoChannels, parseScState, readStudioConfig } from "../src/studio.ts";
+import { amcp, maskStreamName, parseAmcp, parseInfoChannels, parseScState, readStudioConfig } from "../src/studio.ts";
 
 test("amcp: parses 200/201/4xx replies and keeps partial data", () => {
   const r = parseAmcp("201 VERSION OK\r\n2.4.0 abc Stable\r\n200 INFO OK\r\n1 1080i5000 PLAYING\r\n2 1080i5000 PLAYING\r\n\r\n404 PLAY FAILED\r\n200 INF");
@@ -61,4 +61,9 @@ test("windows: service state, studio config and update asset", () => {
   process.env.TVSM_STUDIO_CONFIG = join(dir, "missing.json");
   assert.equal(readStudioConfig(), null);
   rmSync(dir, { recursive: true, force: true });
+});
+
+test("studio: stream keys are masked in the status report", () => {
+  assert.equal(maskStreamName("live/reporter-zandvoort-0123456789abcdef01234567"), "live/reporter-zandvoort-0123…4567");
+  assert.equal(maskStreamName("live/cam1"), "live/cam1");
 });

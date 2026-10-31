@@ -5,6 +5,7 @@ import { networkInterfaces } from "node:os";
 import { z } from "zod";
 import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics } from "./content.js";
 import type { DeviceHub } from "./devices.js";
+import type { LiveRow, RemoteSources } from "./remote.js";
 import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
 
 /**
@@ -35,16 +36,6 @@ interface ChannelState {
   lastAlertAt: number;
 }
 
-interface LiveRow {
-  id: number;
-  name: string;
-  kind: "atem" | "rtmp";
-  atem_input: number;
-  studio_id: number | null;
-  caspar_channel: number | null;
-  url: string | null;
-}
-
 export class Director {
   private states = new Map<number, ChannelState>();
   private timer: NodeJS.Timeout | null = null;
@@ -55,6 +46,7 @@ export class Director {
   constructor(
     private platform: Platform,
     private hub: DeviceHub,
+    private remote: RemoteSources,
   ) {}
 
   start(intervalMs = 200) {
@@ -133,7 +125,7 @@ export class Director {
     return this.hub.playout(ch.studio_id);
   }
   private live(id: number) {
-    return this.platform.ctx.db.prepare("SELECT * FROM live_sources WHERE id = ?").get(id) as LiveRow | undefined;
+    return this.remote.live(id);
   }
 
   private async switchTo(ch: ChannelRow, input: number | null) {
@@ -148,7 +140,16 @@ export class Director {
     const a = s.activeRtmp;
     if (!a || (keep && keep.studioId === a.studioId && keep.casparChannel === a.casparChannel)) return;
     s.activeRtmp = null;
-    await this.hub.playout(a.studioId)?.stop(a.casparChannel, PLAYOUT_LAYER).catch(() => undefined);
+    await this.remote.unroute(a.studioId, a.casparChannel);
+  }
+
+  /** Remote source: CasparCG plays the stream to its DeckLink output (started as soon as the stream arrives). */
+  private async takeRemote(s: ChannelState, live: LiveRow) {
+    if (live.kind !== "rtmp" || !live.studio_id || !live.caspar_channel) return this.stopRtmp(s);
+    const keep = { studioId: live.studio_id, casparChannel: live.caspar_channel };
+    await this.stopRtmp(s, keep);
+    await this.remote.route(live);
+    s.activeRtmp = keep;
   }
 
   private async execute(ch: ChannelRow, s: ChannelState, ev: TimelineEvent, now: number) {
@@ -159,6 +160,7 @@ export class Director {
       if (ev.type === "media" && ev.leaf?.path) {
         const p = this.playout(ch);
         if (!p) throw new Error("no studio node configured for this channel");
+        this.remote.forget(ch.studio_id, ch.caspar_channel);
         const preloaded = s.preloadedKey === ev.key && elapsed < 1000;
         if (preloaded) await p.play(ch.caspar_channel, PLAYOUT_LAYER);
         else await p.play(ch.caspar_channel, PLAYOUT_LAYER, casparClip(ev.leaf.path), { seek: elapsed > 1000 ? Math.floor((elapsed / 1000) * (ev.leaf.fps || 25)) : 0 });
@@ -167,14 +169,7 @@ export class Director {
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
         const live = this.live(ev.leaf.liveSourceId);
         if (!live) throw new Error("live source was removed");
-        if (live.kind === "rtmp" && live.studio_id && live.caspar_channel && live.url) {
-          const keep = { studioId: live.studio_id, casparChannel: live.caspar_channel };
-          await this.stopRtmp(s, keep);
-          const p = this.hub.playout(live.studio_id);
-          if (!p) throw new Error("studio node for this stream is not configured");
-          await p.play(live.caspar_channel, PLAYOUT_LAYER, live.url);
-          s.activeRtmp = keep;
-        } else await this.stopRtmp(s);
+        await this.takeRemote(s, live);
         await this.switchTo(ch, live.atem_input);
       } else {
         // Gap in the schedule: filler clip in a loop, or the fallback ATEM input (e.g. a station ident / colour bars).
@@ -182,6 +177,7 @@ export class Director {
         const filler = ch.filler_media_id ? (this.platform.ctx.db.prepare("SELECT path FROM media WHERE id = ? AND missing = 0").get(ch.filler_media_id) as { path: string } | undefined) : undefined;
         const p = this.playout(ch);
         if (filler && p) {
+          this.remote.forget(ch.studio_id, ch.caspar_channel);
           await p.play(ch.caspar_channel, PLAYOUT_LAYER, casparClip(filler.path), { loop: true });
           await this.switchTo(ch, ch.playout_input);
         } else if (ch.fallback_input != null) await this.switchTo(ch, ch.fallback_input);
@@ -323,12 +319,12 @@ export class Director {
       const live = this.live(liveSourceId);
       if (!live) throw new HttpError(404, "not_found");
       const s = this.state(c.id);
-      if (live.kind === "rtmp" && live.studio_id && live.caspar_channel && live.url) {
-        await this.stopRtmp(s, { studioId: live.studio_id, casparChannel: live.caspar_channel });
-        await this.hub.playout(live.studio_id)?.play(live.caspar_channel, PLAYOUT_LAYER, live.url);
-        s.activeRtmp = { studioId: live.studio_id, casparChannel: live.caspar_channel };
+      try {
+        await this.takeRemote(s, live);
+        await this.switchTo(c, live.atem_input);
+      } catch (e) {
+        throw new HttpError(502, "live_failed", (e as Error).message);
       }
-      await this.switchTo(c, live.atem_input);
       s.override = { liveSourceId: live.id, name: live.name, since: new Date().toISOString() };
       this.asrun(c.id, "live", live.name, `Taken live by ${req.user!.username}`, true);
       return { ok: true };

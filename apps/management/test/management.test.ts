@@ -255,6 +255,80 @@ test("director: plays the schedule on CasparCG and switches the ATEM", async () 
   assert.equal((await api("GET", "/epg/xmltv.xml?token=wrong")).status, 403);
 });
 
+test("remote sources: own stream key, ingest auth, DeckLink output follows the stream", async () => {
+  const studioId = (await api("GET", "/api/studios")).body.studios[0].id;
+  const add = await api("POST", "/api/live-sources", { name: "Reporter Zandvoort", kind: "rtmp", atemInput: 2, studioId, casparChannel: 2 });
+  assert.equal(add.status, 200);
+  let src = (await api("GET", "/api/live-sources")).body.sources.find((x: { id: number }) => x.id === add.body.id);
+  assert.equal(src.mode, "push");
+  assert.match(src.push.streamKey, /^reporter-zandvoort-[0-9a-f]{24}$/);
+  assert.equal(src.push.rtmpServer, "rtmp://10.40.6.60/live");
+  assert.equal(src.push.srtUrl, `srt://10.40.6.60:8890?streamid=publish:live/${src.push.streamKey}`);
+  assert.equal(src.status.state, "unknown");
+
+  // MediaMTX asks this node: only the right key may publish, only the node itself may read.
+  const auth = (b: object) => api("POST", "/ingest/auth", b).then((r) => r.status);
+  const saved = cookie;
+  cookie = "";
+  assert.equal(await auth({ action: "publish", path: `live/${src.push.streamKey}`, ip: "203.0.113.9", protocol: "rtmp" }), 200);
+  assert.equal(await auth({ action: "publish", path: "live/reporter-zandvoort-000000000000000000000000", ip: "203.0.113.9" }), 401);
+  assert.equal(await auth({ action: "read", path: `live/${src.push.streamKey}`, ip: "127.0.0.1" }), 200);
+  assert.equal(await auth({ action: "read", path: `live/${src.push.streamKey}`, ip: "10.40.6.99" }), 401);
+  assert.equal(await auth({ action: "api", ip: "10.40.6.202", user: "tvsm-management", password: "nope" }), 401);
+  assert.equal(await auth({ action: "api", ip: "10.40.6.202", user: "tvsm-management", password: h.remote.apiToken() }), 200);
+  cookie = saved;
+
+  // Fake MediaMTX API on the studio node.
+  let online = false;
+  let onlineTime = "2026-11-01T20:00:00Z";
+  let bytes = 0;
+  const seen: string[] = [];
+  h.remote.fetcher = (async (url: string, init: { headers: Record<string, string> }) => {
+    seen.push(`${url} ${init.headers.authorization}`);
+    const items = online ? [{ name: `live/${src.push.streamKey}`, online: true, onlineTime, tracks2: [{ codec: "H264" }, { codec: "MPEG-4 Audio" }], readers: [], inboundBytes: bytes }] : [];
+    return new Response(JSON.stringify({ items }), { headers: { "content-type": "application/json" } });
+  }) as never;
+  await h.remote.poll();
+  assert.ok(seen[0]!.startsWith("http://10.40.6.60:9997/v3/paths/list"));
+  assert.equal(seen[0]!.split(" ").slice(1).join(" "), `Basic ${Buffer.from(`tvsm-management:${h.remote.apiToken()}`).toString("base64")}`);
+  src = (await api("GET", "/api/live-sources")).body.sources.find((x: { id: number }) => x.id === add.body.id);
+  assert.equal(src.status.state, "waiting");
+
+  // Routed before the stream arrives: CasparCG starts it as soon as it comes in, and again after a reconnect.
+  po.calls.length = 0;
+  assert.equal((await api("POST", `/api/live-sources/${src.id}/output`, { on: true })).status, 200);
+  assert.deepEqual(po.calls, ["stop 2-10"]);
+  online = true;
+  await h.remote.poll();
+  const url = `play 2-10 rtmp://127.0.0.1/live/${src.push.streamKey}`;
+  assert.deepEqual(po.calls.slice(1), [url]);
+  bytes = 3_000_000;
+  await h.remote.poll();
+  assert.equal(po.calls.filter((c) => c === url).length, 1);
+  src = (await api("GET", "/api/live-sources")).body.sources.find((x: { id: number }) => x.id === add.body.id);
+  assert.equal(src.status.state, "live");
+  assert.deepEqual(src.status.tracks, ["H264", "MPEG-4 Audio"]);
+  assert.equal(src.onOutput, true);
+  onlineTime = "2026-11-01T20:05:00Z"; // the contributor reconnected
+  await h.remote.poll();
+  assert.equal(po.calls.filter((c) => c === url).length, 2);
+
+  // Taking it live in the control room switches the ATEM to the input of that DeckLink output.
+  const chId = (await api("GET", "/api/channels")).body.channels[0].id;
+  assert.equal((await api("POST", `/api/control/${chId}/live`, { liveSourceId: src.id })).status, 200);
+  assert.equal(sw.programIn, 2);
+  await api("POST", `/api/control/${chId}/resume`);
+  assert.ok(po.calls.includes("stop 2-10"));
+  assert.equal((await api("GET", "/api/live-sources")).body.sources.find((x: { id: number }) => x.id === add.body.id).onOutput, false);
+
+  // A new key revokes the old one.
+  const oldKey = src.push.streamKey;
+  await api("POST", `/api/live-sources/${src.id}/new-key`);
+  cookie = "";
+  assert.equal(await auth({ action: "publish", path: `live/${oldKey}`, ip: "203.0.113.9" }), 401);
+  cookie = saved;
+});
+
 test("subtitles: parse srt/vtt, match sidecar files, decode windows-1252", async () => {
   const { parseSubtitles, matchSubtitles } = await import("../server/subtitles.ts");
   const { decodeText } = await import("../server/media.ts");
