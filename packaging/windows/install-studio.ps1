@@ -104,7 +104,12 @@ if (-not (Test-Path (Join-Path $studioFiles "start-casparcg.ps1"))) { throw "The
 
 # ---- 2. checks ------------------------------------------------------------------------
 Step "Checking DeckLink driver"
-if (Test-Path (Join-Path $env:WINDIR "System32\DeckLinkAPI64.dll")) { Write-Host "Blackmagic Desktop Video driver found" }
+# Desktop Video installs DeckLinkAPI64.dll in its own folder (newer versions) or in System32, and registers it as COM.
+$dvDirs = @((Join-Path $env:ProgramFiles "Blackmagic Design\Blackmagic Desktop Video"), (Join-Path $env:WINDIR "System32"))
+$dvFound = ($dvDirs | Where-Object { Test-Path (Join-Path $_ "DeckLinkAPI64.dll") }) -or (Test-Path "Registry::HKEY_CLASSES_ROOT\BMDDeckLinkAPI.CBMDDeckLinkIterator")
+$cards = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -match "DeckLink" -and $_.Status -eq "OK" }
+if ($cards) { $cards | ForEach-Object { Write-Host "Found: $($_.FriendlyName)" } }
+if ($dvFound) { Write-Host "Blackmagic Desktop Video driver found" }
 else { Warn "Blackmagic Desktop Video is not installed. Install it from https://www.blackmagicdesign.com/support (Desktop Video), reboot, then run this script again. CasparCG starts, but without SDI outputs." }
 
 # ---- 3. CasparCG -----------------------------------------------------------------------
