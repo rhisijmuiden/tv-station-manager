@@ -2,7 +2,8 @@
 # TV Station Manager installer for Debian 13.
 #   curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/install.sh | sudo bash -s -- orchestrator
 #   ... | sudo bash -s -- agent --orchestrator https://orchestrator.example.com
-# Options: <app> [--channel production|test] [--repo owner/name] [--orchestrator URL (agent only)]
+#   ... | sudo bash -s -- management --orchestrator http://10.40.6.201:8080   (also installs the agent and registers it)
+# Options: <app> [--channel production|test] [--repo owner/name] [--orchestrator URL (agent, or management to register it)]
 set -euo pipefail
 APP="${1:-}"; shift || true
 CHANNEL=production
@@ -39,6 +40,19 @@ curl -fsSL "$URL" -o "$TMP/$NAME"
 curl -fsSL "$SUMS" -o "$TMP/SHA256SUMS"
 (cd "$TMP" && grep " $NAME\$" SHA256SUMS | sha256sum -c -)
 apt-get install -y "$TMP/$NAME"
+
+# A management node registers with the orchestrator through the agent.
+if [[ "$APP" == management && -n "$ORCHESTRATOR" ]]; then
+  echo "Installing the agent to register this management node with $ORCHESTRATOR"
+  if [[ -f "$0" && "$0" == *install.sh ]]; then
+    bash "$0" agent --channel "$CHANNEL" --repo "$REPO" --orchestrator "$ORCHESTRATOR"
+  else
+    # Piped through bash: fetch the installer again.
+    BRANCH=production; [[ "$CHANNEL" == test ]] && BRANCH=test
+    curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/packaging/install.sh" | bash -s -- agent --channel "$CHANNEL" --repo "$REPO" --orchestrator "$ORCHESTRATOR"
+  fi
+  echo "Approve the node in the orchestrator (Nodes) and give it the role 'management'."
+fi
 
 if [[ "$APP" == agent && -n "$ORCHESTRATOR" ]]; then
   if [[ -f /etc/tvsm/agent/agent.json ]]; then

@@ -38,6 +38,8 @@ tar -xJf "$NODE_TGZ" -C "$STAGE" --strip-components=2 "node-v$NODE_VERSION-linux
 mv "$STAGE/node" "$LIB/node"
 chmod 0755 "$LIB/node"
 cp "$DIST/$ENTRY" "$LIB/$ENTRY"
+# Extra bundles loaded at runtime (e.g. the ATEM socket for the management node).
+for extra in "$DIST"/*.cjs; do [[ -f "$extra" ]] && cp "$extra" "$LIB/"; done
 echo "$VERSION" > "$LIB/VERSION"
 cp "$ROOT/branding/BRAND.md" "$STAGE/usr/share/doc/$PKG/BRAND.md"
 
@@ -68,6 +70,8 @@ SUDO
   done
   echo "/etc/sudoers.d/$PKG" > "$STAGE/DEBIAN/conffiles"
   DEPENDS="adduser, sudo, systemd, ca-certificates, openssh-client"
+  # Management node: smbclient reads the UNAS share, ffprobe measures clip durations.
+  [[ "$APP" == management ]] && DEPENDS="$DEPENDS, smbclient, ffmpeg"
   DESCRIPTION="Web interface on port 8080 by default
  (change TVSM_PORT in /etc/tvsm/$APP/env)."
 fi

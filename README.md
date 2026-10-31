@@ -18,7 +18,32 @@ curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/pro
 curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/install.sh | sudo bash -s -- orchestrator --channel test
 ```
 
+Management node (registers itself with the orchestrator through the agent):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/install.sh | sudo bash -s -- management --channel test --orchestrator http://10.40.6.201:8080
+```
+
 Then open `http://<server>:8080` and sign in with **admin / admin**. The UI shows a warning until you change that password (My account). Set `TVSM_DEFAULT_ADMIN=user:password` or `off` in `/etc/tvsm/<app>/env` before the first start to change this.
+
+## Management node
+
+The director of the station. Sign in as editor-in-chief (role *Editor-in-chief*) to plan, or as *Operator* for the control room only.
+
+| Menu | What it does |
+|---|---|
+| Control room | Per channel: now/next with countdown, automation on/off, ATEM program/preview/cut/auto, take a live source (camera or RTMP) and go back to the schedule, as-run log |
+| Schedule | Day planning per channel. Entries start exactly on time (an overrun is cut, gaps play the filler clip or the fallback ATEM input). Append blocks back to back, copy a day |
+| TV blocks / Ad breaks | Reusable rundowns of media, ad breaks (nested blocks) and live sources. The logo is hidden during ads |
+| Media library | Files on the UniFi UNAS Pro over SMB (`smbclient`, works in an unprivileged LXC), rescanned every 15 minutes. Durations are measured with ffprobe; folders named *Reclame*, *Jingles*, *Bumpers*, *Filler* are categorised automatically |
+| Programme guide | EPG grid and a token protected XMLTV feed (`/epg/xmltv.xml?token=…`) |
+| Graphics | Per channel logo, clock, up-next bar and ticker, with a live preview. Rendered on the studio node by the CasparCG template in `studio/casparcg-templates/tvsm/overlay.html` |
+| Channels / Devices | ATEM switchers (any model; model, inputs and M/E rows are read from the switcher), studio nodes (CasparCG AMCP, port 5250), live sources and the per-channel wiring |
+
+How it plays out: for every channel the management node tells CasparCG on the studio node to play the clip
+(`PLAY <channel>-10 "Folder/Clip"`, the next clip is preloaded with `LOADBG`), switches the ATEM to the input the studio
+node output is cabled to, and updates the overlay with `CG UPDATE`. See [studio/README.md](studio/README.md) for the
+CasparCG side.
 
 ### Behind a reverse proxy
 
@@ -43,6 +68,7 @@ Only expose the proxy, not port 8080 directly.
 ```bash
 pnpm install
 pnpm dev:orchestrator   # API on :8080, UI on http://localhost:5173
+pnpm dev:management     # API on :8081, UI on http://localhost:5174
 pnpm typecheck && pnpm test
 ```
 

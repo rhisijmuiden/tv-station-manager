@@ -54,7 +54,7 @@ jobs:
         env:
           TVSM_VERSION: ${{ steps.v.outputs.version }}
         run: |
-          for app in orchestrator agent; do
+          for app in orchestrator management agent; do
             pnpm --filter "@tvsm/$app" build
             packaging/debian/build-deb.sh "$app" "$TVSM_VERSION" build
           done
