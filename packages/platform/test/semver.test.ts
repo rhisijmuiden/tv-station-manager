@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { compareVersions } from "../src/semver.ts";
 import { diffManifest } from "../src/backup/manifest.ts";
+import { assetName } from "../src/update.ts";
+
+test("assetName matches the names GitHub gives release assets", () => {
+  assert.equal(assetName("orchestrator", "v0.1.0-test.2", "amd64"), "tvsm-orchestrator_0.1.0.test.2_amd64.deb");
+  assert.equal(assetName("orchestrator", "0.2.0", "amd64"), "tvsm-orchestrator_0.2.0_amd64.deb");
+});
 
 test("compareVersions orders releases and test pre-releases", () => {
   assert.ok(compareVersions("1.2.0", "1.1.9") > 0);

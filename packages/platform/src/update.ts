@@ -55,6 +55,9 @@ export interface UpdateCheck {
   checkedAt: string;
 }
 
+export const assetName = (appId: string, version: string, arch: string) =>
+  `tvsm-${appId}_${version.replace(/^v/, "").replace(/[-~]/g, ".")}_${arch}.deb`;
+
 const debArch = () => ({ x64: "amd64", arm64: "arm64" })[arch()] ?? arch();
 
 export class UpdateService {
@@ -85,8 +88,12 @@ export class UpdateService {
     return h;
   }
 
-  private assetPattern(version: string) {
-    return `tvsm-${this.ctx.config.app.id}_${version.replace(/^v/, "").replace("-", "~")}_${debArch()}.deb`;
+  /**
+   * Release asset name for a version. The Debian version uses "~" (0.2.0~test.5), but GitHub rewrites "~" in
+   * asset names to ".", so packages are published as tvsm-<app>_0.2.0.test.5_<arch>.deb.
+   */
+  assetPattern(version: string) {
+    return assetName(this.ctx.config.app.id, version, debArch());
   }
 
   private async findLatest(channel: Channel): Promise<GhRelease | null> {
