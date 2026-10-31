@@ -14,11 +14,11 @@ function AuthLayout({ logo, title, intro, children }: { logo: string; title: str
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{
           background:
-            "radial-gradient(60rem 40rem at 10% -10%, rgb(59 108 255 / 0.35), transparent 60%), radial-gradient(40rem 30rem at 110% 110%, rgb(255 61 87 / 0.18), transparent 60%)",
+            "radial-gradient(60rem 40rem at 10% -10%, color-mix(in srgb, var(--tvsm-primary) 35%, transparent), transparent 60%), radial-gradient(40rem 30rem at 110% 110%, color-mix(in srgb, var(--tvsm-accent) 22%, transparent), transparent 60%)",
         }}
       />
       <div className="relative w-full max-w-md">
-        <img src={logo} alt="TV Station Manager" className="mx-auto mb-8 h-12" />
+        <img src={logo} alt="" className="mx-auto mb-8 h-12" />
         <div className="rounded-xl border border-line bg-surface p-8 shadow-2xl">
           <h1 className="text-xl font-semibold">{title}</h1>
           {intro && <p className="mt-1 text-sm text-muted">{intro}</p>}

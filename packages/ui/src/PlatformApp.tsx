@@ -12,8 +12,9 @@ import { MailPage } from "./pages/Mail";
 import { UpdatesPage } from "./pages/Updates";
 import { UsersPage } from "./pages/Users";
 import { SessionProvider, useSession, useTheme } from "./session";
-import logoOnDark from "../../../branding/logo-on-dark.svg";
-import logoMark from "../../../branding/logo-mark.svg";
+import logoOnDark from "@brand/logo-on-dark.svg";
+import logoMark from "@brand/logo-mark.svg";
+import favicon from "@brand/favicon.svg";
 
 export interface AppRoute {
   path: string;
@@ -71,6 +72,7 @@ function Gate({ opts }: { opts: PlatformAppOptions }) {
 export function mountPlatformApp(opts: PlatformAppOptions) {
   initI18n(opts.translations);
   document.title = opts.appName;
+  document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute("href", favicon);
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <BrowserRouter>

@@ -41,7 +41,7 @@ cp "$DIST/$ENTRY" "$LIB/$ENTRY"
 # Extra bundles loaded at runtime (e.g. the ATEM socket for the management node).
 for extra in "$DIST"/*.cjs; do [[ -f "$extra" ]] && cp "$extra" "$LIB/"; done
 echo "$VERSION" > "$LIB/VERSION"
-cp "$ROOT/branding/BRAND.md" "$STAGE/usr/share/doc/$PKG/BRAND.md"
+cp "$ROOT/branding/$(cat "$ROOT/branding/active-brand" | tr -d "[:space:]")/BRAND.md" "$STAGE/usr/share/doc/$PKG/BRAND.md"
 
 if [[ "$APP" == agent ]]; then
   # Node agent: root service, CLI wrapper, no web UI and no sudoers rule.

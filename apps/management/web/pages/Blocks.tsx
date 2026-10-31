@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
 import { AlertTriangle, ArrowDown, ArrowUp, Clapperboard, Copy, Film, Plus, Radio, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,13 +24,13 @@ interface Detail {
   block: BlockSummary;
   items: (Item & { mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string })[];
 }
-const COLORS = ["#3B6CFF", "#FF3D57", "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"];
+const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
 
 function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "commercial"; onSaved: (id: number) => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
-  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? "#3B6CFF" : "#F5A524", genre: "", description: "" });
+  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "" });
   const [items, setItems] = useState<Item[]>([]);
   const [picker, setPicker] = useState(false);
   const [msg, setMsg] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
@@ -43,7 +43,7 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
     setMsg(null);
     setDirty(false);
     if (id === "new") {
-      setMeta({ name: "", color: kind === "program" ? "#3B6CFF" : "#F5A524", genre: "", description: "" });
+      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "" });
       setItems([]);
       return;
     }

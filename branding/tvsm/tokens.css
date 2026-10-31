@@ -1,9 +1,10 @@
-/* TV Station Manager design tokens. Source of truth: branding/tokens.json */
+/* TV Station Manager design tokens (brand "tvsm"). Source of truth: tokens.json. Every brand defines the same variables. */
 :root {
-  --tvsm-signal-blue: #3B6CFF;
-  --tvsm-signal-blue-light: #5B8CFF;
-  --tvsm-signal-blue-dark: #2F4FE0;
+  --tvsm-primary: #3B6CFF;
+  --tvsm-primary-light: #5B8CFF;
+  --tvsm-primary-dark: #2F4FE0;
   --tvsm-on-air: #FF3D57;
+  --tvsm-accent: #FF3D57;
   --tvsm-ink: #0A0E1A;
 
   --tvsm-success: #1DB97A;
