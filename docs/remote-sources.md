@@ -24,7 +24,7 @@ Management node → **Remote sources** → **Add remote source** (role editor-in
 | --- | --- |
 | Name | Who or what is sending, e.g. *Reporter Zandvoort*. The stream key starts with it. |
 | Studio node | The studio node whose ingest server receives the stream. |
-| DeckLink output | The SDI output (= CasparCG channel) that plays the stream. Use an output the playout of a channel does not use, e.g. output 2 next to channel 1 on output 1. |
+| DeckLink output | The SDI output (= CasparCG channel) that plays the stream. Not sure which connector that is? **Devices → Studio nodes → Identify outputs** shows a numbered test card on every output for 60 seconds. Use an output the playout of a channel does not use, e.g. output 2 next to channel 1 on output 1. |
 | ATEM input | The ATEM input that DeckLink output is cabled to. |
 
 Saving creates a stream key such as `reporter-zandvoort-3f9c0a…` and opens the connection details.

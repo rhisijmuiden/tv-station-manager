@@ -24,7 +24,7 @@ Management node → **Remote bronnen** → **Remote bron toevoegen** (rol hoofdr
 | --- | --- |
 | Naam | Wie of wat er verstuurt, bijv. *Verslaggever Zandvoort*. De streamkey begint ermee. |
 | Studio node | De studio node waarvan de ingest-server de stream ontvangt. |
-| DeckLink-uitgang | De SDI-uitgang (= CasparCG-kanaal) die de stream afspeelt. Kies een uitgang die de playout van een kanaal niet gebruikt, bijv. uitgang 2 naast kanaal 1 op uitgang 1. |
+| DeckLink-uitgang | De SDI-uitgang (= CasparCG-kanaal) die de stream afspeelt. Weet je niet welke aansluiting dat is? **Apparatuur → Studio-nodes → Uitgangen identificeren** toont 60 seconden een genummerd testbeeld op elke uitgang. Kies een uitgang die de playout van een kanaal niet gebruikt, bijv. uitgang 2 naast kanaal 1 op uitgang 1. |
 | ATEM-ingang | De ATEM-ingang waar die DeckLink-uitgang op aangesloten is. |
 
 Bij opslaan wordt een streamkey gemaakt, zoals `verslaggever-zandvoort-3f9c0a…`, en openen de verbindingsgegevens.
