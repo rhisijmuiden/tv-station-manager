@@ -26,8 +26,11 @@ param(
   [string]$SmbUser = "",
   [SecureString]$SmbPassword,
   [ValidateRange(1, 8)][int]$Outputs = 4,
-  # CasparCG video mode for every channel, e.g. 1080i5000, 1080p5000, 720p5000, 1080p2500.
-  [string]$VideoMode = "1080i5000",
+  # CasparCG video mode for every channel, e.g. 1080p5000, 1080i5000, 720p5000, 1080p2500.
+  # Default: the mode of the previous install, else 1080p5000 (progressive also shows on the DeckLink HDMI output).
+  [string]$VideoMode = "",
+  # DeckLink keyer: default (fill only, HDMI shows the programme), external (fill + key on two connectors), internal.
+  [ValidateSet("", "default", "external", "internal")][string]$Keyer = "",
   # IP address(es) of the management node that may connect to AMCP (TCP 5250). Empty = any address.
   [string[]]$ManagementHost = @(),
   # URL of the management node; the ingest server checks stream keys there. Default: http://<first -ManagementHost>:8080.
@@ -64,6 +67,8 @@ icacls $data /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)
 $old = $null
 if (Test-Path (Join-Path $data "studio.json")) { $old = Get-Content (Join-Path $data "studio.json") -Raw | ConvertFrom-Json }
 if (-not $MediaPath -and $old) { $MediaPath = $old.mediaPath }
+if (-not $VideoMode) { $VideoMode = if ($old -and $old.videoMode) { $old.videoMode } else { "1080p5000" } }
+if (-not $Keyer) { $Keyer = if ($old -and $old.keyer) { $old.keyer } else { "default" } }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
 function Get-Release([string]$repo, [scriptblock]$pick) {
@@ -160,6 +165,8 @@ for ($i = 1; $i -le $Outputs; $i++) {
       <consumers>
         <decklink>
           <device>$i</device>
+          <keyer>$(Esc $Keyer)</keyer>
+          <key-only>false</key-only>
           <embedded-audio>true</embedded-audio>
           <latency>normal</latency>
           <buffer-depth>3</buffer-depth>
@@ -320,6 +327,8 @@ $studioJson = [ordered]@{
   managementUrl = if ($ManagementUrl) { $ManagementUrl } else { $null }
   publishPassword = $publishPass
   mediaPath = if ($MediaPath) { $MediaPath } else { $null }
+  videoMode = $VideoMode
+  keyer = $Keyer
   outputs = $outs
 } | ConvertTo-Json -Depth 4
 Write-Utf8 (Join-Path $data "studio.json") $studioJson

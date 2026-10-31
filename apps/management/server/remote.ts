@@ -119,7 +119,7 @@ export interface IngestAuthRequest {
 export class RemoteSources {
   private studios = new Map<number, IngestState>();
   /** "studioId:casparChannel" -> the remote source routed to that DeckLink output. */
-  private routes = new Map<string, { liveId: number; playing: boolean; onlineSince: string | null; error: string | null; failedAt: number }>();
+  private routes = new Map<string, { liveId: number; playing: boolean; onlineSince: string | null; error: string | null; failedAt: number; session: number | undefined }>();
   private timer: NodeJS.Timeout | null = null;
   private lastPoll = 0;
   private polling = false;
@@ -213,18 +213,26 @@ export class RemoteSources {
         this.routes.delete(key);
         continue;
       }
-      if (live.url) continue; // pulled by CasparCG itself
-      const st = this.status(live);
+      const p = this.hub.playout(live.studio_id);
+      const info = p?.info();
+      if (!p || !info?.connected) {
+        r.playing = false;
+        continue;
+      }
+      // Pulled by CasparCG itself: only needs playing again after a CasparCG restart.
+      const st = live.url ? { state: "live", onlineSince: null } : this.status(live);
       if (st.state !== "live") {
         r.playing = false;
         r.onlineSince = null;
         continue;
       }
-      if (r.playing && r.onlineSince === st.onlineSince) continue;
+      // A CasparCG restart empties its layers: play again when the connection was remade.
+      if (r.playing && r.onlineSince === st.onlineSince && r.session === info.session) continue;
       if (r.error && Date.now() - r.failedAt < RETRY_FAILED_MS) continue;
       try {
-        await this.hub.playout(live.studio_id)?.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
+        await p.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
         r.playing = true;
+        r.session = info.session;
         r.onlineSince = st.onlineSince;
         r.error = null;
         this.platform.ctx.log.info({ source: live.name }, "remote source started on CasparCG");
@@ -299,11 +307,12 @@ export class RemoteSources {
     const cur = this.routes.get(key);
     if (cur?.liveId === live.id && cur.playing) return;
     const st = this.status(live);
-    const r = { liveId: live.id, playing: false, onlineSince: null as string | null, error: null as string | null, failedAt: 0 };
+    const r = { liveId: live.id, playing: false, onlineSince: null as string | null, error: null as string | null, failedAt: 0, session: undefined as number | undefined };
     this.routes.set(key, r);
     if (st.state === "live" || st.state === "pull" || st.state === "unknown") {
       await p.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
       r.playing = true;
+      r.session = p.info().session;
       r.onlineSince = st.onlineSince;
     } else await p.stop(live.caspar_channel, REMOTE_LAYER).catch(() => undefined);
   }

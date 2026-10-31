@@ -121,8 +121,9 @@ class FakeSwitcher extends EventEmitter implements SwitcherDriver {
 class FakePlayout extends EventEmitter implements PlayoutDriver {
   calls: string[] = [];
   channels: number[] | null = null;
+  session = 1;
   info() {
-    return { connected: true, version: "2.4.0", channels: this.channels };
+    return { connected: true, version: "2.4.0", channels: this.channels, session: this.session };
   }
   async play(ch: number, layer: number, clip?: string, o: { loop?: boolean; seek?: number } = {}) {
     this.calls.push(`play ${ch}-${layer}${clip ? ` ${clip}` : ""}${o.loop ? " loop" : ""}${o.seek ? ` seek ${o.seek}` : ""}`);
@@ -318,6 +319,11 @@ test("remote sources: own stream key, ingest auth, DeckLink output follows the s
   onlineTime = "2026-11-01T20:05:00Z"; // the contributor reconnected
   await h.remote.poll();
   assert.equal(po.calls.filter((c) => c === url).length, 2);
+  po.session++; // CasparCG restarted and lost its layers
+  await h.remote.poll();
+  assert.equal(po.calls.filter((c) => c === url).length, 3);
+  await h.remote.poll();
+  assert.equal(po.calls.filter((c) => c === url).length, 3);
 
   // Taking it live in the control room switches the ATEM to the input of that DeckLink output.
   const chId = (await api("GET", "/api/channels")).body.channels[0].id;
