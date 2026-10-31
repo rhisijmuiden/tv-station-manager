@@ -12,7 +12,8 @@ ARCH="${ARCH:-amd64}"
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIST="$ROOT/apps/$APP/dist"
-[[ -f "$DIST/server.mjs" ]] || { echo "Build apps/$APP first (pnpm --filter @tvsm/$APP build)" >&2; exit 1; }
+if [[ "$APP" == agent ]]; then ENTRY=agent.mjs; else ENTRY=server.mjs; fi
+[[ -f "$DIST/$ENTRY" ]] || { echo "Build apps/$APP first (pnpm --filter @tvsm/$APP build)" >&2; exit 1; }
 
 case "$ARCH" in amd64) NODE_ARCH=x64 ;; arm64) NODE_ARCH=arm64 ;; *) echo "unsupported arch $ARCH" >&2; exit 1 ;; esac
 DEB_VERSION="${VERSION/-/\~}"   # 0.2.0-test.5 -> 0.2.0~test.5 (sorts before 0.2.0)
@@ -32,28 +33,44 @@ if [[ ! -f "$NODE_TGZ" ]]; then
 fi
 
 LIB="$STAGE/usr/lib/tvsm/$APP"
-mkdir -p "$LIB" "$STAGE/DEBIAN" "$STAGE/lib/systemd/system" "$STAGE/etc/sudoers.d" "$STAGE/usr/share/doc/$PKG"
+mkdir -p "$LIB" "$STAGE/DEBIAN" "$STAGE/lib/systemd/system" "$STAGE/usr/share/doc/$PKG"
 tar -xJf "$NODE_TGZ" -C "$STAGE" --strip-components=2 "node-v$NODE_VERSION-linux-$NODE_ARCH/bin/node"
 mv "$STAGE/node" "$LIB/node"
-cp "$DIST/server.mjs" "$LIB/server.mjs"
-cp -r "$DIST/web" "$LIB/web"
+chmod 0755 "$LIB/node"
+cp "$DIST/$ENTRY" "$LIB/$ENTRY"
 echo "$VERSION" > "$LIB/VERSION"
+cp "$ROOT/branding/BRAND.md" "$STAGE/usr/share/doc/$PKG/BRAND.md"
 
-sed "s/@APP@/$APP/g" "$ROOT/packaging/debian/apply-update" > "$LIB/apply-update"
-chmod 0755 "$LIB/apply-update" "$LIB/node"
-sed "s/@APP@/$APP/g" "$ROOT/packaging/debian/tvsm-app.service" > "$STAGE/lib/systemd/system/$PKG.service"
-cat > "$STAGE/etc/sudoers.d/$PKG" <<SUDO
+if [[ "$APP" == agent ]]; then
+  # Node agent: root service, CLI wrapper, no web UI and no sudoers rule.
+  SRC="$ROOT/packaging/debian/agent"
+  mkdir -p "$STAGE/usr/bin"
+  install -m 0755 "$SRC/tvsm-agent" "$STAGE/usr/bin/tvsm-agent"
+  cp "$SRC/tvsm-agent.service" "$STAGE/lib/systemd/system/$PKG.service"
+  for s in postinst prerm postrm; do install -m 0755 "$SRC/$s" "$STAGE/DEBIAN/$s"; done
+  DEPENDS="systemd, ca-certificates"
+  DESCRIPTION="Node agent: connects this machine to the orchestrator
+ (enroll with: sudo tvsm-agent enroll https://<orchestrator>)."
+else
+  cp -r "$DIST/web" "$LIB/web"
+  mkdir -p "$STAGE/etc/sudoers.d"
+  sed "s/@APP@/$APP/g" "$ROOT/packaging/debian/apply-update" > "$LIB/apply-update"
+  chmod 0755 "$LIB/apply-update"
+  sed "s/@APP@/$APP/g" "$ROOT/packaging/debian/tvsm-app.service" > "$STAGE/lib/systemd/system/$PKG.service"
+  cat > "$STAGE/etc/sudoers.d/$PKG" <<SUDO
 # Allows the $PKG service to install a downloaded update package (validated by apply-update).
 tvsm ALL=(root) NOPASSWD: /usr/lib/tvsm/$APP/apply-update /var/lib/tvsm/$APP/updates/*.deb
 SUDO
-chmod 0440 "$STAGE/etc/sudoers.d/$PKG"
-cp "$ROOT/branding/BRAND.md" "$STAGE/usr/share/doc/$PKG/BRAND.md"
-
-for s in postinst prerm postrm; do
-  sed "s/@APP@/$APP/g" "$ROOT/packaging/debian/$s" > "$STAGE/DEBIAN/$s"
-  chmod 0755 "$STAGE/DEBIAN/$s"
-done
-echo "/etc/sudoers.d/$PKG" > "$STAGE/DEBIAN/conffiles"
+  chmod 0440 "$STAGE/etc/sudoers.d/$PKG"
+  for s in postinst prerm postrm; do
+    sed "s/@APP@/$APP/g" "$ROOT/packaging/debian/$s" > "$STAGE/DEBIAN/$s"
+    chmod 0755 "$STAGE/DEBIAN/$s"
+  done
+  echo "/etc/sudoers.d/$PKG" > "$STAGE/DEBIAN/conffiles"
+  DEPENDS="adduser, sudo, systemd, ca-certificates, openssh-client"
+  DESCRIPTION="Web interface on port 8080 by default
+ (change TVSM_PORT in /etc/tvsm/$APP/env)."
+fi
 
 SIZE_KB=$(du -sk "$STAGE" | cut -f1)
 cat > "$STAGE/DEBIAN/control" <<CONTROL
@@ -62,13 +79,12 @@ Version: $DEB_VERSION
 Architecture: $ARCH
 Maintainer: TV Station Manager <noreply@users.noreply.github.com>
 Installed-Size: $SIZE_KB
-Depends: adduser, sudo, systemd, ca-certificates, openssh-client
+Depends: $DEPENDS
 Section: video
 Priority: optional
 Homepage: https://github.com/rhisijmuiden/tv-station-manager
 Description: TV Station Manager - $APP
- Part of TV Station Manager. Web interface on port 8080 by default
- (change TVSM_PORT in /etc/tvsm/$APP/env).
+ Part of TV Station Manager. $DESCRIPTION
 CONTROL
 
 mkdir -p "$OUT"

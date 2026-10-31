@@ -1,0 +1,3 @@
+#!/bin/sh
+# tvsm-agent enroll <orchestrator-url> | status | version | run
+exec /usr/lib/tvsm/agent/node --disable-warning=ExperimentalWarning /usr/lib/tvsm/agent/agent.mjs "$@"

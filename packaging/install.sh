@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 # TV Station Manager installer for Debian 13.
 #   curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/install.sh | sudo bash -s -- orchestrator
-# Options: <app> [--channel production|test] [--repo owner/name]
+#   ... | sudo bash -s -- agent --orchestrator https://orchestrator.example.com
+# Options: <app> [--channel production|test] [--repo owner/name] [--orchestrator URL (agent only)]
 set -euo pipefail
 APP="${1:-}"; shift || true
 CHANNEL=production
 REPO=rhisijmuiden/tv-station-manager
+ORCHESTRATOR=
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --channel) CHANNEL="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
+    --orchestrator) ORCHESTRATOR="$2"; shift 2 ;;
     *) echo "unknown option $1" >&2; exit 1 ;;
   esac
 done
-case "$APP" in orchestrator|management) ;; *) echo "usage: install.sh <orchestrator|management> [--channel production|test]" >&2; exit 1 ;; esac
+case "$APP" in orchestrator|management|agent) ;; *) echo "usage: install.sh <orchestrator|management|agent> [--channel production|test] [--orchestrator URL]" >&2; exit 1 ;; esac
 [[ $EUID -eq 0 ]] || { echo "run as root" >&2; exit 1; }
 . /etc/os-release
 [[ "${VERSION_ID:-}" == "13" ]] || echo "warning: tested on Debian 13, this is $PRETTY_NAME" >&2
@@ -36,3 +39,12 @@ curl -fsSL "$URL" -o "$TMP/$NAME"
 curl -fsSL "$SUMS" -o "$TMP/SHA256SUMS"
 (cd "$TMP" && grep " $NAME\$" SHA256SUMS | sha256sum -c -)
 apt-get install -y "$TMP/$NAME"
+
+if [[ "$APP" == agent && -n "$ORCHESTRATOR" ]]; then
+  if [[ -f /etc/tvsm/agent/agent.json ]]; then
+    echo "Agent is already enrolled (/etc/tvsm/agent/agent.json). To re-enroll: tvsm-agent enroll $ORCHESTRATOR"
+  else
+    tvsm-agent enroll "$ORCHESTRATOR"
+    systemctl restart tvsm-agent.service
+  fi
+fi
