@@ -150,7 +150,7 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
         })
         .catch(() => undefined);
       void this.c
-        .info()
+        .info({})
         .then((r) => (r as unknown as Sent).request)
         .then((res) => {
           const d = res?.data as { channel: number }[] | undefined;
