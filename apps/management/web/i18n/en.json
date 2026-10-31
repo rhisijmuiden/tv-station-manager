@@ -319,7 +319,8 @@
       "unsupported_file_name": "File names with quotes are not supported.",
       "live_failed": "Could not take the source live: {{message}}",
       "output_failed": "Could not start the DeckLink output: {{message}}",
-      "not_remote": "This is not a remote source."
+      "not_remote": "This is not a remote source.",
+      "no_such_output": "This studio node does not have that DeckLink output. Available: {{message}}."
     },
     "remote": {
       "title": "Remote sources",
@@ -452,13 +453,16 @@
         "studioHint": "The studio node whose ingest server receives the stream.",
         "noStudio": "Add a studio node first under",
         "output": "DeckLink output",
-        "outputHint": "The SDI output (CasparCG channel) that plays the stream. Use an output that the playout of a channel does not use, e.g. 2.",
+        "outputHint": "The SDI output (CasparCG channel) that plays the stream. With one output, the stream replaces the channel's playout while it is on DeckLink.",
         "atemHint": "The ATEM input this DeckLink output is cabled to.",
         "advanced": "Advanced",
         "pull": "Pull from a URL instead",
         "pullHint": "CasparCG fetches the stream itself (srt://, rtmp://, udp://, rtsp://, https://), e.g. from an encoder that cannot push. No stream key is needed then.",
-        "keyNote": "The stream key is created when you save; the connection details open straight after."
-      }
+        "keyNote": "The stream key is created when you save; the connection details open straight after.",
+        "outputN": "Output {{n}}",
+        "missingOutput": "Output {{n}} (does not exist)"
+      },
+      "outputError": "CasparCG did not start the stream: {{message}}. Retried every 30 seconds."
     }
   }
 }

@@ -133,6 +133,7 @@ export interface LiveSource {
   push?: { host: string; rtmpServer: string; streamKey: string; rtmpUrl: string; srtUrl: string } | null;
   status?: { state: "pull" | "unknown" | "waiting" | "live"; onlineSince: string | null; tracks: string[]; kbps: number | null };
   onOutput?: boolean;
+  outputError?: string | null;
 }
 export interface AtemStatus {
   connected: boolean;

@@ -15,6 +15,8 @@ import type { DeviceHub } from "./devices.js";
 export const INGEST_API_USER = "tvsm-management";
 export const REMOTE_LAYER = 10;
 const POLL_MS = 3000;
+/** After CasparCG refused to start a routed stream, try again at most this often. */
+const RETRY_FAILED_MS = 30_000;
 
 export interface LiveRow {
   id: number;
@@ -117,7 +119,7 @@ export interface IngestAuthRequest {
 export class RemoteSources {
   private studios = new Map<number, IngestState>();
   /** "studioId:casparChannel" -> the remote source routed to that DeckLink output. */
-  private routes = new Map<string, { liveId: number; playing: boolean; onlineSince: string | null }>();
+  private routes = new Map<string, { liveId: number; playing: boolean; onlineSince: string | null; error: string | null; failedAt: number }>();
   private timer: NodeJS.Timeout | null = null;
   private lastPoll = 0;
   private polling = false;
@@ -219,13 +221,18 @@ export class RemoteSources {
         continue;
       }
       if (r.playing && r.onlineSince === st.onlineSince) continue;
+      if (r.error && Date.now() - r.failedAt < RETRY_FAILED_MS) continue;
       try {
         await this.hub.playout(live.studio_id)?.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
         r.playing = true;
         r.onlineSince = st.onlineSince;
+        r.error = null;
         this.platform.ctx.log.info({ source: live.name }, "remote source started on CasparCG");
       } catch (e) {
-        this.platform.ctx.log.warn({ source: live.name, err: (e as Error).message }, "could not start remote source");
+        const msg = (e as Error).message;
+        if (r.error !== msg) this.platform.ctx.log.warn({ source: live.name, err: msg }, "could not start remote source");
+        r.error = msg;
+        r.failedAt = Date.now();
       }
     }
   }
@@ -270,6 +277,10 @@ export class RemoteSources {
   routedTo(studioId: number, casparChannel: number) {
     return this.routes.get(`${studioId}:${casparChannel}`)?.liveId ?? null;
   }
+  /** Why CasparCG did not start the routed stream, if it refused. */
+  outputError(live: LiveRow) {
+    return this.isRouted(live) ? (this.routes.get(`${live.studio_id}:${live.caspar_channel}`)?.error ?? null) : null;
+  }
   isRouted(live: LiveRow) {
     return !!live.studio_id && !!live.caspar_channel && this.routedTo(live.studio_id, live.caspar_channel) === live.id;
   }
@@ -282,11 +293,13 @@ export class RemoteSources {
     if (live.kind !== "rtmp" || !live.studio_id || !live.caspar_channel) throw new Error("not a remote source");
     const p = this.hub.playout(live.studio_id);
     if (!p) throw new Error("studio node for this stream is not configured");
+    const channels = p.info().channels;
+    if (channels?.length && !channels.includes(live.caspar_channel)) throw new Error(`DeckLink output ${live.caspar_channel} does not exist on this studio node (outputs: ${channels.join(", ")})`);
     const key = `${live.studio_id}:${live.caspar_channel}`;
     const cur = this.routes.get(key);
     if (cur?.liveId === live.id && cur.playing) return;
     const st = this.status(live);
-    const r = { liveId: live.id, playing: false, onlineSince: null as string | null };
+    const r = { liveId: live.id, playing: false, onlineSince: null as string | null, error: null as string | null, failedAt: 0 };
     this.routes.set(key, r);
     if (st.state === "live" || st.state === "pull" || st.state === "unknown") {
       await p.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
