@@ -21,7 +21,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { throw "64-bit Windows is required." }
 $pattern = "^tvsm-agent_.+_windows-$arch\.zip$"
 $headers = @{ "User-Agent" = "tvsm-agent-installer" }
-$releases = Invoke-RestMethod -Headers $headers "https://api.github.com/repos/$Repo/releases?per_page=50"
+$releases = Invoke-RestMethod -UseBasicParsing -Headers $headers "https://api.github.com/repos/$Repo/releases?per_page=50"
 $release = $releases | Where-Object { -not $_.draft -and ($Channel -eq "test" -or -not $_.prerelease) -and ($_.assets | Where-Object { $_.name -match $pattern }) } | Select-Object -First 1
 if (-not $release) { throw "No $Channel release with a Windows agent found in $Repo." }
 $asset = $release.assets | Where-Object { $_.name -match $pattern } | Select-Object -First 1
@@ -33,8 +33,11 @@ Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory $tmp | Out-Null
 $zip = Join-Path $tmp $asset.name
 Write-Host "Downloading $($asset.name) ($($release.tag_name))"
-Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $zip
-$expected = ((Invoke-WebRequest -Headers $headers -Uri $sums.browser_download_url).Content -split "`n" | Where-Object { $_ -match [regex]::Escape($asset.name) + "\s*$" } | Select-Object -First 1) -split "\s+" | Select-Object -First 1
+Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $asset.browser_download_url -OutFile $zip
+# Saved to a file: on Windows PowerShell 5.1 .Content of a binary download is a byte array, not text.
+$sumsFile = Join-Path $tmp "SHA256SUMS"
+Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $sums.browser_download_url -OutFile $sumsFile
+$expected = ((Get-Content $sumsFile) | Where-Object { $_ -match [regex]::Escape($asset.name) + "\s*$" } | Select-Object -First 1) -split "\s+" | Select-Object -First 1
 $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
 if (-not $expected -or $expected.ToLower() -ne $actual) { throw "Checksum mismatch, installation aborted." }
 
