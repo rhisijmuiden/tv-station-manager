@@ -62,7 +62,7 @@ if (-not $MediaPath -and $old) { $MediaPath = $old.mediaPath }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
 function Get-Release([string]$repo, [scriptblock]$pick) {
-  $all = Invoke-RestMethod -Headers $headers "https://api.github.com/repos/$repo/releases?per_page=30"
+  $all = Invoke-RestMethod -UseBasicParsing -Headers $headers "https://api.github.com/repos/$repo/releases?per_page=30"
   $r = $all | Where-Object { -not $_.draft -and -not $_.prerelease } | Where-Object $pick | Select-Object -First 1
   if (-not $r) { throw "No matching release found in $repo." }
   return $r
@@ -70,7 +70,7 @@ function Get-Release([string]$repo, [scriptblock]$pick) {
 function Get-Verified($asset, [string]$expected) {
   $file = Join-Path $tmp $asset.name
   Write-Host "Downloading $($asset.name)"
-  Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $file
+  Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $asset.browser_download_url -OutFile $file
   if (-not $expected -and $asset.digest -and $asset.digest.StartsWith("sha256:")) { $expected = $asset.digest.Substring(7) }
   if ($expected) {
     if ((Get-FileHash $file -Algorithm SHA256).Hash.ToLower() -ne $expected.ToLower()) { throw "Checksum mismatch for $($asset.name), installation aborted." }
@@ -95,7 +95,7 @@ if (-not $SkipAgent) {
   $agentScript = Join-Path $PSScriptRoot "install-agent.ps1"
   if (-not (Test-Path (Join-Path $PSScriptRoot "build-zip.sh"))) {
     $agentScript = Join-Path $tmp "install-agent.ps1"
-    Invoke-WebRequest -Headers $headers -Uri "https://raw.githubusercontent.com/$Repo/$branch/packaging/windows/install-agent.ps1" -OutFile $agentScript
+    Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "https://raw.githubusercontent.com/$Repo/$branch/packaging/windows/install-agent.ps1" -OutFile $agentScript
   }
   & $agentScript -Orchestrator $Orchestrator -Channel $Channel -Repo $Repo
 }
@@ -209,7 +209,9 @@ if ($old -and $old.mediamtxVersion -eq $mtxTag -and (Test-Path (Join-Path $inges
   $expected = $null
   $sumAsset = $mr.assets | Where-Object { $_.name -eq "checksums.sha256" } | Select-Object -First 1
   if ($sumAsset) {
-    $line = ((Invoke-WebRequest -Headers $headers -Uri $sumAsset.browser_download_url).Content -split "`n") | Where-Object { $_ -match [regex]::Escape($asset.name) } | Select-Object -First 1
+    $sumsFile = Join-Path $tmp "mediamtx-checksums.sha256"
+    Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $sumAsset.browser_download_url -OutFile $sumsFile
+    $line = (Get-Content $sumsFile) | Where-Object { $_ -match [regex]::Escape($asset.name) } | Select-Object -First 1
     if ($line) { $expected = ($line -split "\s+")[0] }
   }
   $zip = Get-Verified $asset $expected
