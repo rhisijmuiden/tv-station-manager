@@ -54,16 +54,17 @@ jobs:
         env:
           TVSM_VERSION: ${{ steps.v.outputs.version }}
         run: |
-          for app in orchestrator; do
+          for app in orchestrator agent; do
             pnpm --filter "@tvsm/$app" build
             packaging/debian/build-deb.sh "$app" "$TVSM_VERSION" build
           done
-          (cd build && sha256sum *.deb > SHA256SUMS && cat SHA256SUMS)
+          packaging/windows/build-zip.sh "$TVSM_VERSION" build
+          (cd build && sha256sum *.deb *.zip > SHA256SUMS && cat SHA256SUMS)
 
       - name: Publish release
         if: steps.v.outputs.skip != 'true'
         run: |
           FLAGS="--generate-notes --target $GITHUB_SHA"
           [ "${{ steps.v.outputs.prerelease }}" = "true" ] && FLAGS="$FLAGS --prerelease" || FLAGS="$FLAGS --latest"
-          gh release create "v${{ steps.v.outputs.version }}" build/*.deb build/SHA256SUMS \
+          gh release create "v${{ steps.v.outputs.version }}" build/*.deb build/*.zip build/SHA256SUMS \
             --title "v${{ steps.v.outputs.version }} (${GITHUB_REF_NAME})" $FLAGS

@@ -43,7 +43,7 @@ export function Dashboard() {
       <PageHeader title={t("orch.dashboard.title")} description={t("orch.dashboard.intro")} />
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Stat label={t("orch.dashboard.total")} value={o.nodes.total} icon={<Server className="size-5" />} tone="bg-brand/10 text-brand" />
-        <Stat label={t("orch.dashboard.online")} value={o.nodes.online} icon={<Radio className="size-5" />} tone="bg-ok/12 text-ok" />
+        <Stat label={t("orch.dashboard.online")} value={o.nodes.pending ? <span>{o.nodes.online} <span className="text-sm font-medium text-warn">· {o.nodes.pending} {t("orch.dashboard.pending").toLowerCase()}</span></span> : o.nodes.online} icon={<Radio className="size-5" />} tone="bg-ok/12 text-ok" />
         <Stat
           label={t("orch.dashboard.lastBackup")}
           value={<span className="text-base">{o.lastBackup ? new Date(o.lastBackup.startedAt).toLocaleString() : t("orch.dashboard.none")}</span>}

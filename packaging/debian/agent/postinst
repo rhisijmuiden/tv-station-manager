@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+  install -d -m 0700 /etc/tvsm/agent
+  systemctl daemon-reload
+  systemctl enable tvsm-agent.service >/dev/null 2>&1 || true
+  systemctl restart tvsm-agent.service
+  if [ ! -f /etc/tvsm/agent/agent.json ]; then
+    echo "TV Station Manager agent installed. Connect it to the orchestrator with:"
+    echo "  sudo tvsm-agent enroll https://<orchestrator>"
+  fi
+fi
+exit 0

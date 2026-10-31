@@ -1,0 +1,17 @@
+[Unit]
+Description=TV Station Manager - node agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Runs as root: the orchestrator may ask it to reboot the node or install agent updates.
+Environment=NODE_ENV=production
+EnvironmentFile=-/etc/tvsm/agent/env
+ExecStart=/usr/lib/tvsm/agent/node --disable-warning=ExperimentalWarning /usr/lib/tvsm/agent/agent.mjs run
+Restart=always
+RestartSec=5
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
