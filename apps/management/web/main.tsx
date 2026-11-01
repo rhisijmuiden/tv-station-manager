@@ -1,6 +1,6 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Disc3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv, WandSparkles } from "lucide-react";
+import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Disc3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv, Video, WandSparkles } from "lucide-react";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
 import { CategoriesPage } from "./pages/Categories";
@@ -14,6 +14,7 @@ import { GraphicsPage } from "./pages/Graphics";
 import { MediaPage } from "./pages/Media";
 import { NewHourPage } from "./pages/NewHour";
 import { OutputsPage } from "./pages/Outputs";
+import { RecordingsPage } from "./pages/Recordings";
 import { RemoteSourcesPage } from "./pages/RemoteSources";
 import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
@@ -39,6 +40,7 @@ mountPlatformApp({
         { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
         { to: "/clocks", label: "mgmt.nav.clocks", icon: Clock3 },
         { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
+        { to: "/recordings", label: "mgmt.nav.recordings", icon: Video },
         { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
         { to: "/ads", label: "mgmt.nav.ads", icon: Film },
         { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
@@ -69,6 +71,7 @@ mountPlatformApp({
     { path: "/", element: <Dashboard /> },
     { path: "/control", element: <ControlPage /> },
     { path: "/remote", element: <RemoteSourcesPage /> },
+    { path: "/recordings", element: <RecordingsPage /> },
     { path: "/outputs", element: <OutputsPage /> },
     { path: "/visual-radio", element: <VisualRadioPage /> },
     { path: "/schedule", element: <SchedulePage /> },
