@@ -1,6 +1,6 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, CalendarRange, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Satellite, Tags, Tv } from "lucide-react";
+import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Satellite, Tags, Tv } from "lucide-react";
 import { BlocksPage } from "./pages/Blocks";
 import { CategoriesPage } from "./pages/Categories";
 import { ClocksPage } from "./pages/Clocks";
@@ -11,6 +11,7 @@ import { DevicesPage } from "./pages/Devices";
 import { EpgPage } from "./pages/Epg";
 import { GraphicsPage } from "./pages/Graphics";
 import { MediaPage } from "./pages/Media";
+import { OutputsPage } from "./pages/Outputs";
 import { RemoteSourcesPage } from "./pages/RemoteSources";
 import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
@@ -27,6 +28,7 @@ mountPlatformApp({
         { to: "/", label: "nav.dashboard", icon: LayoutDashboard, end: true },
         { to: "/control", label: "mgmt.nav.control", icon: Radio },
         { to: "/remote", label: "mgmt.nav.remote", icon: Satellite },
+        { to: "/outputs", label: "mgmt.nav.outputs", icon: Cast },
       ],
     },
     {
@@ -57,6 +59,7 @@ mountPlatformApp({
     { path: "/", element: <Dashboard /> },
     { path: "/control", element: <ControlPage /> },
     { path: "/remote", element: <RemoteSourcesPage /> },
+    { path: "/outputs", element: <OutputsPage /> },
     { path: "/schedule", element: <SchedulePage /> },
     { path: "/week", element: <WeekPage /> },
     { path: "/rundowns", element: <RundownsPage /> },

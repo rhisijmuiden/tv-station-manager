@@ -7,6 +7,7 @@ import { Director } from "./director.js";
 import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
+import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { RemoteSources } from "./remote.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
@@ -14,6 +15,7 @@ export interface ManagementHandles {
   hub: DeviceHub;
   director: Director;
   remote: RemoteSources;
+  outputs: StreamOutputs;
   planner: WeekPlanner;
 }
 
@@ -34,12 +36,14 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         director.invalidate();
         planner.requestPublish();
       };
+      const outputs = new StreamOutputs(platform, hub, remote);
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
       registerWeek(server, platform, planner);
       director.register(server);
+      registerOutputs(server, platform, outputs, hub);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -67,9 +71,10 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         planner.stop();
         director.stop();
         remote.stop();
+        outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner });
+      opts.onReady?.({ hub, director, remote, planner, outputs });
     },
   };
 }

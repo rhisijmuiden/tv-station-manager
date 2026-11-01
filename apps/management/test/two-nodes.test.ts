@@ -51,6 +51,8 @@ class FakePlayout extends EventEmitter implements PlayoutDriver {
     this.calls.push(`cgupdate ${ch}-${layer}`);
   }
   async cgStop() {}
+  async addConsumer() {}
+  async removeConsumer() {}
   async close() {}
 }
 
