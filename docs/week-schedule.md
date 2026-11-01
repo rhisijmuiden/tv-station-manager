@@ -11,14 +11,14 @@ The management node plans the linear channel per week.
 
 The left menu follows the editor's work: **Editorial** (New hour block, Week board, Day planning, Hour blocks, Hour clocks, Media library, Categories, Ad breaks, Beeldkrant), **On air** (Control room, Schedule, Programme guide, Remote sources, Stream output) and **Setup** (Graphics, Channels, Devices; editors and admins). The dashboard shows the three editorial steps.
 
-## New hour block (step by step)
+## New hour programme (step by step)
 
-Editorial → New hour block (`web/pages/NewHour.tsx`) walks an editor through four steps, without technical terms:
+An hour programme is the build-up of one hour, used as a template: it can run at several hours of a day and on several days. Editorial → New hour programme (`web/pages/NewHour.tsx`) walks an editor through four steps, without technical terms:
 
 1. **Name and length**: name, subject (category), half an hour to two hours, and the fixed parts (the channel's hour clock, another clock, or none). The ring shows the room left for clips.
 2. **Fill the hour**: drag clips (or blocks) from the library into the list or straight into a programme window of the hour. The hour preview shows when every clip starts; what does not fit is marked.
-3. **Days and time**: weekday buttons (Mon–Fri, Weekend, Every day), start time per quarter hour, and a small week board with what already runs around it. Clashes are shown before saving. Planning can be skipped.
-4. **Check and save**: makes a TV block and one week slot per chosen day (`POST /api/blocks`, `POST /api/week/slots`), and can switch the week schedule on for the channel.
+3. **Days and times**: weekday buttons (Mon–Fri, Weekend, Every day) and one or more start times: click hours in a grid (half hours for a half-hour programme), "repeat back to back" (from 13:00, 3× gives 13:00, 14:00, 15:00) or an exact quarter-hour time. Times that would overlap a chosen one are greyed out; clashes with what already runs are shown before saving. A small week board shows every chosen time. Planning can be skipped.
+4. **Check and save**: makes a TV block and one week slot per chosen day and time (`POST /api/blocks`, then one `POST /api/week/slots` with `weekdays` and `startMins`, all or nothing), and can switch the week schedule on for the channel.
 
 ## Series: one block on several days
 

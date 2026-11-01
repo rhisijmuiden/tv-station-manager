@@ -20,7 +20,7 @@ const readOpen = () => {
  * Page layout with the media library docked on the right. Editors drag clips (or blocks) from it into
  * the hour clock, the week, a rundown or a block. `onAdd` is the click alternative (touch screens).
  */
-export function WithMediaBin({ children, onAdd, categoryId, blocks = true, hint }: { children: ReactNode; onAdd?: (p: LibraryPayload) => void; categoryId?: number | null; blocks?: boolean; hint?: ReactNode }) {
+export function WithMediaBin({ children, onAdd, categoryId, blocks = true, hint, wide }: { children: ReactNode; onAdd?: (p: LibraryPayload) => void; categoryId?: number | null; blocks?: boolean; hint?: ReactNode; /** A wider library, for pages where dragging from it is the main work. */ wide?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(readOpen);
   const toggle = () => {
@@ -32,7 +32,7 @@ export function WithMediaBin({ children, onAdd, categoryId, blocks = true, hint 
     }
   };
   return (
-    <div data-wide-page className={cx("grid items-start gap-6", open ? "xl:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-[minmax(0,1fr)_44px]")}>
+    <div data-wide-page className={cx("grid items-start gap-6", open ? (wide ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-[minmax(0,1fr)_340px]") : "xl:grid-cols-[minmax(0,1fr)_44px]")}>
       {/* A container, so the page inside lays out by its own width rather than the window's. */}
       <div className="@container min-w-0">{children}</div>
       {open ? (
