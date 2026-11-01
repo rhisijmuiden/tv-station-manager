@@ -48,7 +48,7 @@
       "uptime": "Uptime",
       "role_unassigned": "Geen rol",
       "role_management": "Management-node",
-      "role_studio": "Studio-node",
+      "role_studio": "Studionode (playout + live)",
       "role_other": "Overig",
       "actions": "Acties",
       "restartAgent": "Agent herstarten",
@@ -72,7 +72,9 @@
       "minutesAgo": "{{n}} min geleden",
       "hoursAgo": "{{n}} uur geleden",
       "studio": "Windows studio-node (CasparCG + DeckLink + RTMP-ingest)",
-      "studioHint": "Uitvoeren in PowerShell als Administrator. Installeert de agent, CasparCG Server en de RTMP-ingestserver en schrijft de CasparCG-configuratie. Vul de mediashare en het adres van de management node in."
+      "studioHint": "Uitvoeren in PowerShell als Administrator. Installeert de agent, CasparCG Server en de RTMP-ingestserver en schrijft de CasparCG-configuratie. Vul de mediashare en het adres van de management node in.",
+      "role_playout": "Studionode: playout",
+      "role_live": "Studionode: live (RTMP-ingest)"
     },
     "studio": {
       "title": "Studio node",

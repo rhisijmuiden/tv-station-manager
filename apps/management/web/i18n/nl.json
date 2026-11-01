@@ -17,7 +17,8 @@
       "week": "Weekschema",
       "rundowns": "Redactie",
       "clocks": "Uurklokken",
-      "categories": "Categorieën"
+      "categories": "Categorieën",
+      "outputs": "Stream-output"
     },
     "categories": {
       "program": "Programma",
@@ -72,7 +73,12 @@
       "asrun": "As-run log",
       "noChannels": "Nog geen kanalen",
       "noChannelsIntro": "Maak eerst een kanaal aan en koppel het aan een ATEM en een studio-node.",
-      "remoteWaiting": "Een remote bron met Wacht op stream geeft zwart beeld tot de inzender begint met streamen."
+      "remoteWaiting": "Een remote bron op de playout-node geeft zwart beeld tot de inzender begint met streamen. Op een aparte live-node blijft de playout-node in de uitzending tot de stream binnen is.",
+      "node_playout": "Playout-node {{studio}}",
+      "node_live": "Live-node {{studio}}",
+      "node_fallback": "Reserve-ingang {{input}}",
+      "node_other": "ATEM-ingang {{input}}",
+      "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt."
     },
     "media": {
       "title_page": "Mediabibliotheek",
@@ -325,7 +331,14 @@
         "De Blackmagic-driver bepaalt de nummering, niet het slot op het moederbord. Bij meerdere kaarten volgt de volgorde de PCIe-bus, en die kan veranderen als je een kaart toevoegt of verplaatst.",
         "Een kaart kan meer SDI-aansluitingen hebben dan uitgangen: fill + key of monitoraansluitingen horen bij dezelfde uitgang. Een Duo 2 of Quad 2 doet zich voor als 2 of 4 losse apparaten.",
         "Klik op Uitgangen identificeren: elke uitgang toont 60 seconden een eigen kleur en een groot nummer. Bij fill + key geeft de key-aansluiting een wit beeld."
-      ]
+      ],
+      "role": "Rol",
+      "role_playout": "Playout-node",
+      "role_live": "Live-node",
+      "role_both": "Playout + live",
+      "roleHint_playout": "Speelt de programmering: clips, reclameblokken en graphics. Koppel hem bij Kanalen aan een kanaal.",
+      "roleHint_live": "Ontvangt RTMP/SRT-streams van evenementen en speelt ze naar zijn DeckLink-uitgang. De regisseur schakelt de ATEM ernaar zodra er een live-item gepland staat.",
+      "roleHint_both": "Eén node doet zowel playout als live-streams (elk op een eigen DeckLink-uitgang)."
     },
     "errors": {
       "generic": "Er ging iets mis.",
@@ -351,7 +364,10 @@
       "no_category": "Dit slot heeft geen categorie.",
       "wrong_weekday": "Dit slot staat niet op die dag.",
       "block_required": "Kies een blok.",
-      "media_required": "Kies een mediabestand."
+      "media_required": "Kies een mediabestand.",
+      "rtmp_url": "Vul een rtmp://- of rtmps://-adres in.",
+      "extra_args": "Extra encoderopties mogen alleen letters, cijfers, spaties en - : = . , + / bevatten.",
+      "output_needs_source": "Kies wat je wilt streamen."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -624,6 +640,132 @@
       "gap": "{{d}} over: de filler speelt",
       "cut": "Langer dan het venster: wordt afgekapt als het volgende vaste onderdeel begint.",
       "overflowHint": "{{n}} items ({{d}}) passen niet in dit slot en worden niet uitgezonden."
+    },
+    "outputs": {
+      "title": "Stream-output",
+      "intro": "Stream een tv-kanaal (met logo en graphics) of een live evenement naar je eigen streamserver voor de website, YouTube, Facebook of een andere RTMP-server.",
+      "addDest": "Bestemming toevoegen",
+      "editDest": "Bestemming bewerken",
+      "addStream": "Stream toevoegen",
+      "editStream": "Stream bewerken",
+      "streams": "Streams",
+      "streamsIntro": "Wat er gestreamd wordt en waarheen. Een gestarte stream blijft lopen en herstart zelf na een onderbreking.",
+      "destinations": "Bestemmingen",
+      "destinationsIntro": "Streamservers en platformaccounts. Eén stream kan tegelijk naar meerdere bestemmingen.",
+      "noStreams": "Nog geen streams. Voeg eerst een bestemming toe en daarna een stream.",
+      "noDestinations": "Nog geen bestemmingen.",
+      "start": "Start streamen",
+      "stop": "Stoppen",
+      "confirmStop": "Streamen van \"{{name}}\" stoppen? Kijkers verliezen de stream.",
+      "studioOutput": "{{studio}}, uitgang {{n}}",
+      "remoteLabel": "Live evenement: {{name}}",
+      "usedBy_one": "gebruikt door {{count}} stream",
+      "usedBy_other": "gebruikt door {{count}} streams",
+      "disabled": "Uit",
+      "encoderError": "CasparCG-encoder: {{message}}",
+      "state": {
+        "off": "Uit",
+        "waiting": "Wacht",
+        "starting": "Verbinden",
+        "live": "Live",
+        "error": "Probleem",
+        "retrying": "Opnieuw verbinden",
+        "disabled": "Bestemming uit"
+      },
+      "reason": {
+        "no_studio": "De studio node van deze stream ontbreekt of staat uit.",
+        "casparcg_offline": "CasparCG op de studio node is niet verbonden.",
+        "encoder_failed": "CasparCG weigerde de stream-encoder (zie hieronder).",
+        "encoder_starting": "CasparCG start de encoder…",
+        "no_source": "De remote bron van deze stream bestaat niet meer.",
+        "waiting_for_stream": "Klaar: doorsturen start zodra het live evenement binnenkomt.",
+        "no_destinations": "Kies minstens één bestemming."
+      },
+      "platform": {
+        "custom": "Eigen server / RTMP",
+        "youtube": "YouTube",
+        "facebook": "Facebook",
+        "twitch": "Twitch"
+      },
+      "form": {
+        "destNamePlaceholder": "bijv. Streamserver website",
+        "streamNamePlaceholder": "bijv. IJmond360 live op de website",
+        "server": "Server-URL",
+        "serverHint": {
+          "custom": "rtmp:// of rtmps://-adres van de streamserver, bijv. rtmp://stream.example.org/live. Je mag ook de volledige URL inclusief sleutel plakken en de sleutel leeg laten.",
+          "youtube": "Leeg laten voor de standaard YouTube-server.",
+          "facebook": "Leeg laten voor de standaard Facebook-server (RTMPS).",
+          "twitch": "Leeg laten voor de standaard Twitch-server."
+        },
+        "key": "Streamsleutel",
+        "keyHint": {
+          "custom": "Optioneel, wordt als laatste deel aan de URL toegevoegd.",
+          "youtube": "YouTube Studio → Live gaan → Stream → Streamsleutel.",
+          "facebook": "Facebook → Live Producer → Streamingsoftware → Streamsleutel (gebruik een permanente sleutel voor een 24/7-stream).",
+          "twitch": "Twitch → Creator Dashboard → Instellingen → Stream → Primaire streamsleutel."
+        },
+        "keyKeep": "Opgeslagen. Leeg laten om te behouden.",
+        "enabled": "Actief",
+        "enabledHint": "Uitgeschakeld slaan streams deze bestemming over.",
+        "source": "Wat wil je streamen?",
+        "source_channel": "Uitgang van een tv-kanaal",
+        "source_channelHint": "Wat CasparCG op een kanaal speelt, inclusief logo en graphics. Eén keer gecodeerd op de studio node.",
+        "source_remote": "Live evenement (remote bron)",
+        "source_remoteHint": "Een binnenkomende RTMP/SRT-stream, doorgestuurd zoals hij binnenkomt, bijv. naar YouTube en Facebook.",
+        "channel": "Kanaal / uitgang",
+        "channelHint": "Het CasparCG-kanaal (= DeckLink-uitgang) waarvan het beeld gestreamd wordt.",
+        "encoding": "Codering",
+        "videoKbps": "Videobitrate (kbit/s)",
+        "audioKbps": "Audiobitrate",
+        "resolution": "Resolutie",
+        "resSource": "Gelijk aan het kanaal",
+        "encoder": "Encoder",
+        "encX264": "x264 (CPU), werkt altijd",
+        "encNvenc": "NVIDIA NVENC (GPU), minder CPU-belasting",
+        "deinterlace": "De-interlacen",
+        "deinterlaceHint": "Aan laten bij interlaced kanalen (1080i50): websites en platforms tonen progressieve video.",
+        "extraArgs": "Extra encoderopties",
+        "extraArgsHint": "Toegevoegd aan de FFmpeg-consumer van CasparCG, bijv. -profile:v high. Alleen voor specialisten.",
+        "remote": "Remote bron",
+        "remoteHint": "Het live evenement dat doorgestuurd wordt.",
+        "noRemote": "Er zijn nog geen remote bronnen. Voeg er een toe onder",
+        "remoteNote": "De stream wordt precies doorgestuurd zoals de inzender hem stuurt (geen logo, geen tweede codering). De meeste platforms willen H.264 + AAC met elke 2 seconden een keyframe. Wil je het logo erop? Stream dan de uitgang van het tv-kanaal terwijl het evenement in de uitzending is.",
+        "destinations": "Versturen naar",
+        "noDest": "Voeg eerst een bestemming toe (Bestemming toevoegen)."
+      },
+      "how": {
+        "title": "Hoe werkt stream-output?",
+        "intro": "Eén codering per stream, zoveel bestemmingen als je wilt. Valt een bestemming uit, dan hebben de andere daar geen last van.",
+        "channel": {
+          "title": "Uitgang van een tv-kanaal",
+          "text": "CasparCG codeert het kanaal (met logo) op de studio node. De management node stuurt die stream door naar elke bestemming."
+        },
+        "remote": {
+          "title": "Live evenement",
+          "text": "Een binnenkomende livestream gaat ongewijzigd door naar de bestemmingen, terwijl hij ook beschikbaar blijft voor de ATEM."
+        },
+        "chain": {
+          "casparcg": "CasparCG-kanaal",
+          "encoder": "H.264-encoder",
+          "ingest": "Ingest-server (studio node)",
+          "relay": "Management node",
+          "destinations": "Website · YouTube · Facebook",
+          "contributor": "Live evenement (OBS, vMix, encoder)"
+        },
+        "dest": {
+          "title": "Bestemmingen toevoegen",
+          "text": "Je streamserver voor de website en eventueel YouTube, Facebook of Twitch met hun streamsleutels."
+        },
+        "stream": {
+          "title": "Stream toevoegen",
+          "text": "Kies een tv-kanaal of een live evenement en vink de bestemmingen aan."
+        },
+        "start": {
+          "title": "Starten",
+          "text": "Druk op Start streamen. De status per bestemming laat zien wanneer hij live is en met welke bitrate."
+        },
+        "network": "De management node moet uitgaand bij de bestemmingen kunnen (TCP 1935 voor RTMP, 443 voor RTMPS/Facebook) en bij TCP 1935 op de studio node. De upload van je internetlijn moet de bitrate per bestemming één keer aankunnen."
+      }
     },
     "bin": {
       "title": "Mediabibliotheek",

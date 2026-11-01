@@ -119,11 +119,12 @@ export interface IngestAuthRequest {
 export class RemoteSources {
   private studios = new Map<number, IngestState>();
   /** "studioId:casparChannel" -> the remote source routed to that DeckLink output. */
-  private routes = new Map<string, { liveId: number; playing: boolean; onlineSince: string | null; error: string | null; failedAt: number; session: number | undefined }>();
+  private routes = new Map<string, { liveId: number; playing: boolean; playingSince: number; onlineSince: string | null; error: string | null; failedAt: number; session: number | undefined }>();
   private timer: NodeJS.Timeout | null = null;
   private lastPoll = 0;
   private polling = false;
   fetcher: typeof fetch = (...a) => fetch(...a);
+  now = () => Date.now();
 
   constructor(
     private platform: Platform,
@@ -154,18 +155,35 @@ export class RemoteSources {
   auth(r: IngestAuthRequest): boolean {
     switch (r.action) {
       case "publish": {
+        // Stream output encoder: CasparCG on the studio node itself publishes the channel for the relays.
+        const out = /^program\/out-(\d+)$/.exec(r.path ?? "")?.[1];
+        if (out) return isLoopback(r.ip) && !!this.platform.ctx.db.prepare("SELECT id FROM stream_outputs WHERE id = ? AND source = 'channel'").get(Number(out));
         const key = /^live\/([A-Za-z0-9_-]{8,80})$/.exec(r.path ?? "")?.[1];
         if (!key) return false;
         return !!this.platform.ctx.db.prepare("SELECT id FROM live_sources WHERE kind = 'rtmp' AND stream_key = ?").get(key);
       }
       case "read":
-        // CasparCG and the agent on the studio node itself. Nobody else may pull streams from the node.
-        return isLoopback(r.ip);
+        // CasparCG and the agent on the studio node itself, and this management node (stream output relays).
+        return isLoopback(r.ip) || this.isManagement(r);
       case "api":
-        return isLoopback(r.ip) || (r.user === INGEST_API_USER && !!r.password && sameSecret(r.password, this.apiToken()));
+        return isLoopback(r.ip) || this.isManagement(r);
       default:
         return false;
     }
+  }
+
+  private isManagement(r: IngestAuthRequest) {
+    return r.user === INGEST_API_USER && !!r.password && sameSecret(r.password, this.apiToken());
+  }
+
+  /** Called after every ingest poll (stream outputs reconcile their relays). */
+  afterPoll: (() => Promise<void>)[] = [];
+
+  /** State of a path on a studio node's ingest server; null when that server could not be asked. */
+  pathStatus(studioId: number | null | undefined, path: string): IngestPath | null | undefined {
+    const s = studioId == null ? undefined : this.studios.get(studioId);
+    if (!s?.reachable) return null;
+    return s.paths.get(path);
   }
 
   private studioRows() {
@@ -200,6 +218,7 @@ export class RemoteSources {
         }),
       );
       await this.reconcile();
+      for (const f of this.afterPoll) await f().catch((e) => this.platform.ctx.log.warn({ err: (e as Error).message }, "after ingest poll"));
     } finally {
       this.polling = false;
     }
@@ -232,6 +251,7 @@ export class RemoteSources {
       try {
         await p.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
         r.playing = true;
+        r.playingSince = this.now();
         r.session = info.session;
         r.onlineSince = st.onlineSince;
         r.error = null;
@@ -289,6 +309,12 @@ export class RemoteSources {
   outputError(live: LiveRow) {
     return this.isRouted(live) ? (this.routes.get(`${live.studio_id}:${live.caspar_channel}`)?.error ?? null) : null;
   }
+  /** Since when CasparCG plays this routed stream on its DeckLink output (null: not playing). */
+  playingSince(live: LiveRow) {
+    if (!this.isRouted(live)) return null;
+    const r = this.routes.get(`${live.studio_id}:${live.caspar_channel}`)!;
+    return r.playing ? r.playingSince : null;
+  }
   isRouted(live: LiveRow) {
     return !!live.studio_id && !!live.caspar_channel && this.routedTo(live.studio_id, live.caspar_channel) === live.id;
   }
@@ -307,11 +333,12 @@ export class RemoteSources {
     const cur = this.routes.get(key);
     if (cur?.liveId === live.id && cur.playing) return;
     const st = this.status(live);
-    const r = { liveId: live.id, playing: false, onlineSince: null as string | null, error: null as string | null, failedAt: 0, session: undefined as number | undefined };
+    const r = { liveId: live.id, playing: false, playingSince: 0, onlineSince: null as string | null, error: null as string | null, failedAt: 0, session: undefined as number | undefined };
     this.routes.set(key, r);
     if (st.state === "live" || st.state === "pull" || st.state === "unknown") {
       await p.play(live.caspar_channel, REMOTE_LAYER, this.playUrl(live));
       r.playing = true;
+      r.playingSince = this.now();
       r.session = p.info().session;
       r.onlineSince = st.onlineSince;
     } else await p.stop(live.caspar_channel, REMOTE_LAYER).catch(() => undefined);

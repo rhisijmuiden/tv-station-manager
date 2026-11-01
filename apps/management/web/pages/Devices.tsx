@@ -20,12 +20,15 @@ interface Studio {
   port: number;
   publicHost: string | null;
   ingestApiPort: number;
+  role: StudioRole;
   enabled: boolean;
   status: { connected: boolean; version: string | null; channels?: number[] | null };
   ingest: { reachable: boolean; error: string | null };
   identifyUntil: string | null;
 }
 type Kind = "atem" | "studio" | "live";
+type StudioRole = "playout" | "live" | "both";
+const STUDIO_ROLES: StudioRole[] = ["playout", "live", "both"];
 type Form = Record<string, string | number | boolean | null | undefined> & { id?: number };
 
 export function DevicesPage() {
@@ -60,7 +63,7 @@ export function DevicesPage() {
       edit.kind === "atem"
         ? { name: f.name, host: f.host, enabled: f.enabled ?? true }
         : edit.kind === "studio"
-          ? { name: f.name, host: f.host, port: Number(f.port) || 5250, publicHost: f.publicHost || null, ingestApiPort: Number(f.ingestApiPort) || 9997, enabled: f.enabled ?? true }
+          ? { name: f.name, host: f.host, port: Number(f.port) || 5250, publicHost: f.publicHost || null, ingestApiPort: Number(f.ingestApiPort) || 9997, role: f.role || "both", enabled: f.enabled ?? true }
           : { name: f.name, kind: "atem", atemInput: Number(f.atemInput) || 0 };
     try {
       if (id) await put(`${url[edit.kind]}/${id}`, body);
@@ -141,7 +144,7 @@ export function DevicesPage() {
             title={t("mgmt.devices.studios")}
             description={t("mgmt.devices.studiosIntro")}
             actions={
-              <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setEdit({ kind: "studio", form: { port: 5250, ingestApiPort: 9997, enabled: true } })}>
+              <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setEdit({ kind: "studio", form: { port: 5250, ingestApiPort: 9997, role: studios.data?.studios.some((x) => x.role !== "live") ? "live" : "playout", enabled: true } })}>
                 {t("mgmt.devices.addStudio")}
               </Button>
             }
@@ -165,7 +168,10 @@ export function DevicesPage() {
                     <Dot on={s.status.connected} />
                   </td>
                   <td className="px-3 py-3">
-                    <p className="font-medium">{s.name}</p>
+                    <p className="flex flex-wrap items-center gap-2 font-medium">
+                      {s.name}
+                      <Badge tone={s.role === "live" ? "danger" : s.role === "playout" ? "brand" : "neutral"}>{t(`mgmt.devices.role_${s.role}`)}</Badge>
+                    </p>
                     <p className="font-mono text-xs text-muted">
                       {s.host}:{s.port}
                     </p>
@@ -186,7 +192,7 @@ export function DevicesPage() {
                       </Button>
                     )}
                   </td>
-                  {actions("studio", { id: s.id, name: s.name, host: s.host, port: s.port, publicHost: s.publicHost, ingestApiPort: s.ingestApiPort, enabled: s.enabled }, s.name)}
+                  {actions("studio", { id: s.id, name: s.name, host: s.host, port: s.port, publicHost: s.publicHost, ingestApiPort: s.ingestApiPort, role: s.role, enabled: s.enabled }, s.name)}
                 </tr>
               ))}
               {studios.data && !studios.data.studios.length && (
@@ -270,6 +276,19 @@ export function DevicesPage() {
             )}
             {edit.kind === "live" && (
               <Field label={t("mgmt.devices.atemInput")} hint={t("mgmt.devices.atemInputHint")}>{(id) => <Input id={id} type="number" min={0} value={String(f.atemInput ?? "")} onChange={(e) => set("atemInput", e.target.value)} />}</Field>
+            )}
+            {edit.kind === "studio" && (
+              <Field label={t("mgmt.devices.role")} hint={t(`mgmt.devices.roleHint_${(f.role as StudioRole) || "both"}`)}>
+                {(id) => (
+                  <Select id={id} value={String(f.role || "both")} onChange={(e) => set("role", e.target.value)}>
+                    {STUDIO_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {t(`mgmt.devices.role_${r}`)}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
             )}
             {edit.kind === "studio" && (
               <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
