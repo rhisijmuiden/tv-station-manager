@@ -1,6 +1,6 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Disc3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv } from "lucide-react";
+import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Disc3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv, WandSparkles } from "lucide-react";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
 import { CategoriesPage } from "./pages/Categories";
@@ -12,6 +12,7 @@ import { DevicesPage } from "./pages/Devices";
 import { EpgPage } from "./pages/Epg";
 import { GraphicsPage } from "./pages/Graphics";
 import { MediaPage } from "./pages/Media";
+import { NewHourPage } from "./pages/NewHour";
 import { OutputsPage } from "./pages/Outputs";
 import { RemoteSourcesPage } from "./pages/RemoteSources";
 import { RundownsPage } from "./pages/Rundowns";
@@ -26,36 +27,41 @@ mountPlatformApp({
   translations: { en, nl },
   nav: [
     {
+      items: [{ to: "/", label: "nav.dashboard", icon: LayoutDashboard, end: true }],
+    },
+    {
+      // The editorial work, in the order an editor does it: make an hour, plan it in the week, check the days.
+      label: "mgmt.nav.editorial",
       items: [
-        { to: "/", label: "nav.dashboard", icon: LayoutDashboard, end: true },
+        { to: "/new-hour", label: "mgmt.nav.newHour", icon: WandSparkles, minRole: "editor" },
+        { to: "/week", label: "mgmt.nav.week", icon: CalendarRange },
+        { to: "/rundowns", label: "mgmt.nav.rundowns", icon: ClipboardList },
+        { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
+        { to: "/clocks", label: "mgmt.nav.clocks", icon: Clock3 },
+        { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
+        { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
+        { to: "/ads", label: "mgmt.nav.ads", icon: Film },
+        { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
+      ],
+    },
+    {
+      label: "mgmt.nav.broadcast",
+      items: [
         { to: "/control", label: "mgmt.nav.control", icon: Radio },
+        { to: "/schedule", label: "mgmt.nav.schedule", icon: CalendarDays },
+        { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
         { to: "/remote", label: "mgmt.nav.remote", icon: Satellite },
         { to: "/outputs", label: "mgmt.nav.outputs", icon: Cast },
         { to: "/visual-radio", label: "mgmt.nav.visualRadio", icon: Disc3 },
       ],
     },
     {
-      label: "mgmt.nav.planning",
-      items: [
-        { to: "/week", label: "mgmt.nav.week", icon: CalendarRange },
-        { to: "/rundowns", label: "mgmt.nav.rundowns", icon: ClipboardList },
-        { to: "/schedule", label: "mgmt.nav.schedule", icon: CalendarDays },
-        { to: "/clocks", label: "mgmt.nav.clocks", icon: Clock3 },
-        { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
-        { to: "/ads", label: "mgmt.nav.ads", icon: Film },
-        { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
-        { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
-        { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
-        { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
-        { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
-      ],
-    },
-    {
       label: "mgmt.nav.setup",
-      minRole: "admin",
+      minRole: "editor",
       items: [
-        { to: "/channels", label: "mgmt.nav.channels", icon: Tv },
-        { to: "/devices", label: "mgmt.nav.devices", icon: Cable },
+        { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
+        { to: "/channels", label: "mgmt.nav.channels", icon: Tv, minRole: "admin" },
+        { to: "/devices", label: "mgmt.nav.devices", icon: Cable, minRole: "admin" },
       ],
     },
   ],
@@ -67,6 +73,7 @@ mountPlatformApp({
     { path: "/visual-radio", element: <VisualRadioPage /> },
     { path: "/schedule", element: <SchedulePage /> },
     { path: "/week", element: <WeekPage /> },
+    { path: "/new-hour", element: <NewHourPage /> },
     { path: "/rundowns", element: <RundownsPage /> },
     { path: "/rundowns/:slot/:date", element: <RundownsPage /> },
     { path: "/clocks", element: <ClocksPage /> },

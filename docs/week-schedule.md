@@ -2,10 +2,31 @@
 
 The management node plans the linear channel per week.
 
-- **Categories** (Planning → Categories): subjects such as Sport, Culture, News. Give media a category in the media library (per file, or a whole folder at once). Blocks can have a category too; it is used as the genre in the EPG.
-- **Hour clocks** (Planning → Hour clocks): the layout of every hour. Fixed blocks (ident, news, ad break) start at the same minute every hour; programme windows in between are filled with the slot's content. "Reserve" keeps a fixed amount of time for a block (e.g. 5:00 for ads); what is left over plays the channel filler.
-- **Week schedule** (Planning → Week schedule): recurring slots per channel and weekday, e.g. "Mon–Fri 18:00–20:00 Sport". A slot has a category (editors put the rundown together per date, or it is picked automatically from the category) or a fixed block (the same TV block every week). Each slot follows the channel's default hour clock, another clock, or no clock.
-- **Editorial** (Planning → Editorial): per week, every slot on every date with its state (fixed block, editor, automatic, empty), how full it is and what does not fit. Open one to put the rundown together; the timeline shows live where every item will start. Items are never split: an item that does not fit what is left of a window moves to the next window.
+- **Categories** (Editorial → Categories): subjects such as Sport, Culture, News. Give media a category in the media library (per file, or a whole folder at once). Blocks can have a category too; it is used as the genre in the EPG.
+- **Hour clocks** (Editorial → Hour clocks): the layout of every hour. Fixed blocks (ident, news, ad break) start at the same minute every hour; programme windows in between are filled with the slot's content. "Reserve" keeps a fixed amount of time for a block (e.g. 5:00 for ads); what is left over plays the channel filler.
+- **Week board** (Editorial → Week board): recurring slots per channel and weekday, e.g. "Mon–Fri 18:00–20:00 Sport". A slot has a category (editors put the rundown together per date, or it is picked automatically from the category) or a fixed block (the same TV block every week). Each slot follows the channel's default hour clock, another clock, or no clock.
+- **Day planning** (Editorial → Day planning): per week, every slot on every date with its state (fixed block, editor, automatic, empty), how full it is and what does not fit. Open one to put the rundown together; the timeline shows live where every item will start. Items are never split: an item that does not fit what is left of a window moves to the next window.
+
+## Menu
+
+The left menu follows the editor's work: **Editorial** (New hour block, Week board, Day planning, Hour blocks, Hour clocks, Media library, Categories, Ad breaks, Beeldkrant), **On air** (Control room, Schedule, Programme guide, Remote sources, Stream output, Visual Radio) and **Setup** (Graphics, Channels, Devices; editors and admins). The dashboard shows the three editorial steps.
+
+## New hour block (step by step)
+
+Editorial → New hour block (`web/pages/NewHour.tsx`) walks an editor through four steps, without technical terms:
+
+1. **Name and length**: name, subject (category), half an hour to two hours, and the fixed parts (the channel's hour clock, another clock, or none). The ring shows the room left for clips.
+2. **Fill the hour**: drag clips (or blocks) from the library into the list or straight into a programme window of the hour. The hour preview shows when every clip starts; what does not fit is marked.
+3. **Days and time**: weekday buttons (Mon–Fri, Weekend, Every day), start time per quarter hour, and a small week board with what already runs around it. Clashes are shown before saving. Planning can be skipped.
+4. **Check and save**: makes a TV block and one week slot per chosen day (`POST /api/blocks`, `POST /api/week/slots`), and can switch the week schedule on for the channel.
+
+## Series: one block on several days
+
+Slots with the same start, length, content, clock and title on different weekdays form a series (`seriesKey` in `hourclock.ts`). Clicking a slot on the week board opens the whole series: switch days on or off, change the time or content for all days at once (`PUT /api/week/slots/:id/series`), or tick "only change this day" (the old per-slot `PUT /api/week/slots/:id`). Days that stay keep their rundowns; removed days lose theirs. `DELETE /api/week/slots/:id/series` removes every day.
+
+## Clicking an hour clock together
+
+The hour clock editor has a palette: one click adds an ident, news item, jingle (blocks of at most 10 minutes) or ad break as a fixed part. A new clock starts as one hour of programme.
 
 ## Publishing
 

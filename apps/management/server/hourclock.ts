@@ -183,6 +183,28 @@ export function overlaps(a: SlotTime, b: SlotTime) {
   return [-WEEK_MIN, 0, WEEK_MIN].some((k) => as < bs + k + b.durationMin && bs + k < as + a.durationMin);
 }
 
+/** What makes slots one "series" (the same programme on several weekdays): everything but the weekday. */
+export interface SeriesFields {
+  startMin: number;
+  durationMin: number;
+  clockMode: string;
+  clockId: number | null;
+  blockId: number | null;
+  categoryId: number | null;
+  title: string | null;
+}
+export const seriesKey = (s: SeriesFields) => JSON.stringify([s.startMin, s.durationMin, s.clockMode, s.clockMode === "clock" ? s.clockId : null, s.blockId, s.blockId ? null : s.categoryId, s.title || null]);
+
+/**
+ * Days to add, keep and remove when a series moves to `weekdays`. Each kept day maps to the slot id it keeps.
+ * `current` is the series as it is (one slot per weekday).
+ */
+export function seriesChanges(current: { id: number; weekday: number }[], weekdays: number[]) {
+  const want = [...new Set(weekdays)].sort();
+  const keep = current.filter((c) => want.includes(c.weekday));
+  return { keep, remove: current.filter((c) => !want.includes(c.weekday)), add: want.filter((d) => !current.some((c) => c.weekday === d)) };
+}
+
 // ---- station time ------------------------------------------------------------------
 
 const fmtCache = new Map<string, Intl.DateTimeFormat>();

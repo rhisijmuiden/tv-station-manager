@@ -23,6 +23,8 @@ import {
   layoutClock,
   occurrenceParts,
   overlaps,
+  seriesChanges,
+  seriesKey,
   stationDay,
   stationTime,
   weekdayOf,
@@ -644,8 +646,8 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
     return planner.publish(c.id);
   });
 
-  const checkSlot = (channelId: number, s: { id?: number; weekday: number; startMin: number; durationMin: number }) => {
-    const other = planner.slots(channelId).find((o) => o.id !== s.id && overlaps({ weekday: o.weekday, startMin: o.start_min, durationMin: o.duration_min }, s));
+  const checkSlot = (channelId: number, s: { id?: number; weekday: number; startMin: number; durationMin: number }, ignore: number[] = []) => {
+    const other = planner.slots(channelId).find((o) => o.id !== s.id && !ignore.includes(o.id) && overlaps({ weekday: o.weekday, startMin: o.start_min, durationMin: o.duration_min }, s));
     if (other) throw new HttpError(409, "slot_overlap", `${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][other.weekday]} ${String(Math.floor(other.start_min / 60)).padStart(2, "0")}:${String(other.start_min % 60).padStart(2, "0")}`);
   };
   const slotValues = (b: z.infer<typeof slotBase>) => [
@@ -698,6 +700,69 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
     });
     republish(s.channel_id);
     return { ok: true };
+  });
+  // ---- series: the same slot on several weekdays, edited as one ("runs on Mon, Wed, Fri") ------------
+  const seriesRows = (s: SlotRow) => {
+    const key = seriesKey(slotOut(s));
+    return planner.slots(s.channel_id).filter((o) => seriesKey(slotOut(o)) === key);
+  };
+  const dropFills = (slotId: number) => db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id IN (SELECT block_id FROM week_fills WHERE slot_id = ?)").run(slotId);
+  app.get("/api/week/slots/:id/series", async (req) => {
+    const rows = seriesRows(planner.slot(pid(req)));
+    return { slots: rows.map((r) => ({ id: r.id, weekday: r.weekday })) };
+  });
+  /**
+   * Changes a whole series: every day gets the new settings, days no longer chosen are removed (with their rundowns),
+   * new days are added. Rundowns of days that stay are kept.
+   */
+  app.put("/api/week/slots/:id/series", async (req) => {
+    requireRole(req, "editor");
+    const s = planner.slot(pid(req));
+    const b = slotBase.extend({ weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7) }).parse(req.body);
+    if (b.clockMode === "clock" && !b.clockId) throw new HttpError(400, "clock_required");
+    const current = seriesRows(s);
+    const ids = current.map((c) => c.id);
+    const ch = seriesChanges(current, b.weekdays);
+    const days = [...ch.keep.map((k) => k.weekday), ...ch.add];
+    const out = tx(db, () => {
+      for (const r of ch.remove) {
+        dropFills(r.id);
+        db.prepare("DELETE FROM week_slots WHERE id = ?").run(r.id);
+      }
+      for (const wd of days) {
+        const t = { weekday: wd, startMin: b.startMin, durationMin: b.durationMin };
+        checkSlot(s.channel_id, t, ids);
+        // Days of the series must not run into each other (a slot longer than the gap to the next day).
+        const clash = days.find((o) => o !== wd && overlaps({ weekday: o, startMin: b.startMin, durationMin: b.durationMin }, t));
+        if (clash != null) throw new HttpError(409, "slot_overlap", `${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][clash]} ${String(Math.floor(b.startMin / 60)).padStart(2, "0")}:${String(b.startMin % 60).padStart(2, "0")}`);
+      }
+      const kept = ch.keep.map((k) => {
+        db.prepare("UPDATE week_slots SET start_min = ?, duration_min = ?, clock_mode = ?, clock_id = ?, block_id = ?, category_id = ?, title = ?, description = ?, in_epg = ? WHERE id = ?").run(...slotValues(b), k.id);
+        return k.id;
+      });
+      const added = ch.add.map((weekday) => {
+        const r = db
+          .prepare("INSERT INTO week_slots (channel_id, weekday, start_min, duration_min, clock_mode, clock_id, block_id, category_id, title, description, in_epg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .run(s.channel_id, weekday, ...slotValues(b));
+        return Number(r.lastInsertRowid);
+      });
+      return { ids: [...kept, ...added], added: added.length, removed: ch.remove.length };
+    });
+    republish(s.channel_id);
+    return out;
+  });
+  app.delete("/api/week/slots/:id/series", async (req) => {
+    requireRole(req, "editor");
+    const s = planner.slot(pid(req));
+    const rows = seriesRows(s);
+    tx(db, () => {
+      for (const r of rows) {
+        dropFills(r.id);
+        db.prepare("DELETE FROM week_slots WHERE id = ?").run(r.id);
+      }
+    });
+    republish(s.channel_id);
+    return { removed: rows.length };
   });
   /** Copies the slots of one weekday to other weekdays. */
   app.post("/api/week/copy-day", async (req) => {

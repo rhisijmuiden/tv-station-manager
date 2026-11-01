@@ -1,8 +1,9 @@
 import { Alert, Badge, Button, Card, Dialog, Field, Input, PageHeader, Select, Switch, Textarea, cx, del, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { CalendarRange, Clock3, Copy, MousePointerClick, Plus, Send, Tags, Trash2 } from "lucide-react";
+import { CalendarRange, Clock3, Copy, MousePointerClick, Plus, Send, Tags, Trash2, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { seriesKey } from "../../server/hourclock";
 import { payloadDuration, useDragging, useDrop, type DragPayload } from "../components/dnd";
 import { WithMediaBin } from "../components/MediaBin";
 import { ChannelTabs } from "../components/ChannelPicker";
@@ -34,6 +35,9 @@ interface WeekData {
 interface SlotForm {
   id?: number;
   weekdays: number[];
+  /** Editing: the days of the series this slot belongs to, and whether the change is for all of them or this day only. */
+  series?: Slot[];
+  scope?: "series" | "day";
   start: string;
   duration: string;
   content: "category" | "block";
@@ -120,10 +124,20 @@ export function WeekPage() {
       setErr(errorText(t, e));
     }
   };
-  const editSlot = (s: Slot) =>
+  /** The same programme on other weekdays (same time, content, clock and title). */
+  const seriesOf = (s: Slot) => {
+    const k = seriesKey(s);
+    return slots.filter((o) => seriesKey(o) === k).sort((a, b) => a.weekday - b.weekday);
+  };
+  const daysLabel = (list: Slot[]) => list.map((x) => weekdayName(x.weekday, "short")).join(", ");
+  const editSlot = (s: Slot) => {
+    const series = seriesOf(s);
+    setErr(null);
     setForm({
       id: s.id,
-      weekdays: [s.weekday],
+      series,
+      scope: "series",
+      weekdays: series.map((x) => x.weekday),
       start: fmtMinutes(s.startMin),
       duration: fmtMinutes(s.durationMin === 1440 ? 1440 : s.durationMin).replace(/^00:00$/, "24:00"),
       content: s.blockId ? "block" : "category",
@@ -135,6 +149,7 @@ export function WeekPage() {
       description: s.description ?? "",
       inEpg: s.inEpg,
     });
+  };
   const durationMin = (v: string) => {
     const [h, m] = v.split(":").map(Number);
     return Number.isFinite(h) && Number.isFinite(m) ? h! * 60 + m! : null;
@@ -157,7 +172,11 @@ export function WeekPage() {
       inEpg: form.inEpg,
     };
     try {
-      if (form.id) await put(`/api/week/slots/${form.id}`, { ...body, weekday: form.weekdays[0] });
+      if (form.id && form.scope === "day") await put(`/api/week/slots/${form.id}`, { ...body, weekday: form.weekdays[0] });
+      else if (form.id) {
+        const r = await put<{ added: number; removed: number }>(`/api/week/slots/${form.id}/series`, { ...body, weekdays: form.weekdays });
+        setNotice(t("mgmt.week.seriesSaved", { days: form.weekdays.map((d) => weekdayName(d, "short")).join(", ") }) + (r.removed ? ` ${t("mgmt.week.seriesRemoved", { n: r.removed })}` : ""));
+      }
       else await post("/api/week/slots", { ...body, channelId: data.channel.id, weekdays: form.weekdays });
       setForm(null);
       void week.reload();
@@ -165,9 +184,9 @@ export function WeekPage() {
       setErr(errorText(t, e));
     }
   };
-  const remove = async () => {
-    if (!form?.id || !confirm(t("mgmt.week.confirmDelete"))) return;
-    await del(`/api/week/slots/${form.id}`);
+  const remove = async (all: boolean) => {
+    if (!form?.id || !confirm(all ? t("mgmt.week.confirmDeleteSeries", { days: daysLabel(form.series ?? []) }) : t("mgmt.week.confirmDelete"))) return;
+    await del(all ? `/api/week/slots/${form.id}/series` : `/api/week/slots/${form.id}`);
     setForm(null);
     void week.reload();
   };
@@ -213,9 +232,12 @@ export function WeekPage() {
               <Button variant="secondary" icon={<Copy className="size-4" />} onClick={() => (setErr(null), setCopy({ from: 0, to: [1, 2, 3, 4], replace: false }))} disabled={!slots.length}>
                 {t("mgmt.week.copyDay")}
               </Button>
-              <Button icon={<Plus className="size-4" />} onClick={() => newSlot(todayWd)}>
+              <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => newSlot(todayWd)}>
                 {t("mgmt.week.addSlot")}
               </Button>
+              <Link to="/new-hour">
+                <Button icon={<WandSparkles className="size-4" />}>{t("mgmt.nav.newHour")}</Button>
+              </Link>
             </>
           )
         }
@@ -341,7 +363,7 @@ export function WeekPage() {
                           onClick={() => canEdit && editSlot(s)}
                           className="absolute right-1 left-1 overflow-hidden rounded-md border-l-[3px] px-2 py-1 text-left text-xs shadow-sm transition hover:brightness-110 hover:shadow-md"
                           style={{ top: (top / 60) * HOUR_PX + 1, height: h - 2, borderColor: color, background: `color-mix(in srgb, ${color} 16%, var(--color-surface))` }}
-                          title={`${fmtMinutes(s.startMin)}–${fmtMinutes(s.startMin + s.durationMin)} ${slotTitle(s)}`}
+                          title={`${fmtMinutes(s.startMin)}–${fmtMinutes(s.startMin + s.durationMin)} ${slotTitle(s)} · ${daysLabel(seriesOf(s))}${canEdit ? `\n${t("mgmt.week.clickToEdit")}` : ""}`}
                         >
                           <span className="block truncate font-semibold">{slotTitle(s)}</span>
                           {h > 30 && (
@@ -407,9 +429,19 @@ export function WeekPage() {
         footer={
           <>
             {form?.id && (
-              <Button variant="ghost" className="mr-auto text-danger!" icon={<Trash2 className="size-4" />} onClick={() => void remove()}>
-                {t("common.delete")}
-              </Button>
+              <span className="mr-auto flex flex-wrap gap-1">
+                {(form.series?.length ?? 1) > 1 && form.scope === "series" ? (
+                  <>
+                    <Button variant="ghost" className="text-danger!" icon={<Trash2 className="size-4" />} onClick={() => void remove(true)}>
+                      {t("mgmt.week.deleteAllDays")}
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="ghost" className="text-danger!" icon={<Trash2 className="size-4" />} onClick={() => void remove(false)}>
+                    {(form.series?.length ?? 1) > 1 ? t("mgmt.week.deleteThisDay") : t("common.delete")}
+                  </Button>
+                )}
+              </span>
             )}
             <Button variant="secondary" onClick={() => setForm(null)}>
               {t("common.cancel")}
@@ -424,34 +456,27 @@ export function WeekPage() {
           <div className="grid gap-6 md:grid-cols-[1fr_200px]">
             <div className="space-y-4">
               {err && <Alert tone="danger">{err}</Alert>}
-              <div>
-                <p className="mb-2 text-[13px] font-medium">{form.id ? t("mgmt.week.day") : t("mgmt.week.days")}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {DAYS.map((d) => {
-                    const on = form.weekdays.includes(d);
-                    return (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setForm({ ...form, weekdays: form.id ? [d] : on ? form.weekdays.filter((x) => x !== d) : [...form.weekdays, d].sort() })}
-                        className={cx("rounded-full border px-3 py-1 text-[13px] font-medium capitalize transition", on ? "border-brand bg-brand text-white" : "border-line hover:border-brand/50")}
-                      >
-                        {weekdayName(d, "short")}
-                      </button>
-                    );
-                  })}
-                  {!form.id && (
-                    <>
-                      <button type="button" className="px-2 text-xs text-brand hover:underline" onClick={() => setForm({ ...form, weekdays: [0, 1, 2, 3, 4] })}>
-                        {t("mgmt.week.weekdaysShortcut")}
-                      </button>
-                      <button type="button" className="px-2 text-xs text-brand hover:underline" onClick={() => setForm({ ...form, weekdays: [...DAYS] })}>
-                        {t("mgmt.week.everyDay")}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
+              <DayPicker
+                value={form.weekdays}
+                single={form.scope === "day"}
+                onChange={(weekdays) => setForm({ ...form, weekdays })}
+                label={form.scope === "day" ? t("mgmt.week.day") : t("mgmt.week.runsOn")}
+                hint={form.id && form.scope !== "day" ? t("mgmt.week.runsOnHint") : undefined}
+              />
+              {form.id && (form.series?.length ?? 1) > 1 && (
+                <label className="-mt-2 flex items-center gap-2 text-[13px] text-muted">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--color-brand)]"
+                    checked={form.scope === "day"}
+                    onChange={(e) => {
+                      const own = form.series!.find((x) => x.id === form.id)!;
+                      setForm({ ...form, scope: e.target.checked ? "day" : "series", weekdays: e.target.checked ? [own.weekday] : form.series!.map((x) => x.weekday) });
+                    }}
+                  />
+                  {t("mgmt.week.onlyThisDay", { day: weekdayName(form.series!.find((x) => x.id === form.id)!.weekday) })}
+                </label>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label={t("mgmt.schedule.startTime")}>{(id) => <Input id={id} type="time" step={300} value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />}</Field>
                 <Field label={t("mgmt.week.duration")} hint={t("mgmt.week.durationHint")}>
@@ -734,5 +759,46 @@ function DropDialog({ slot, payload, title, channelId, onClose, onDone }: { slot
         </ul>
       </div>
     </Dialog>
+  );
+}
+
+/** Weekday chips with shortcuts. `single` picks exactly one day. */
+export function DayPicker({ value, onChange, single, label, hint }: { value: number[]; onChange: (v: number[]) => void; single?: boolean; label: ReactNode; hint?: ReactNode }) {
+  const { t } = useTranslation();
+  const set = (v: number[]) => onChange([...new Set(v)].sort((a, b) => a - b));
+  const same = (v: number[]) => v.length === value.length && v.every((d) => value.includes(d));
+  return (
+    <div>
+      <p className="mb-2 text-[13px] font-medium">{label}</p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {DAYS.map((d) => {
+          const on = value.includes(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              aria-pressed={on}
+              onClick={() => set(single ? [d] : on ? value.filter((x) => x !== d) : [...value, d])}
+              className={cx("min-w-12 rounded-full border px-3 py-1.5 text-[13px] font-medium capitalize transition", on ? "border-brand bg-brand text-white shadow-sm shadow-brand/30" : "border-line hover:border-brand/50")}
+            >
+              {weekdayName(d, "short")}
+            </button>
+          );
+        })}
+        {!single &&
+          (
+            [
+              ["weekdaysShortcut", [0, 1, 2, 3, 4]],
+              ["weekendShortcut", [5, 6]],
+              ["everyDay", DAYS],
+            ] as const
+          ).map(([k, days]) => (
+            <button key={k} type="button" className={cx("rounded-full px-2.5 py-1 text-xs font-medium transition", same([...days]) ? "bg-brand/10 text-brand" : "text-brand hover:underline")} onClick={() => set([...days])}>
+              {t(`mgmt.week.${k}`)}
+            </button>
+          ))}
+      </div>
+      {hint && <p className="mt-1.5 text-xs text-muted">{hint}</p>}
+    </div>
   );
 }

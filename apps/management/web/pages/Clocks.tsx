@@ -33,10 +33,8 @@ function ClockEditor({ id, onSaved, onInsertRef }: { id: number | "new"; onSaved
       setName("");
       setColor("#3B6CFF");
       setUsage(0);
-      setItems([
-        { kind: "block", blockId: null, durationMs: null, title: null },
-        { kind: "program", blockId: null, durationMs: null, title: null },
-      ]);
+      // Starts as one hour of programme; editors click the fixed parts in from the palette.
+      setItems([{ kind: "program", blockId: null, durationMs: null, title: null }]);
       return;
     }
     void get<HourClock>(`/api/clocks/${id}`).then((c) => {
@@ -160,12 +158,37 @@ function ClockEditor({ id, onSaved, onInsertRef }: { id: number | "new"; onSaved
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <p className="mr-auto text-sm font-semibold">{t("mgmt.clocks.layout")}</p>
-            <Button size="sm" variant="secondary" icon={<Plus className="size-3.5" />} onClick={() => change([...items, { kind: "block", blockId: null, durationMs: null, title: null }])}>
-              {t("mgmt.clocks.addFixed")}
-            </Button>
-            <Button size="sm" variant="secondary" icon={<Plus className="size-3.5" />} onClick={() => change([...items, { kind: "program", blockId: null, durationMs: null, title: null }])}>
+            <Button size="sm" variant="secondary" onClick={() => change([...items, { kind: "program", blockId: null, durationMs: null, title: null }])}>
               {t("mgmt.clocks.addProgram")}
             </Button>
+          </div>
+          {/* Palette: one click adds a fixed part at the end (or drag a clip or block from the library). */}
+          <div className="mb-3 rounded-lg border border-line bg-surface-2/40 p-3">
+            <p className="mb-2 text-xs font-medium text-muted">{t("mgmt.clocks.palette")}</p>
+            {(["program", "commercial"] as const).map((kind) => {
+              // Fixed parts are short (idents, news, jingles, ad breaks); whole programmes belong in the week board.
+              const list = sortedBlocks.filter((b) => b.kind === kind && (kind === "commercial" || b.durationMs <= 10 * 60_000));
+              if (!list.length) return null;
+              return (
+                <div key={kind} className="mb-2 flex flex-wrap items-center gap-1.5 last:mb-0">
+                  <span className="w-full text-[11px] font-semibold tracking-wide text-muted uppercase sm:w-28">{t(`mgmt.clocks.palette_${kind}`)}</span>
+                  {list.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => change([...items, { kind: "block", blockId: b.id, durationMs: null, title: null }])}
+                      className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12.5px] font-medium transition hover:border-brand hover:text-brand"
+                    >
+                      <span className="size-2.5 rounded-full" style={{ background: b.color }} />
+                      {b.name}
+                      <span className="font-mono text-[11px] text-muted">{fmtDuration(b.durationMs)}</span>
+                      <Plus className="size-3" />
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+            {!sortedBlocks.length && <p className="text-xs text-muted">{t("mgmt.clocks.paletteEmpty")}</p>}
           </div>
           <ol {...dnd.listProps} className={cx("divide-y divide-line rounded-md border transition", dnd.indicator != null ? "border-brand/60" : "border-line")}>
             {items.map((it, i) => {

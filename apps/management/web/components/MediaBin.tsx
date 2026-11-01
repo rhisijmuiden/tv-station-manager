@@ -99,16 +99,22 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
           <Input className="h-8 pl-8 text-[13px]" placeholder={t("mgmt.media.search")} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         {tab === "media" && (
-          <div className="grid grid-cols-2 gap-2">
-            <Select className="h-8 text-[12px]" value={theme} onChange={(e) => setTheme(e.target.value)} aria-label={t("mgmt.categoriesPage.one")}>
-              <option value="">{t("mgmt.categoriesPage.all")}</option>
-              <option value="none">{t("mgmt.categoriesPage.withoutCategory")}</option>
-              {categories?.map((c) => (
-                <option key={c.id} value={c.id}>
+          <>
+            {/* Categories as buttons: editors pick a subject with one click. */}
+            <div className="flex flex-wrap gap-1" role="group" aria-label={t("mgmt.categoriesPage.one")}>
+              {[{ id: "", name: t("mgmt.categoriesPage.all"), color: "" }, ...(categories ?? []).map((c) => ({ id: String(c.id), name: c.name, color: c.color })), { id: "none", name: t("mgmt.categoriesPage.withoutCategory"), color: "" }].map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={theme === c.id}
+                  onClick={() => setTheme(c.id)}
+                  className={cx("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition", theme === c.id ? "border-brand bg-brand text-white" : "border-line hover:border-brand/50")}
+                >
+                  {c.color && <span className="size-2 rounded-full ring-1 ring-white/60" style={{ background: c.color }} />}
                   {c.name}
-                </option>
+                </button>
               ))}
-            </Select>
+            </div>
             <Select className="h-8 text-[12px]" value={folder} onChange={(e) => setFolder(e.target.value)} aria-label={t("mgmt.bin.folder")}>
               <option value="">{t("mgmt.media.allFolders")}</option>
               {media.data?.folders.map((f) => (
@@ -117,7 +123,7 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
                 </option>
               ))}
             </Select>
-          </div>
+          </>
         )}
         {hint && <p className="text-[11px] text-muted">{hint}</p>}
       </div>
@@ -174,7 +180,7 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
                 {m.durationMs == null && <AlertTriangle className="size-3.5 shrink-0 text-warn" aria-label={t("mgmt.warnings.no_duration")} />}
                 <span className="font-mono text-[11px] text-muted">{fmtDuration(m.durationMs)}</span>
                 {onAdd && (
-                  <button onClick={() => onAdd({ kind: "media", media: [m] })} className="rounded p-0.5 text-muted opacity-0 transition group-hover:opacity-100 hover:bg-brand/10 hover:text-brand focus:opacity-100" aria-label={t("common.add")}>
+                  <button onClick={() => onAdd({ kind: "media", media: [m] })} className="rounded p-0.5 text-muted transition hover:bg-brand/10 hover:text-brand" aria-label={t("common.add")}>
                     <Plus className="size-3.5" />
                   </button>
                 )}
@@ -196,7 +202,7 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
               </span>
               <span className="font-mono text-[11px] text-muted">{fmtDuration(b.durationMs)}</span>
               {onAdd && (
-                <button onClick={() => onAdd({ kind: "block", block: b })} className="rounded p-0.5 text-muted opacity-0 transition group-hover:opacity-100 hover:bg-brand/10 hover:text-brand focus:opacity-100" aria-label={t("common.add")}>
+                <button onClick={() => onAdd({ kind: "block", block: b })} className="rounded p-0.5 text-muted transition hover:bg-brand/10 hover:text-brand" aria-label={t("common.add")}>
                   <Plus className="size-3.5" />
                 </button>
               )}
