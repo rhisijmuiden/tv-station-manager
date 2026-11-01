@@ -1,11 +1,12 @@
 import { get, Badge, Card, CardBody, CardHeader, PageHeader, cx } from "@tvsm/ui";
-import { CheckCircle2, Circle, DatabaseBackup, Radio, Server } from "lucide-react";
+import { CheckCircle2, Circle, DatabaseBackup, Radio, Server, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 interface Overview {
   nodes: { total: number; online: number; pending: number };
+  atem: { total: number; online: number };
   mailConfigured: boolean;
   backupTargets: number;
   lastBackup: { status: string; startedAt: string; kind: string } | null;
@@ -41,9 +42,17 @@ export function Dashboard() {
   return (
     <>
       <PageHeader title={t("orch.dashboard.title")} description={t("orch.dashboard.intro")} />
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label={t("orch.dashboard.total")} value={o.nodes.total} icon={<Server className="size-5" />} tone="bg-brand/10 text-brand" />
         <Stat label={t("orch.dashboard.online")} value={o.nodes.pending ? <span>{o.nodes.online} <span className="text-sm font-medium text-warn">· {o.nodes.pending} {t("orch.dashboard.pending").toLowerCase()}</span></span> : o.nodes.online} icon={<Radio className="size-5" />} tone="bg-ok/12 text-ok" />
+        <Link to="/atem">
+          <Stat
+            label={t("orch.atem.dashboard")}
+            value={o.atem.total ? <span>{o.atem.online} <span className="text-sm font-medium text-muted">/ {o.atem.total} {t("orch.dashboard.online").toLowerCase()}</span></span> : 0}
+            icon={<SlidersHorizontal className="size-5" />}
+            tone={o.atem.online < o.atem.total ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
+          />
+        </Link>
         <Stat
           label={t("orch.dashboard.lastBackup")}
           value={<span className="text-base">{o.lastBackup ? new Date(o.lastBackup.startedAt).toLocaleString() : t("orch.dashboard.none")}</span>}
