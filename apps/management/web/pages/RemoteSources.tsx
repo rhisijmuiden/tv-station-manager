@@ -10,6 +10,7 @@ interface Studio {
   name: string;
   host: string;
   publicHost: string | null;
+  role: "playout" | "live" | "both";
   enabled: boolean;
   status: { connected: boolean; channels?: number[] | null };
   ingest: { reachable: boolean; error: string | null };
@@ -264,7 +265,12 @@ export function RemoteSourcesPage() {
         description={t("mgmt.remote.intro")}
         actions={
           canEdit && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setEdit({ name: "", studioId: String(studios.data?.studios[0]?.id ?? ""), casparChannel: String(studios.data?.studios[0]?.status.channels?.[0] ?? 1), atemInput: "", url: "", pull: false })}>
+            <Button icon={<Plus className="size-4" />} onClick={() => {
+                // New remote sources go to the live node by default.
+                const list = studios.data?.studios ?? [];
+                const st = list.find((x) => x.enabled && x.role === "live") ?? list.find((x) => x.enabled && x.role === "both") ?? list[0];
+                setEdit({ name: "", studioId: String(st?.id ?? ""), casparChannel: String(st?.status.channels?.[0] ?? 1), atemInput: "", url: "", pull: false });
+              }}>
               {t("mgmt.remote.add")}
             </Button>
           )
@@ -369,7 +375,7 @@ export function RemoteSourcesPage() {
                   <option value="">–</option>
                   {studios.data?.studios.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.name} ({t(`mgmt.devices.role_${s.role}`)})
                     </option>
                   ))}
                 </Select>

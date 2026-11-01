@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, PageHeader, Switch, cx, post, useSession, roleAtLeast } from "@tvsm/ui";
-import { AlertTriangle, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
+import { AlertTriangle, MonitorPlay, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -24,6 +24,8 @@ interface ChannelStatus {
   upcoming: Ev[];
   atem: AtemStatus | null;
   playout: { connected: boolean; version: string | null } | null;
+  onAir: { input: number; node: "playout" | "live" | "fallback" | "other"; studio: string | null; source: string | null } | null;
+  standby: { liveSourceId: number; name: string; since: string } | null;
   lastError: string | null;
   graphics: { hidden: boolean; upNext: { visible: boolean; title: string } };
   asrun: { at: string; kind: string; title: string; detail: string | null; ok: number }[];
@@ -89,6 +91,11 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
         ) : (
           <Badge>{t("mgmt.control.manual")}</Badge>
         )}
+        {s.onAir && (
+          <Badge tone={s.onAir.node === "live" ? "danger" : s.onAir.node === "playout" ? "brand" : "neutral"}>
+            <MonitorPlay className="size-3" /> {t(`mgmt.control.node_${s.onAir.node}`, { studio: s.onAir.studio ?? "", input: s.onAir.input })}
+          </Badge>
+        )}
         <span className="flex-1" />
         <span className="flex items-center gap-1.5 text-xs text-muted">
           <span className={cx("size-2 rounded-full", s.atem?.connected ? "bg-ok" : "bg-danger")} /> ATEM
@@ -99,6 +106,14 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
         {canOperate && <Switch checked={s.automation} onChange={(on) => void act(`/api/control/${id}/automation`, { on })} label={t("mgmt.control.automation")} />}
       </div>
       <CardBody className="space-y-5">
+        {s.standby && (
+          <Alert tone="warn">
+            <span className="flex items-center gap-2">
+              <Radio className="size-4" />
+              {t("mgmt.control.standby", { name: s.standby.name, since: fmtTime(s.standby.since, true) })}
+            </span>
+          </Alert>
+        )}
         {(s.lastError || err) && (
           <Alert tone="danger">
             <span className="flex items-center gap-2">

@@ -22,3 +22,14 @@ Automatic picks take media of the slot's category, least recently picked first, 
 Station time is `Europe/Amsterdam` (setting `station.timezone`, `PUT /api/week/settings`); slots follow summer and winter time.
 
 Pure logic (clock layout, windows, distribution, auto pick, time zones) is in `apps/management/server/hourclock.ts`; publishing and the API in `apps/management/server/weekplan.ts`.
+
+## Drag and drop
+
+The hour clocks, week schedule, editorial rundowns and TV blocks / ad breaks have the media library docked on the right (hide it with the button in its header). Drag clips, or several selected clips at once, or a block from the *Blocks* tab:
+
+- **Rundown of a date**: drop between rows to insert, or on a programme window in the timeline to add it after what already plays there. Drag rows to reorder. On a fixed-block date the drop makes an own rundown for that date (the block plus the clips).
+- **Week schedule**: drop on a slot and choose the date (next four); the clips go at the end of that date's rundown (`POST /api/week/occurrences/:slot/:date/append`). Drop on an empty spot to plan a new slot there with it (snapped to 15 minutes).
+- **Hour clock**: drop on the clock or between the rows to add a fixed part. A clip becomes a block first (`POST /api/blocks/from-media`); the same clip again reuses that block.
+- **Blocks**: drop between the rows; drag rows to reorder.
+
+The `+` on a library row (or *Add* with a selection) does the same without dragging, for touch screens.

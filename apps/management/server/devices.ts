@@ -7,6 +7,9 @@ import { publicUrl } from "./director.js";
 import { IDENTIFY_LAYER, IDENTIFY_SECONDS, identifyPage } from "./identify.js";
 import { newStreamKey, type IngestAuthRequest, type LiveRow, type RemoteSources } from "./remote.js";
 
+export const STUDIO_ROLES = ["playout", "live", "both"] as const;
+export type StudioRole = (typeof STUDIO_ROLES)[number];
+
 /** Keeps one live connection per ATEM switcher and per studio node (CasparCG), and their CRUD API. */
 export class DeviceHub {
   switchers = new Map<number, { name: string; host: string; driver: SwitcherDriver }>();
@@ -123,9 +126,11 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
     port: z.number().int().min(1).max(65535).default(5250),
     publicHost: host.nullable().optional(),
     ingestApiPort: z.number().int().min(1).max(65535).default(9997),
+    /** playout: runs the schedule; live: takes remote streams (events); both: one node does everything. */
+    role: z.enum(STUDIO_ROLES).default("both"),
     enabled: z.boolean().default(true),
   });
-  type StudioDb = { id: number; name: string; host: string; port: number; public_host: string | null; ingest_api_port: number; enabled: number };
+  type StudioDb = { id: number; name: string; host: string; port: number; public_host: string | null; ingest_api_port: number; role: StudioRole; enabled: number };
   const studioOut = (r: StudioDb) => ({
     id: r.id,
     name: r.name,
@@ -133,6 +138,7 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
     port: r.port,
     publicHost: r.public_host,
     ingestApiPort: r.ingest_api_port,
+    role: r.role,
     enabled: !!r.enabled,
     status: hub.playout(r.id)?.info() ?? { connected: false, version: null },
     ingest: remote.ingest(r.id),
@@ -184,14 +190,14 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
   app.post("/api/studios", async (req) => {
     requireRole(req, "admin");
     const b = studioIn.parse(req.body);
-    db.prepare("INSERT INTO studio_nodes (name, host, port, public_host, ingest_api_port, enabled) VALUES (?, ?, ?, ?, ?, ?)").run(b.name, b.host, b.port, b.publicHost || null, b.ingestApiPort, b.enabled ? 1 : 0);
+    db.prepare("INSERT INTO studio_nodes (name, host, port, public_host, ingest_api_port, role, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.name, b.host, b.port, b.publicHost || null, b.ingestApiPort, b.role, b.enabled ? 1 : 0);
     await hub.reload();
     return { ok: true };
   });
   app.put("/api/studios/:id", async (req) => {
     requireRole(req, "admin");
     const b = studioIn.parse(req.body);
-    db.prepare("UPDATE studio_nodes SET name = ?, host = ?, port = ?, public_host = ?, ingest_api_port = ?, enabled = ? WHERE id = ?").run(b.name, b.host, b.port, b.publicHost || null, b.ingestApiPort, b.enabled ? 1 : 0, id(req));
+    db.prepare("UPDATE studio_nodes SET name = ?, host = ?, port = ?, public_host = ?, ingest_api_port = ?, role = ?, enabled = ? WHERE id = ?").run(b.name, b.host, b.port, b.publicHost || null, b.ingestApiPort, b.role, b.enabled ? 1 : 0, id(req));
     await hub.reload();
     return { ok: true };
   });

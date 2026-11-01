@@ -57,6 +57,9 @@ export interface PlayoutDriver extends EventEmitter {
   cgAdd(channel: number, layer: number, template: string, data: unknown): Promise<void>;
   cgUpdate(channel: number, layer: number, data: unknown): Promise<void>;
   cgStop(channel: number, layer: number): Promise<void>;
+  /** Adds a consumer with a fixed index, e.g. `ADD 1-701 STREAM rtmp://... -format flv ...` (stream encoder). */
+  addConsumer(channel: number, index: number, consumer: string, params: string): Promise<void>;
+  removeConsumer(channel: number, index: number): Promise<void>;
   /** Audio level of a layer, 0 = muted, 1 = normal (Visual Radio plays clips without sound). Optional: fakes may leave it out. */
   volume?(channel: number, layer: number, volume: number): Promise<void>;
   close(): Promise<void>;
@@ -203,6 +206,13 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
   }
   cgStop(channel: number, layer: number) {
     return this.send(this.c.cgStop({ channel, layer, cgLayer: 1 }));
+  }
+  addConsumer(channel: number, index: number, consumer: string, params: string) {
+    if (/[\r\n"]/.test(consumer + params)) return Promise.reject(new Error("invalid consumer parameters"));
+    return this.send(this.c.sendCustom({ command: `ADD ${channel}-${index} ${consumer} ${params}`.trim() }));
+  }
+  removeConsumer(channel: number, index: number) {
+    return this.send(this.c.sendCustom({ command: `REMOVE ${channel}-${index}` }));
   }
   volume(channel: number, layer: number, volume: number) {
     return this.send(this.c.mixerVolume({ channel, layer, value: volume }));

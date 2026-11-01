@@ -7,6 +7,7 @@ import { Director } from "./director.js";
 import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
+import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { RemoteSources } from "./remote.js";
 import { VisualRadio, registerVisualRadio } from "./visualradio.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
@@ -15,6 +16,7 @@ export interface ManagementHandles {
   hub: DeviceHub;
   director: Director;
   remote: RemoteSources;
+  outputs: StreamOutputs;
   planner: WeekPlanner;
   visualRadio: VisualRadio;
 }
@@ -38,6 +40,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         director.invalidate();
         planner.requestPublish();
       };
+      const outputs = new StreamOutputs(platform, hub, remote);
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
@@ -45,6 +48,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       registerWeek(server, platform, planner);
       registerVisualRadio(server, platform, visualRadio, () => director.invalidate());
       director.register(server);
+      registerOutputs(server, platform, outputs, hub);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -74,9 +78,10 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         visualRadio.stop();
         director.stop();
         remote.stop();
+        outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, visualRadio });
+      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio });
     },
   };
 }

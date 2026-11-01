@@ -297,6 +297,45 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     onChange();
     return { id };
   });
+  /**
+   * A block for media dropped where only blocks fit (an hour clock, an empty spot in the week).
+   * One clip reuses an existing visible block that holds just that clip; otherwise a new block is made.
+   */
+  app.post("/api/blocks/from-media", async (req) => {
+    requireRole(req, "editor");
+    const b = z.object({ mediaIds: z.array(z.number().int()).min(1).max(200), kind: z.enum(["program", "commercial"]).optional() }).parse(req.body);
+    const media = b.mediaIds.map((id) => {
+      const m = db.prepare("SELECT id, name, title, category, category_id FROM media WHERE id = ?").get(id) as { id: number; name: string; title: string | null; category: string; category_id: number | null } | undefined;
+      if (!m) throw new HttpError(404, "media_not_found");
+      return m;
+    });
+    const kind = b.kind ?? (media.every((m) => m.category === "commercial") ? "commercial" : "program");
+    if (media.length === 1) {
+      const existing = db
+        .prepare(
+          `SELECT b.id FROM blocks b
+            WHERE b.hidden = 0 AND b.kind = ?
+              AND (SELECT COUNT(*) FROM block_items i WHERE i.block_id = b.id) = 1
+              AND EXISTS (SELECT 1 FROM block_items i WHERE i.block_id = b.id AND i.type = 'media' AND i.media_id = ? AND i.duration_ms IS NULL)
+            ORDER BY b.id LIMIT 1`,
+        )
+        .get(kind, media[0]!.id) as { id: number } | undefined;
+      if (existing) return { id: existing.id, created: false };
+    }
+    const label = (m: (typeof media)[number]) => m.title || m.name.replace(/\.[^.]+$/, "");
+    const name = (media.length === 1 ? label(media[0]!) : `${label(media[0]!)} +${media.length - 1}`).slice(0, 120);
+    const categoryId = media.every((m) => m.category_id === media[0]!.category_id) ? media[0]!.category_id : null;
+    const cat = categoryId != null ? (db.prepare("SELECT color FROM categories WHERE id = ?").get(categoryId) as { color: string } | undefined) : undefined;
+    const color = cat?.color ?? (kind === "commercial" ? "#F5A524" : "#3B6CFF");
+    const id = tx(() => {
+      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id) VALUES (?, ?, ?, '', '', ?)").run(name, kind, color, categoryId);
+      const id = Number(r.lastInsertRowid);
+      saveItems(id, media.map((m) => ({ type: "media" as const, mediaId: m.id })));
+      return id;
+    });
+    onChange();
+    return { id, created: true };
+  });
   app.put("/api/blocks/:id", async (req) => {
     requireRole(req, "editor");
     const id = pid(req);

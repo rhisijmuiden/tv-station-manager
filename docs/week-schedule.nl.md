@@ -20,3 +20,14 @@ Met "Weekschema actief" zet de node de komende 14 dagen (instelling `week.days`)
 Automatisch kiezen pakt media uit de categorie van het slot, het langst niet gekozen eerst, per venster wat past. "Nieuw voorstel" kiest opnieuw; "Terug naar automatisch" gooit de rundown van een redacteur weg.
 
 Zendertijd is `Europe/Amsterdam` (instelling `station.timezone`, `PUT /api/week/settings`); slots volgen zomer- en wintertijd.
+
+## Slepen en neerzetten
+
+Uurklokken, het weekschema, de redactie-rundowns en tv-blokken / reclameblokken hebben rechts de mediabibliotheek (verbergen met de knop bovenin). Sleep clips, meerdere geselecteerde clips tegelijk, of een blok uit het tabblad *Blokken*:
+
+- **Rundown van een datum**: laat los tussen de regels om in te voegen, of op een programmavenster in de tijdlijn om het achter wat daar al speelt te zetten. Sleep regels om de volgorde te wijzigen. Op een datum met een vast blok krijgt die datum een eigen rundown (het blok plus de clips).
+- **Weekschema**: laat los op een slot en kies de datum (de volgende vier); de clips komen achteraan de rundown van die datum. Laat los op een lege plek om daar een nieuw slot mee te plannen (afgerond op 15 minuten).
+- **Uurklok**: laat los op de klok of tussen de regels voor een vast onderdeel. Een clip wordt eerst een blok; dezelfde clip nog eens gebruikt dat blok opnieuw.
+- **Blokken**: laat los tussen de regels; sleep regels om de volgorde te wijzigen.
+
+De `+` op een regel in de bibliotheek (of *Toevoegen* bij een selectie) doet hetzelfde zonder slepen, voor touchscreens.

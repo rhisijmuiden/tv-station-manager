@@ -12,6 +12,13 @@ import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
  * The director ("regisseur"). For every channel with automation on it follows the compiled schedule:
  * it tells the studio node (CasparCG) what to play on its channel, switches the ATEM to the right input,
  * starts RTMP/live sources, keeps the graphics overlay up to date and writes the as-run log.
+ *
+ * Two studio nodes per channel: the channel's own studio node plays the schedule (playout node) and a remote source
+ * can live on another node (live node, RTMP/SRT ingest from events). Then the director
+ * - starts the stream on the live node's DeckLink output ahead of time (LIVE_PREROLL_MS) so the ATEM cut is clean,
+ * - keeps the playout node on standby (filler loop) while the live node is on air,
+ * - stays on (or goes back to) the playout node while the stream is not coming in, and cuts over once it is,
+ * - puts the same graphics overlay (logo, clock, ...) on the live node's output.
  */
 
 export const PLAYOUT_LAYER = 10;
@@ -20,6 +27,12 @@ const RETRY_MS = 5000;
 const WINDOW_BACK = 6 * 3600_000;
 const WINDOW_AHEAD = 30 * 3600_000;
 const ALERT_EVERY_MS = 5 * 60_000;
+/** A live item on another studio node is started this long before it goes on air. */
+export const LIVE_PREROLL_MS = 30_000;
+/** A stream must have been playing on CasparCG this long before the ATEM cuts to it. */
+export const LIVE_SETTLE_MS = 1500;
+
+type Output = { studioId: number; casparChannel: number };
 
 interface ChannelState {
   events: TimelineEvent[];
@@ -29,9 +42,15 @@ interface ChannelState {
   failedKey: string | null;
   preloadedKey: string | null;
   override: { liveSourceId: number; name: string; since: string } | null;
-  activeRtmp: { studioId: number; casparChannel: number } | null;
+  activeRtmp: (Output & { liveId: number }) | null;
+  /** Remote source of an upcoming live item, already started on its output. */
+  prerolled: (Output & { key: string }) | null;
+  /** A live item on another node is current but its stream is not playing: the playout node stays on air. */
+  standby: { liveSourceId: number; name: string; since: string; input: number | null } | null;
   graphicsLoaded: boolean;
   graphicsJson: string | null;
+  /** Graphics overlay on the live node's output. */
+  liveGfx: (Output & { session: number | undefined; json: string }) | null;
   lastError: string | null;
   lastAlertAt: number;
 }
@@ -69,7 +88,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, graphicsLoaded: false, graphicsJson: null, lastError: null, lastAlertAt: 0 };
+      s = { events: [], compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0 };
       this.states.set(id, s);
     }
     return s;
@@ -111,6 +130,7 @@ export class Director {
       const changed = current.key !== s.currentKey;
       const retry = s.failedKey === current.key && now - s.executedAt > RETRY_MS;
       if (changed || retry) await this.execute(ch, s, current, now);
+      else if (current.type === "live" && s.failedKey !== current.key) await this.followLive(ch, s, current).catch((e) => this.fail(ch, s, (e as Error).message, current));
       // Preload the next clip on the playout layer so the switch is seamless.
       const next = upcoming[0];
       if (next && next.type === "media" && next.leaf?.path && s.preloadedKey !== next.key && next.start - now <= PRELOAD_MS && next.start > now) {
@@ -119,6 +139,7 @@ export class Director {
           ?.loadbg(ch.caspar_channel, PLAYOUT_LAYER, casparClip(next.leaf.path))
           .catch(() => (s.preloadedKey = null));
       }
+      await this.preroll(ch, s, current, upcoming, now).catch((e) => this.fail(ch, s, `preroll: ${(e as Error).message}`));
     }
     await this.updateGraphics(ch, s, current, upcoming, now).catch(() => undefined);
   }
@@ -138,9 +159,11 @@ export class Director {
     await sw.program(input, ch.atem_me, ch.transition);
   }
 
-  private async stopRtmp(s: ChannelState, keep?: { studioId: number; casparChannel: number }) {
+  /** Stops the remote source this channel started, unless it is `keep` or the prerolled upcoming live item. */
+  private async stopRtmp(s: ChannelState, keep?: Output) {
     const a = s.activeRtmp;
-    if (!a || (keep && keep.studioId === a.studioId && keep.casparChannel === a.casparChannel)) return;
+    const k = keep ?? s.prerolled;
+    if (!a || (k && sameOutput(k, a))) return;
     s.activeRtmp = null;
     await this.remote.unroute(a.studioId, a.casparChannel);
   }
@@ -151,7 +174,71 @@ export class Director {
     const keep = { studioId: live.studio_id, casparChannel: live.caspar_channel };
     await this.stopRtmp(s, keep);
     await this.remote.route(live);
-    s.activeRtmp = keep;
+    s.activeRtmp = { ...keep, liveId: live.id };
+  }
+
+  /** The remote source plays on another DeckLink output than the channel's playout (usually the live node). */
+  private separate(ch: ChannelRow, live: LiveRow) {
+    return live.kind === "rtmp" && !!live.studio_id && !!live.caspar_channel && !(live.studio_id === ch.studio_id && live.caspar_channel === ch.caspar_channel);
+  }
+
+  /** Is the live source's picture on its DeckLink output, so the ATEM can cut to it? */
+  private streamReady(live: LiveRow) {
+    if (live.kind !== "rtmp") return true;
+    const since = this.remote.playingSince(live);
+    return since != null && this.remote.now() - since >= LIVE_SETTLE_MS;
+  }
+
+  /** Filler loop on the playout node (or the fallback input); returns the ATEM input to show it. */
+  private async playStandby(ch: ChannelRow): Promise<number | null> {
+    const filler = ch.filler_media_id ? (this.platform.ctx.db.prepare("SELECT path FROM media WHERE id = ? AND missing = 0").get(ch.filler_media_id) as { path: string } | undefined) : undefined;
+    const p = this.playout(ch);
+    if (filler && p) {
+      this.remote.forget(ch.studio_id, ch.caspar_channel);
+      await p.play(ch.caspar_channel, PLAYOUT_LAYER, casparClip(filler.path), { loop: true });
+      return ch.playout_input;
+    }
+    if (ch.fallback_input != null) return ch.fallback_input;
+    await p?.stop(ch.caspar_channel, PLAYOUT_LAYER).catch(() => undefined);
+    return ch.playout_input;
+  }
+
+  /** Starts the stream of the next live item on its own output well before it goes on air. */
+  private async preroll(ch: ChannelRow, s: ChannelState, current: TimelineEvent, upcoming: TimelineEvent[], now: number) {
+    if (s.prerolled && current.key !== s.prerolled.key && !upcoming.some((e) => e.key === s.prerolled!.key)) {
+      // The live item was taken out of the schedule.
+      const gone = s.prerolled;
+      s.prerolled = null;
+      if (s.activeRtmp && sameOutput(s.activeRtmp, gone) && current.type !== "live") await this.stopRtmp(s);
+    }
+    const next = upcoming[0];
+    if (!next || next.type !== "live" || !next.leaf?.liveSourceId || next.start <= now || next.start - now > LIVE_PREROLL_MS || s.prerolled?.key === next.key) return;
+    const live = this.live(next.leaf.liveSourceId);
+    if (!live || !this.separate(ch, live)) return;
+    const out = { studioId: live.studio_id!, casparChannel: live.caspar_channel! };
+    // A stream on air right now is never stopped for a preroll.
+    if (current.type === "live" && s.activeRtmp && s.activeRtmp.liveId !== live.id) return;
+    s.prerolled = { ...out, key: next.key };
+    await this.takeRemote(s, live).catch((e) => {
+      s.prerolled = null;
+      throw e;
+    });
+  }
+
+  /** While a live item on another node is current: cut to it once its stream plays, back to standby when it drops. */
+  private async followLive(ch: ChannelRow, s: ChannelState, ev: TimelineEvent) {
+    const live = this.live(ev.leaf!.liveSourceId!);
+    if (!live || !this.separate(ch, live)) return;
+    const ready = this.streamReady(live);
+    if (s.standby && ready) {
+      s.standby = null;
+      await this.switchTo(ch, live.atem_input);
+      this.asrun(ch.id, "live", live.name, "Stream is in: live node on air", true);
+    } else if (!s.standby && !ready) {
+      s.standby = { liveSourceId: live.id, name: live.name, since: new Date(this.now()).toISOString(), input: ch.filler_media_id ? ch.playout_input : (ch.fallback_input ?? ch.playout_input) };
+      await this.switchTo(ch, s.standby.input);
+      this.fail(ch, s, `Stream of ${live.name} dropped: back to the playout node until it returns`, ev);
+    } else if (s.standby) await this.switchTo(ch, s.standby.input);
   }
 
   private async execute(ch: ChannelRow, s: ChannelState, ev: TimelineEvent, now: number) {
@@ -166,27 +253,34 @@ export class Director {
         const preloaded = s.preloadedKey === ev.key && elapsed < 1000;
         if (preloaded) await p.play(ch.caspar_channel, PLAYOUT_LAYER);
         else await p.play(ch.caspar_channel, PLAYOUT_LAYER, casparClip(ev.leaf.path), { seek: elapsed > 1000 ? Math.floor((elapsed / 1000) * (ev.leaf.fps || 25)) : 0 });
+        s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
         const live = this.live(ev.leaf.liveSourceId);
         if (!live) throw new Error("live source was removed");
+        if (s.prerolled?.key === ev.key) s.prerolled = null;
         await this.takeRemote(s, live);
-        await this.switchTo(ch, live.atem_input);
+        if (this.separate(ch, live)) {
+          // Live node on air; the playout node goes to standby so it can take over if the stream drops.
+          const standbyInput = await this.playStandby(ch);
+          if (this.streamReady(live)) {
+            s.standby = null;
+            await this.switchTo(ch, live.atem_input);
+          } else {
+            s.standby = { liveSourceId: live.id, name: live.name, since: new Date(now).toISOString(), input: standbyInput };
+            await this.switchTo(ch, standbyInput);
+            if (this.remote.status(live).state === "waiting") this.asrun(ch.id, "live", live.name, "Waiting for the stream: playout node stays on air", false);
+          }
+        } else {
+          s.standby = null;
+          await this.switchTo(ch, live.atem_input);
+        }
       } else {
         // Gap in the schedule: filler clip in a loop, or the fallback ATEM input (e.g. a station ident / colour bars).
+        s.standby = null;
         await this.stopRtmp(s);
-        const filler = ch.filler_media_id ? (this.platform.ctx.db.prepare("SELECT path FROM media WHERE id = ? AND missing = 0").get(ch.filler_media_id) as { path: string } | undefined) : undefined;
-        const p = this.playout(ch);
-        if (filler && p) {
-          this.remote.forget(ch.studio_id, ch.caspar_channel);
-          await p.play(ch.caspar_channel, PLAYOUT_LAYER, casparClip(filler.path), { loop: true });
-          await this.switchTo(ch, ch.playout_input);
-        } else if (ch.fallback_input != null) await this.switchTo(ch, ch.fallback_input);
-        else {
-          await p?.stop(ch.caspar_channel, PLAYOUT_LAYER).catch(() => undefined);
-          await this.switchTo(ch, ch.playout_input);
-        }
+        await this.switchTo(ch, await this.playStandby(ch));
       }
       if (s.failedKey === ev.key) s.failedKey = null;
       s.lastError = null;
@@ -247,14 +341,15 @@ export class Director {
   }
 
   private async updateGraphics(ch: ChannelRow, s: ChannelState, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {
+    const g = channelOut(ch).graphics;
+    const data = this.graphicsData(ch, current, upcoming, now);
+    const json = JSON.stringify(data);
+    await this.updateLiveGraphics(ch, s, g, data, json).catch(() => undefined);
     const p = this.playout(ch);
     if (!p || !p.info().connected) {
       s.graphicsLoaded = false;
       return;
     }
-    const g = channelOut(ch).graphics;
-    const data = this.graphicsData(ch, current, upcoming, now);
-    const json = JSON.stringify(data);
     if (!s.graphicsLoaded) {
       s.graphicsLoaded = true;
       s.graphicsJson = json;
@@ -266,6 +361,46 @@ export class Director {
       s.graphicsJson = json;
       await p.cgUpdate(ch.caspar_channel, g.layer, data);
     }
+  }
+
+  /** The same overlay on the live node's output while this channel uses it, so the logo stays on air. */
+  private async updateLiveGraphics(ch: ChannelRow, s: ChannelState, g: Graphics, data: unknown, json: string) {
+    const a = s.activeRtmp;
+    const target = a && !(a.studioId === ch.studio_id && a.casparChannel === ch.caspar_channel) ? a : null;
+    const cur = s.liveGfx;
+    if (cur && (!target || !sameOutput(cur, target))) {
+      s.liveGfx = null;
+      await this.hub.playout(cur.studioId)?.clear(cur.casparChannel, g.layer);
+    }
+    if (!target) return;
+    const lp = this.hub.playout(target.studioId);
+    const info = lp?.info();
+    if (!lp || !info?.connected) {
+      s.liveGfx = null;
+      return;
+    }
+    if (!s.liveGfx || s.liveGfx.session !== info.session) {
+      s.liveGfx = { studioId: target.studioId, casparChannel: target.casparChannel, session: info.session, json };
+      await lp.cgAdd(target.casparChannel, g.layer, g.template, data).catch((e) => {
+        s.liveGfx = null;
+        throw e;
+      });
+    } else if (json !== s.liveGfx.json) {
+      s.liveGfx.json = json;
+      await lp.cgUpdate(target.casparChannel, g.layer, data);
+    }
+  }
+
+  /** Which node is on air: the playout node, the live node, the fallback input or something else. */
+  private onAir(ch: ChannelRow, s: ChannelState, program: number | null | undefined) {
+    if (program == null) return null;
+    const name = (id: number | null | undefined) => (id == null ? null : (this.hub.playouts.get(id)?.name ?? null));
+    const a = s.activeRtmp;
+    const live = a ? this.live(a.liveId) : undefined;
+    if (live && program === live.atem_input) return { input: program, node: "live" as const, studio: name(live.studio_id), source: live.name };
+    if (program === ch.playout_input) return { input: program, node: "playout" as const, studio: name(ch.studio_id), source: null };
+    if (program === ch.fallback_input) return { input: program, node: "fallback" as const, studio: null, source: null };
+    return { input: program, node: "other" as const, studio: null, source: null };
   }
 
   // ---- control API -----------------------------------------------------------------
@@ -285,6 +420,8 @@ export class Director {
       upcoming: upcoming.slice(0, 8).map(ev),
       atem: sw ? sw.info() : null,
       playout: p ? p.info() : null,
+      onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
+      standby: s.standby ? { liveSourceId: s.standby.liveSourceId, name: s.standby.name, since: s.standby.since } : null,
       lastError: s.lastError,
       graphics: this.graphicsData(ch, current, upcoming, now),
       asrun: this.platform.ctx.db.prepare("SELECT at, kind, title, detail, ok FROM asrun WHERE channel_id = ? ORDER BY id DESC LIMIT 12").all(ch.id),
@@ -339,6 +476,8 @@ export class Director {
       s.override = null;
       s.currentKey = null;
       s.preloadedKey = null;
+      s.prerolled = null;
+      s.standby = null;
       await this.stopRtmp(s);
       this.asrun(c.id, "control", "Back to schedule", req.user!.username, true);
       return { ok: true };
@@ -376,3 +515,5 @@ export function publicUrl(platform: Platform) {
     .find((a) => a && a.family === "IPv4" && !a.internal)?.address;
   return `http://${ip ?? "127.0.0.1"}:${platform.ctx.config.port}`;
 }
+
+const sameOutput = (a: Output, b: Output) => a.studioId === b.studioId && a.casparChannel === b.casparChannel;

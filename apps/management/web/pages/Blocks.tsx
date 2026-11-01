@@ -1,8 +1,10 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowUp, Clapperboard, Copy, Film, Plus, Radio, Save, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, Clapperboard, Copy, Film, GripVertical, Plus, Radio, Save, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { indicatorClass, payloadItems, useDropList, type DragPayload } from "../components/dnd";
+import { WithMediaBin } from "../components/MediaBin";
 import { MediaPicker } from "../components/MediaPicker";
 import { categoryTone, errorText, fmtDuration, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
 
@@ -26,7 +28,9 @@ interface Detail {
 }
 const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
 
-function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "commercial"; onSaved: (id: number) => void }) {
+type LibraryPayload = Exclude<DragPayload, { kind: "row" }>;
+
+function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: "program" | "commercial"; onSaved: (id: number) => void; onInsertRef?: { current: ((p: LibraryPayload) => void) | null } }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
@@ -79,6 +83,24 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
     change(n);
   };
   const total = items.reduce((s, i) => s + (i.effectiveDurationMs ?? 0), 0);
+  /** Library drops. A block cannot contain itself; ad breaks only take other ad breaks. */
+  const insert = (at: number | null, p: LibraryPayload) => {
+    if (p.kind === "block" && (p.block.id === id || (kind === "commercial" && p.block.kind !== "commercial"))) return setMsg({ tone: "danger", text: t("mgmt.bin.blockNotAllowed") });
+    const add: Item[] = payloadItems(p).map((d) =>
+      d.type === "media"
+        ? { type: "media", mediaId: d.mediaId, label: d.media.title || d.media.name, sub: d.media.path, category: d.media.category, effectiveDurationMs: d.media.durationMs, warning: d.media.durationMs == null ? "no_duration" : null }
+        : { type: "block", childBlockId: d.childBlockId, label: d.block.name, effectiveDurationMs: d.block.durationMs, category: d.block.kind === "commercial" ? "commercial" : undefined },
+    );
+    setItems((cur) => {
+      const pos = at ?? cur.length;
+      return [...cur.slice(0, pos), ...add, ...cur.slice(pos)];
+    });
+    setDirty(true);
+  };
+  const dnd = useDropList({ list: "block", length: items.length, onInsert: (i, p) => insert(i, p), onMove: (from, to) => move(from, to - from) });
+  useEffect(() => {
+    if (onInsertRef) onInsertRef.current = (p) => insert(null, p);
+  });
 
   const save = async () => {
     setMsg(null);
@@ -197,12 +219,13 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
               </Select>
             )}
           </div>
-          <ol className="divide-y divide-line rounded-md border border-line">
+          <ol {...dnd.listProps} className={cx("divide-y divide-line rounded-md border transition", dnd.indicator != null ? "border-brand/60" : "border-line")}>
             {items.map((it, i) => {
               const start = offset;
               offset += it.effectiveDurationMs ?? 0;
               return (
-                <li key={i} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <li key={i} {...dnd.rowProps(i, it.title || it.label)} className={cx("flex cursor-grab items-center gap-3 px-3 py-2 text-sm active:cursor-grabbing", indicatorClass(dnd.indicator, i, items.length))}>
+                  <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
                   <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(start)}</span>
                   <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "live" ? "bg-onair/12 text-onair" : it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>
                     {it.type === "live" ? <Radio className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}
@@ -240,7 +263,7 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
                 </li>
               );
             })}
-            {!items.length && <li className="px-3 py-8 text-center text-sm text-muted">{t(kind === "program" ? "mgmt.blocks.emptyRundown" : "mgmt.ads.emptyRundown")}</li>}
+            {!items.length && <li className={cx("px-3 py-8 text-center text-sm", dnd.indicator != null ? "bg-brand/5 text-brand" : "text-muted")}>{t(kind === "program" ? "mgmt.blocks.emptyRundown" : "mgmt.ads.emptyRundown")}</li>}
           </ol>
           {dirty && <p className="mt-2 text-xs text-warn">{t("mgmt.blocks.unsaved")}</p>}
         </div>
@@ -264,6 +287,8 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
   const canEdit = roleAtLeast(user?.role, "editor");
   const sel = params.id === "new" ? "new" : params.id ? Number(params.id) : null;
   const k = kind === "program" ? "blocks" : "ads";
+  const insertRef = useRef<((p: LibraryPayload) => void) | null>(null);
+  const editing = sel != null && canEdit;
   return (
     <>
       <PageHeader
@@ -277,9 +302,10 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
           )
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <WithMediaBin onAdd={editing ? (p) => insertRef.current?.(p) : undefined} hint={editing ? t("mgmt.bin.hintBlock") : t("mgmt.bin.hintBlockSelect")}>
+      <div className="grid gap-6 @4xl:grid-cols-[240px_1fr]">
         <Card className="self-start">
-          <ul className="max-h-[70vh] divide-y divide-line overflow-y-auto">
+          <ul className="max-h-[40vh] divide-y divide-line overflow-y-auto @4xl:max-h-[70vh]">
             {list.data?.blocks.map((b) => (
               <li key={b.id}>
                 <Link to={`${base}/${b.id}`} className={cx("flex items-center gap-3 px-4 py-3 transition", sel === b.id ? "bg-brand/8" : "hover:bg-surface-2/60")}>
@@ -298,13 +324,14 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
           </ul>
         </Card>
         {sel != null && canEdit ? (
-          <Editor id={sel} kind={kind} onSaved={() => void list.reload()} />
+          <Editor id={sel} kind={kind} onSaved={() => void list.reload()} onInsertRef={insertRef} />
         ) : (
           <Card>
             <CardBody className="py-16 text-center text-muted">{t(`mgmt.${k}.select`)}</CardBody>
           </Card>
         )}
       </div>
+      </WithMediaBin>
     </>
   );
 }

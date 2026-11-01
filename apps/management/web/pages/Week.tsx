@@ -1,11 +1,13 @@
 import { Alert, Badge, Button, Card, Dialog, Field, Input, PageHeader, Select, Switch, Textarea, cx, del, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { CalendarRange, Clock3, Copy, Plus, Send, Tags, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarRange, Clock3, Copy, MousePointerClick, Plus, Send, Tags, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { payloadDuration, useDragging, useDrop, type DragPayload } from "../components/dnd";
+import { WithMediaBin } from "../components/MediaBin";
 import { ChannelTabs } from "../components/ChannelPicker";
 import { ClockRing } from "../components/ClockRing";
-import { errorText, fmtDateTime, fmtDuration, fmtMinutes, parseMinutes, useCategories, useChannelSelection, useChannels, useGet, weekdayName, type BlockSummary, type HourClock } from "../lib";
+import { errorText, fmtDate, fmtDateTime, fmtDuration, fmtMinutes, fmtTime, isoDay, parseMinutes, useCategories, useChannelSelection, useChannels, useGet, weekdayName, type BlockSummary, type HourClock } from "../lib";
 
 export interface Slot {
   id: number;
@@ -44,6 +46,7 @@ interface SlotForm {
   inEpg: boolean;
 }
 
+type LibraryPayload = Exclude<DragPayload, { kind: "row" }>;
 const HOUR_PX = 44;
 const DAYS = [0, 1, 2, 3, 4, 5, 6];
 const DURATIONS = [30, 60, 90, 120, 180, 240, 360];
@@ -62,6 +65,8 @@ export function WeekPage() {
   const [copy, setCopy] = useState<{ from: number; to: number[]; replace: boolean } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [dropped, setDropped] = useState<{ text: string; to: string } | null>(null);
+  const [dropOn, setDropOn] = useState<{ slot: Slot; payload: LibraryPayload } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -86,6 +91,8 @@ export function WeekPage() {
     void week.reload();
     void reloadChannels();
   };
+  const dragging = useDragging();
+  const libraryDrag = dragging && dragging.kind !== "row" ? dragging : null;
   const publish = async () => {
     if (!data) return;
     const r = await post<{ planned: number }>("/api/week/publish", { channelId: data.channel.id });
@@ -93,7 +100,26 @@ export function WeekPage() {
     void week.reload();
   };
 
-  const newSlot = (weekday: number, hour = 18) => setForm({ weekdays: [weekday], start: fmtMinutes(hour * 60), duration: "01:00", content: "category", categoryId: categories?.[0]?.id ?? "", blockId: "", clockMode: "channel", clockId: "", title: "", description: "", inEpg: true });
+  const newSlot = (weekday: number, startMin = 18 * 60, extra: Partial<SlotForm> = {}) =>
+    setForm({ weekdays: [weekday], start: fmtMinutes(startMin), duration: "01:00", content: "category", categoryId: categories?.[0]?.id ?? "", blockId: "", clockMode: "channel", clockId: "", title: "", description: "", inEpg: true, ...extra });
+  /** Dropped on an empty spot: a new slot there with the block (clips become a block first). */
+  const newSlotFromDrop = async (weekday: number, startMin: number, p: LibraryPayload) => {
+    setErr(null);
+    try {
+      let block = p.kind === "block" ? p.block : null;
+      if (p.kind === "media") {
+        const r = await post<{ id: number }>("/api/blocks/from-media", { mediaIds: p.media.map((m) => m.id), kind: "program" });
+        await blocks.reload();
+        block = { id: r.id, durationMs: payloadDuration(p) } as BlockSummary;
+      }
+      if (!block) return;
+      const min = Math.max(5, Math.ceil((block.durationMs || 0) / 300_000) * 5);
+      newSlot(weekday, startMin, { content: "block", blockId: block.id, duration: fmtMinutes(Math.min(1440, min)).replace(/^00:00$/, "24:00") });
+    } catch (e) {
+      setNotice(null);
+      setErr(errorText(t, e));
+    }
+  };
   const editSlot = (s: Slot) =>
     setForm({
       id: s.id,
@@ -200,6 +226,20 @@ export function WeekPage() {
           {notice}
         </Alert>
       )}
+      {dropped && (
+        <Alert tone="ok" className="mb-4">
+          {dropped.text}{" "}
+          <Link to={dropped.to} className="font-semibold underline">
+            {t("mgmt.bin.openRundown")}
+          </Link>
+        </Alert>
+      )}
+      {err && !form && !copy && (
+        <Alert tone="danger" className="mb-4">
+          {err}
+        </Alert>
+      )}
+      <WithMediaBin blocks hint={canEdit ? t("mgmt.bin.hintWeek") : undefined}>
       {data && (
         <Card className="mb-5">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
@@ -270,14 +310,17 @@ export function WeekPage() {
                   ))}
                 </div>
                 {DAYS.map((d) => (
-                  <div
+                  <DayColumn
                     key={d}
+                    canEdit={canEdit}
                     className={cx("relative border-l border-line", d === todayWd && "bg-brand/[0.03]", canEdit && "cursor-copy")}
                     onClick={(e) => {
                       if (!canEdit || e.target !== e.currentTarget) return;
                       const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-                      newSlot(d, Math.min(23, Math.max(0, Math.floor(y / HOUR_PX))));
+                      newSlot(d, Math.min(23, Math.max(0, Math.floor(y / HOUR_PX))) * 60);
                     }}
+                    onDropAt={(min, p) => void newSlotFromDrop(d, min, p)}
+                    preview={libraryDrag}
                   >
                     {Array.from({ length: 23 }, (_, h) => (
                       <div key={h} className="pointer-events-none absolute right-0 left-0 border-t border-line/60" style={{ top: (h + 1) * HOUR_PX }} />
@@ -291,8 +334,10 @@ export function WeekPage() {
                       const cl = clockOf(s);
                       const h = ((bottom - top) / 60) * HOUR_PX;
                       return (
-                        <button
+                        <SlotButton
                           key={`${s.id}${cont ? "c" : ""}`}
+                          canDrop={canEdit}
+                          onDropPayload={(p) => (setErr(null), setDropOn({ slot: s, payload: p }))}
                           onClick={() => canEdit && editSlot(s)}
                           className="absolute right-1 left-1 overflow-hidden rounded-md border-l-[3px] px-2 py-1 text-left text-xs shadow-sm transition hover:brightness-110 hover:shadow-md"
                           style={{ top: (top / 60) * HOUR_PX + 1, height: h - 2, borderColor: color, background: `color-mix(in srgb, ${color} 16%, var(--color-surface))` }}
@@ -316,10 +361,10 @@ export function WeekPage() {
                               )}
                             </span>
                           )}
-                        </button>
+                        </SlotButton>
                       );
                     })}
-                  </div>
+                  </DayColumn>
                 ))}
               </div>
             </div>
@@ -338,6 +383,21 @@ export function WeekPage() {
           {t("mgmt.nav.rundowns")} →
         </Link>
       </p>
+      </WithMediaBin>
+      {dropOn && data && (
+        <DropDialog
+          slot={dropOn.slot}
+          payload={dropOn.payload}
+          title={slotTitle(dropOn.slot)}
+          channelId={data.channel.id}
+          onClose={() => setDropOn(null)}
+          onDone={(text, to) => {
+            setDropOn(null);
+            setNotice(null);
+            setDropped({ text, to });
+          }}
+        />
+      )}
 
       <Dialog
         open={!!form}
@@ -534,5 +594,145 @@ export function WeekPage() {
         )}
       </Dialog>
     </>
+  );
+}
+
+/** A day in the week grid. Dropping on an empty spot starts a new slot there (snapped to 15 minutes). */
+function DayColumn({ canEdit, className, onClick, onDropAt, preview, children }: { canEdit: boolean; className: string; onClick: (e: React.MouseEvent<HTMLDivElement>) => void; onDropAt: (startMin: number, p: LibraryPayload) => void; preview: LibraryPayload | null; children: ReactNode }) {
+  const { t } = useTranslation();
+  const [at, setAt] = useState<number | null>(null);
+  const minuteAt = (e: React.DragEvent<HTMLDivElement>) => Math.min(1440 - 15, Math.max(0, Math.floor((e.clientY - e.currentTarget.getBoundingClientRect().top) / HOUR_PX / 0.25) * 15));
+  const onSlot = (e: React.DragEvent) => !!(e.target as HTMLElement).closest("[data-slot]");
+  const { props } = useDrop(
+    (p, e) => {
+      if (p.kind === "row" || onSlot(e)) return;
+      onDropAt(minuteAt(e as React.DragEvent<HTMLDivElement>), p);
+    },
+    (p) => canEdit && p.kind !== "row",
+  );
+  const durMin = preview ? Math.max(15, Math.ceil(payloadDuration(preview) / 300_000) * 5) : 60;
+  return (
+    <div
+      className={className}
+      onClick={onClick}
+      {...props}
+      onDragOver={(e) => {
+        if (onSlot(e)) return setAt(null);
+        props.onDragOver(e);
+        if (e.defaultPrevented) {
+          const m = minuteAt(e);
+          if (m !== at) setAt(m);
+        }
+      }}
+      onDragLeave={(e) => {
+        props.onDragLeave(e);
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAt(null);
+      }}
+      onDrop={(e) => {
+        setAt(null);
+        props.onDrop(e);
+      }}
+    >
+      {children}
+      {at != null && preview && (
+        <div className="pointer-events-none absolute right-1 left-1 z-20 rounded-md border-2 border-dashed border-brand bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand" style={{ top: (at / 60) * HOUR_PX, height: Math.max(20, (durMin / 60) * HOUR_PX) }}>
+          {fmtMinutes(at)} · {t("mgmt.bin.newSlot")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A slot in the week grid that takes clips and blocks: they go into the rundown of a date (chosen in a dialog). */
+function SlotButton({ canDrop, onDropPayload, children, ...rest }: { canDrop: boolean; onDropPayload: (p: LibraryPayload) => void; children: ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { over, props } = useDrop((p) => p.kind !== "row" && onDropPayload(p), (p) => canDrop && p.kind !== "row");
+  return (
+    <button data-slot {...rest} {...props} className={cx(rest.className, over && "z-20 ring-2 ring-brand ring-offset-1 brightness-110")}>
+      {children}
+      {over && (
+        <span className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">
+          <MousePointerClick className="size-3" />
+          <DropLabel />
+        </span>
+      )}
+    </button>
+  );
+}
+const DropLabel = () => {
+  const { t } = useTranslation();
+  return <>{t("mgmt.bin.dropOnSlot")}</>;
+};
+
+interface OccRow {
+  slotId: number;
+  date: string;
+  startAt: string;
+  endAt: string;
+  state: "block" | "manual" | "auto" | "empty";
+  ready: boolean;
+  capacityMs: number;
+  filledMs: number;
+}
+/** Which date of a recurring slot gets the dropped clips. */
+function DropDialog({ slot, payload, title, channelId, onClose, onDone }: { slot: Slot; payload: LibraryPayload; title: string; channelId: number; onClose: () => void; onDone: (text: string, to: string) => void }) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const today = isoDay(new Date());
+  const list = useGet<{ occurrences: OccRow[] }>(`/api/week/occurrences?channel=${channelId}&from=${today}&days=29`);
+  const next = (list.data?.occurrences ?? []).filter((o) => o.slotId === slot.id && Date.parse(o.endAt) > Date.now()).slice(0, 4);
+  const add = payloadDuration(payload);
+  const n = payload.kind === "media" ? payload.media.length : 1;
+  const label = payload.kind === "media" ? (n > 1 ? t("mgmt.bin.clips", { n }) : payload.media[0]!.title || payload.media[0]!.name) : payload.block.name;
+  const go = async (o: OccRow) => {
+    setBusy(o.date);
+    setErr(null);
+    try {
+      const items = payload.kind === "media" ? payload.media.map((m) => ({ type: "media" as const, mediaId: m.id })) : [{ type: "block" as const, childBlockId: payload.block.id }];
+      await post(`/api/week/occurrences/${slot.id}/${o.date}/append`, { items });
+      onDone(t("mgmt.bin.added", { what: label, date: fmtDate(new Date(`${o.date}T12:00:00`)) }), `/rundowns/${slot.id}/${o.date}`);
+    } catch (e) {
+      setErr(errorText(t, e));
+      setBusy(null);
+    }
+  };
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("mgmt.bin.whichDate", { what: label })}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-muted">{t("mgmt.bin.whichDateHint", { title, d: fmtDuration(add) })}</p>
+        {err && <Alert tone="danger">{err}</Alert>}
+        <ul className="divide-y divide-line rounded-md border border-line">
+          {next.map((o) => {
+            const free = o.capacityMs - o.filledMs;
+            const fits = o.state === "block" ? null : add <= free + 2000;
+            return (
+              <li key={o.date} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium capitalize">{fmtDate(new Date(`${o.date}T12:00:00`))}</span>
+                  <span className="block text-xs text-muted">
+                    {fmtTime(o.startAt)}–{fmtTime(o.endAt)} · {t(`mgmt.rundowns.state_${o.state}`)} · {fmtDuration(o.filledMs)} / {fmtDuration(o.capacityMs)}
+                  </span>
+                  {o.state === "block" && <span className="block text-xs text-warn">{t("mgmt.bin.becomesOwn")}</span>}
+                  {fits === false && <span className="block text-xs text-warn">{t("mgmt.bin.noRoom", { d: fmtDuration(Math.max(0, free)) })}</span>}
+                </span>
+                <Button size="sm" disabled={!!busy} onClick={() => void go(o)}>
+                  {busy === o.date ? "…" : t("common.add")}
+                </Button>
+              </li>
+            );
+          })}
+          {list.data && !next.length && <li className="px-3 py-6 text-center text-sm text-muted">{t("mgmt.bin.noDates")}</li>}
+        </ul>
+      </div>
+    </Dialog>
   );
 }
