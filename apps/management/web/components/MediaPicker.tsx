@@ -1,17 +1,37 @@
 import { Badge, Button, Dialog, Input, Select, cx } from "@tvsm/ui";
 import { AlertTriangle, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CATEGORIES, categoryTone, fmtDuration, useGet, type MediaItem } from "../lib";
+import { CATEGORIES, categoryTone, fmtDuration, useCategories, useGet, type MediaItem } from "../lib";
 
 /** Dialog to pick one or more media files from the library. */
-export function MediaPicker({ open, onClose, onPick, multiple = true, category }: { open: boolean; onClose: () => void; onPick: (m: MediaItem[]) => void; multiple?: boolean; category?: string }) {
+export function MediaPicker({
+  open,
+  onClose,
+  onPick,
+  multiple = true,
+  category,
+  categoryId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPick: (m: MediaItem[]) => void;
+  multiple?: boolean;
+  category?: string;
+  /** Preselects a content category (sport, culture…). */
+  categoryId?: number | null;
+}) {
   const { t } = useTranslation();
+  const { categories } = useCategories();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState(category ?? "");
+  const [theme, setTheme] = useState(categoryId ? String(categoryId) : "");
+  useEffect(() => {
+    if (open) setTheme(categoryId ? String(categoryId) : "");
+  }, [open, categoryId]);
   const [folder, setFolder] = useState("");
   const [sel, setSel] = useState<MediaItem[]>([]);
-  const params = new URLSearchParams({ limit: "200", ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(folder ? { folder } : {}) });
+  const params = new URLSearchParams({ limit: "200", ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(folder ? { folder } : {}), ...(theme ? { categoryId: theme } : {}) });
   const { data } = useGet<{ items: MediaItem[]; total: number; folders: string[] }>(open ? `/api/media?${params}` : null);
   const toggle = (m: MediaItem) => {
     if (!multiple) return setSel([m]);
@@ -47,13 +67,22 @@ export function MediaPicker({ open, onClose, onPick, multiple = true, category }
         </>
       }
     >
-      <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_160px_200px]">
+      <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_150px_150px_170px]">
         <Input placeholder={t("mgmt.media.search")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         <Select value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">{t("mgmt.media.allCategories")}</option>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
               {t(`mgmt.categories.${c}`)}
+            </option>
+          ))}
+        </Select>
+        <Select value={theme} onChange={(e) => setTheme(e.target.value)} aria-label={t("mgmt.categoriesPage.one")}>
+          <option value="">{t("mgmt.categoriesPage.all")}</option>
+          <option value="none">{t("mgmt.categoriesPage.withoutCategory")}</option>
+          {categories?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
             </option>
           ))}
         </Select>

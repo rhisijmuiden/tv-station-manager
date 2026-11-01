@@ -76,6 +76,8 @@ export interface Channel {
   fallbackInput: number | null;
   fillerMediaId: number | null;
   graphics: Graphics;
+  clockId: number | null;
+  weekEnabled: boolean;
 }
 export type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 export interface Graphics {
@@ -107,6 +109,7 @@ export interface MediaItem {
   probeError: string | null;
   missing: boolean;
   subtitlePath: string | null;
+  categoryId: number | null;
 }
 export interface BlockSummary {
   id: number;
@@ -115,6 +118,7 @@ export interface BlockSummary {
   color: string;
   description: string;
   genre: string;
+  categoryId: number | null;
   itemCount: number;
   durationMs: number;
   warnings: number;
@@ -172,3 +176,65 @@ export function useChannelSelection(channels: Channel[] | null) {
   };
   return [channels?.find((c) => c.id === id) ?? null, select] as const;
 }
+
+/** Content category of programmes and media (sport, culture, news…). */
+export interface ContentCategory {
+  id: number;
+  name: string;
+  color: string;
+  mediaCount: number;
+  mediaMs: number;
+  blockCount: number;
+  slotCount: number;
+}
+export function useCategories() {
+  const r = useGet<{ categories: ContentCategory[] }>("/api/categories");
+  return { categories: r.data?.categories ?? null, reload: r.reload };
+}
+
+export interface ClockItem {
+  kind: "block" | "program";
+  blockId: number | null;
+  durationMs: number | null;
+  title: string | null;
+  blockName?: string | null;
+  blockColor?: string | null;
+  blockKind?: string | null;
+  blockDurationMs?: number | null;
+}
+export interface ClockSegment {
+  index: number;
+  kind: "block" | "program";
+  blockId: number | null;
+  title: string | null;
+  offsetMs: number;
+  durationMs: number;
+}
+export interface ClockLayout {
+  segments: ClockSegment[];
+  fixedMs: number;
+  programMs: number;
+  overbooked: boolean;
+}
+export interface HourClock {
+  id: number;
+  name: string;
+  color: string;
+  items: ClockItem[];
+  layout: ClockLayout;
+  usage: number;
+}
+
+/** 0 = Monday … 6 = Sunday, localised. */
+export const weekdayName = (wd: number, style: "long" | "short" = "long") => new Date(Date.UTC(2026, 10, 2 + wd, 12)).toLocaleDateString(locale(), { weekday: style, timeZone: "UTC" });
+/** 1110 -> "18:30" */
+export const fmtMinutes = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+/** "18:30" -> 1110 */
+export const parseMinutes = (v: string) => {
+  const [h, m] = v.split(":").map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h! * 60 + m! : null;
+};
+/** Monday of the week of `d` (local time). */
+export const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
+/** 0 = Monday … 6 = Sunday for a yyyy-mm-dd date. */
+export const weekdayOfIso = (date: string) => (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;

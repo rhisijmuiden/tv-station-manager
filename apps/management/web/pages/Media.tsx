@@ -1,8 +1,9 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Dialog, Field, Input, PageHeader, Select, Switch, cx, del, formatBytes, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, FolderOpen, HardDrive, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, FolderOpen, HardDrive, Pencil, Plus, RefreshCw, Search, Tags, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CATEGORIES, categoryTone, errorText, fmtDateTime, fmtDuration, parseDuration, useGet, type MediaItem } from "../lib";
+import { useSearchParams } from "react-router-dom";
+import { CATEGORIES, categoryTone, errorText, fmtDateTime, fmtDuration, parseDuration, useCategories, useGet, type ContentCategory, type MediaItem } from "../lib";
 
 interface Source {
   id: number;
@@ -108,11 +109,11 @@ function SourceDialog({ source, onClose, onSaved }: { source: Partial<Source>; o
   );
 }
 
-function MediaDialog({ item, onClose, onSaved }: { item: MediaItem; onClose: () => void; onSaved: () => void }) {
+function MediaDialog({ item, categories, onClose, onSaved }: { item: MediaItem; categories: ContentCategory[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation();
-  const [m, setM] = useState({ title: item.title ?? "", category: item.category as string, duration: item.durationMs != null ? fmtDuration(item.durationMs) : "" });
+  const [m, setM] = useState({ title: item.title ?? "", category: item.category as string, duration: item.durationMs != null ? fmtDuration(item.durationMs) : "", categoryId: item.categoryId ?? null });
   const save = async () => {
-    await put(`/api/media/${item.id}`, { title: m.title || null, category: m.category, durationMs: m.duration ? parseDuration(m.duration) : item.durationMs });
+    await put(`/api/media/${item.id}`, { title: m.title || null, category: m.category, durationMs: m.duration ? parseDuration(m.duration) : item.durationMs, categoryId: m.categoryId });
     onSaved();
     onClose();
   };
@@ -154,6 +155,18 @@ function MediaDialog({ item, onClose, onSaved }: { item: MediaItem; onClose: () 
             </Field>
             <Field label={t("mgmt.media.duration")} hint={t("mgmt.media.durationHint")}>{(id) => <Input id={id} value={m.duration} placeholder="0:30:00" onChange={(e) => setM({ ...m, duration: e.target.value })} />}</Field>
           </div>
+          <Field label={t("mgmt.categoriesPage.one")} hint={t("mgmt.media.categoryHint")}>
+            {(id) => (
+              <Select id={id} value={m.categoryId ?? ""} onChange={(e) => setM({ ...m, categoryId: Number(e.target.value) || null })}>
+                <option value="">{t("mgmt.week.noCategory")}</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
           <dl className="grid grid-cols-3 gap-3 text-sm">
             <div>
               <dt className="text-xs text-muted">{t("mgmt.media.resolution")}</dt>
@@ -182,8 +195,13 @@ export function MediaPage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
   const [folder, setFolder] = useState("");
+  const [search] = useSearchParams();
+  const [theme, setTheme] = useState(search.get("categoryId") ?? "");
   const [page, setPage] = useState(0);
-  const params = new URLSearchParams({ limit: "100", offset: String(page * 100), ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(folder ? { folder } : {}) });
+  const { categories } = useCategories();
+  const catById = new Map((categories ?? []).map((c) => [c.id, c]));
+  const [assign, setAssign] = useState<number | "" | null>(null);
+  const params = new URLSearchParams({ limit: "100", offset: String(page * 100), ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(folder ? { folder } : {}), ...(theme ? { categoryId: theme } : {}) });
   const media = useGet<{ items: MediaItem[]; total: number; folders: string[] }>(`/api/media?${params}`);
   const [editSource, setEditSource] = useState<Partial<Source> | null>(null);
   const [editItem, setEditItem] = useState<MediaItem | null>(null);
@@ -255,8 +273,19 @@ export function MediaPage() {
       </div>
 
       <Card>
-        <CardHeader title={t("mgmt.media.library")} description={media.data ? t("mgmt.media.fileCount", { n: media.data.total }) : undefined} />
-        <div className="grid gap-2 border-b border-line p-4 sm:grid-cols-[1fr_170px_220px]">
+        <CardHeader
+          title={t("mgmt.media.library")}
+          description={media.data ? t("mgmt.media.fileCount", { n: media.data.total }) : undefined}
+          actions={
+            canEdit &&
+            folder && (
+              <Button size="sm" variant="secondary" icon={<Tags className="size-3.5" />} onClick={() => setAssign("")}>
+                {t("mgmt.media.assignFolder")}
+              </Button>
+            )
+          }
+        />
+        <div className="grid gap-2 border-b border-line p-4 sm:grid-cols-[1fr_150px_170px_220px]">
           <div className="relative">
             <Search className="pointer-events-none absolute top-3 left-3 size-4 text-muted" />
             <Input className="pl-9" placeholder={t("mgmt.media.search")} value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} />
@@ -266,6 +295,15 @@ export function MediaPage() {
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
                 {t(`mgmt.categories.${c}`)}
+              </option>
+            ))}
+          </Select>
+          <Select value={theme} onChange={(e) => (setTheme(e.target.value), setPage(0))} aria-label={t("mgmt.categoriesPage.one")}>
+            <option value="">{t("mgmt.categoriesPage.all")}</option>
+            <option value="none">{t("mgmt.categoriesPage.withoutCategory")}</option>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </Select>
@@ -309,7 +347,14 @@ export function MediaPage() {
                   </td>
                   <td className="max-w-56 truncate px-3 py-2.5 text-muted">{m.folder || "/"}</td>
                   <td className="px-3 py-2.5">
-                    <Badge tone={categoryTone(m.category)}>{t(`mgmt.categories.${m.category}`)}</Badge>
+                    <span className="flex flex-wrap items-center gap-1">
+                      <Badge tone={categoryTone(m.category)}>{t(`mgmt.categories.${m.category}`)}</Badge>
+                      {m.categoryId && catById.get(m.categoryId) && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: catById.get(m.categoryId)!.color }}>
+                          {catById.get(m.categoryId)!.name}
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-xs">
                     {m.probeStatus === "pending" ? (
@@ -351,7 +396,40 @@ export function MediaPage() {
       </Card>
 
       {editSource && <SourceDialog source={editSource} onClose={() => setEditSource(null)} onSaved={() => void sources.reload()} />}
-      {editItem && <MediaDialog item={editItem} onClose={() => setEditItem(null)} onSaved={() => void media.reload()} />}
+      {editItem && <MediaDialog item={editItem} categories={categories ?? []} onClose={() => setEditItem(null)} onSaved={() => void media.reload()} />}
+      <Dialog
+        open={assign !== null}
+        onClose={() => setAssign(null)}
+        title={t("mgmt.media.assignFolder")}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setAssign(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={async () => {
+                await post("/api/media/assign-category", { folder, categoryId: assign || null });
+                setAssign(null);
+                void media.reload();
+              }}
+            >
+              {t("common.save")}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted">{t("mgmt.media.assignFolderIntro", { folder })}</p>
+          <Select value={assign ?? ""} onChange={(e) => setAssign(Number(e.target.value) || "")}>
+            <option value="">{t("mgmt.week.noCategory")}</option>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </Dialog>
     </>
   );
 }

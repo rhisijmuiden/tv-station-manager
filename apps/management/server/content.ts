@@ -39,6 +39,8 @@ export interface ChannelRow {
   fallback_input: number | null;
   filler_media_id: number | null;
   graphics: string;
+  clock_id: number | null;
+  week_enabled: number;
 }
 export const channelOut = (r: ChannelRow) => ({
   id: r.id,
@@ -55,6 +57,8 @@ export const channelOut = (r: ChannelRow) => ({
   fallbackInput: r.fallback_input,
   fillerMediaId: r.filler_media_id,
   graphics: graphicsSchema.parse(JSON.parse(r.graphics || "{}")),
+  clockId: r.clock_id ?? null,
+  weekEnabled: !!r.week_enabled,
 });
 
 // ---- loader over the database -------------------------------------------------
@@ -105,6 +109,9 @@ export const scheduleEntries = (db: Db, channelId: number, from: number, to: num
     title: (r.title as string) || null,
     description: (r.description as string) || null,
     inEpg: !!r.in_epg,
+    skip: Number(r.skip_items ?? 0),
+    take: r.take_items == null ? null : Number(r.take_items),
+    group: (r.occurrence as string) || null,
   }));
 
 export function registerContent(app: FastifyInstance, platform: Platform, onChange: () => void) {
@@ -191,6 +198,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#3B6CFF"),
     description: z.string().max(4000).default(""),
     genre: z.string().max(80).default(""),
+    categoryId: z.number().int().nullable().optional(),
     items: z.array(itemIn).max(2000).default([]),
   });
 
@@ -206,13 +214,13 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       cycle = e instanceof BlockCycleError;
     }
     const itemCount = (db.prepare("SELECT COUNT(*) AS n FROM block_items WHERE block_id = ?").get(Number(b.id)) as { n: number }).n;
-    return { id: b.id, name: b.name, kind: b.kind, color: b.color, description: b.description, genre: b.genre, updatedAt: b.updated_at, itemCount, durationMs, warnings, cycle };
+    return { id: b.id, name: b.name, kind: b.kind, color: b.color, description: b.description, genre: b.genre, categoryId: b.category_id ?? null, updatedAt: b.updated_at, itemCount, durationMs, warnings, cycle };
   };
 
   app.get("/api/blocks", async (req) => {
     const { kind } = z.object({ kind: z.enum(["program", "commercial"]).optional() }).parse(req.query);
     const loader = dbLoader(db);
-    const rows = db.prepare(`SELECT * FROM blocks ${kind ? "WHERE kind = ?" : ""} ORDER BY name COLLATE NOCASE`).all(...(kind ? [kind] : [])) as Record<string, unknown>[];
+    const rows = db.prepare(`SELECT * FROM blocks WHERE hidden = 0 ${kind ? "AND kind = ?" : ""} ORDER BY name COLLATE NOCASE`).all(...(kind ? [kind] : [])) as Record<string, unknown>[];
     return { blocks: rows.map((b) => blockSummary(loader, b)) };
   });
 
@@ -281,7 +289,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     requireRole(req, "editor");
     const b = blockIn.parse(req.body);
     const id = tx(() => {
-      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre) VALUES (?, ?, ?, ?, ?)").run(b.name, b.kind, b.color, b.description, b.genre);
+      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id) VALUES (?, ?, ?, ?, ?, ?)").run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null);
       const id = Number(r.lastInsertRowid);
       saveItems(id, b.items);
       return id;
@@ -294,7 +302,9 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const id = pid(req);
     const b = blockIn.parse(req.body);
     tx(() => {
-      const r = db.prepare("UPDATE blocks SET name = ?, kind = ?, color = ?, description = ?, genre = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").run(b.name, b.kind, b.color, b.description, b.genre, id);
+      const r = db
+        .prepare("UPDATE blocks SET name = ?, kind = ?, color = ?, description = ?, genre = ?, category_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?")
+        .run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, id);
       if (!r.changes) throw new HttpError(404, "not_found");
       saveItems(id, b.items);
     });
@@ -306,7 +316,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const src = db.prepare("SELECT * FROM blocks WHERE id = ?").get(pid(req)) as Record<string, string> | undefined;
     if (!src) throw new HttpError(404, "not_found");
     const id = tx(() => {
-      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre) VALUES (?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!);
+      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id) VALUES (?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null);
       const id = Number(r.lastInsertRowid);
       db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, duration_ms, title) SELECT ?, position, type, media_id, child_block_id, live_source_id, duration_ms, title FROM block_items WHERE block_id = ?").run(id, src.id!);
       return id;
@@ -342,7 +352,8 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const loader = dbLoader(db);
     const entries = scheduleEntries(db, q.channel, from, to);
     const { entries: compiled } = compile(loader, entries, from, to);
-    const blocks = new Map((db.prepare("SELECT id, name, kind, color, genre FROM blocks").all() as { id: number }[]).map((b) => [b.id, b]));
+    const blocks = new Map((db.prepare("SELECT b.id, b.name, b.kind, b.color, COALESCE(c.name, b.genre) AS genre, b.hidden FROM blocks b LEFT JOIN categories c ON c.id = b.category_id").all() as { id: number }[]).map((b) => [b.id, b]));
+    const origins = new Map((db.prepare("SELECT id, origin, week_slot_id FROM schedule WHERE channel_id = ? AND start_at < ? AND start_at >= ?").all(q.channel, new Date(to).toISOString(), new Date(from - 86400_000).toISOString()) as { id: number; origin: string; week_slot_id: number | null }[]).map((r) => [r.id, r]));
     return {
       entries: compiled
         .filter((e) => e.end > from && e.start < to)
@@ -360,6 +371,9 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
           overrunMs: e.overrunMs,
           gapAfterMs: e.gapAfterMs,
           warnings: e.warnings,
+          origin: origins.get(e.id)?.origin ?? "manual",
+          weekSlotId: origins.get(e.id)?.week_slot_id ?? null,
+          occurrence: e.group ?? null,
         })),
     };
   });
@@ -373,8 +387,14 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     onChange();
     return { id: Number(r.lastInsertRowid) };
   });
+  /** Entries generated from the week schedule are changed there (they would come back on the next publish). */
+  const notFromWeek = (id: number) => {
+    const r = db.prepare("SELECT origin FROM schedule WHERE id = ?").get(id) as { origin: string } | undefined;
+    if (r?.origin === "week") throw new HttpError(409, "week_entry");
+  };
   app.put("/api/schedule/:id", async (req) => {
     requireRole(req, "editor");
+    notFromWeek(pid(req));
     const b = entryIn.parse(req.body);
     const r = db
       .prepare("UPDATE schedule SET channel_id = ?, start_at = ?, block_id = ?, title = ?, description = ?, in_epg = ? WHERE id = ?")
@@ -385,6 +405,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
   });
   app.delete("/api/schedule/:id", async (req) => {
     requireRole(req, "editor");
+    notFromWeek(pid(req));
     db.prepare("DELETE FROM schedule WHERE id = ?").run(pid(req));
     onChange();
     return { ok: true };
@@ -423,12 +444,12 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const to = Date.parse(b.to);
     const span = to - from;
     if (span <= 0 || span > 86400_000 * 1.1) throw new HttpError(400, "invalid_range");
-    const src = db.prepare("SELECT * FROM schedule WHERE channel_id = ? AND start_at >= ? AND start_at < ?").all(b.channelId, new Date(from).toISOString(), new Date(to).toISOString()) as Record<string, unknown>[];
+    const src = db.prepare("SELECT * FROM schedule WHERE channel_id = ? AND origin = 'manual' AND start_at >= ? AND start_at < ?").all(b.channelId, new Date(from).toISOString(), new Date(to).toISOString()) as Record<string, unknown>[];
     let copied = 0;
     tx(() => {
       for (const t of b.targets) {
         const target = Date.parse(t);
-        if (b.replace) db.prepare("DELETE FROM schedule WHERE channel_id = ? AND start_at >= ? AND start_at < ?").run(b.channelId, new Date(target).toISOString(), new Date(target + span).toISOString());
+        if (b.replace) db.prepare("DELETE FROM schedule WHERE channel_id = ? AND origin = 'manual' AND start_at >= ? AND start_at < ?").run(b.channelId, new Date(target).toISOString(), new Date(target + span).toISOString());
         for (const e of src) {
           const start = target + (Date.parse(String(e.start_at)) - from);
           db.prepare("INSERT INTO schedule (channel_id, start_at, block_id, title, description, in_epg, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)").run(

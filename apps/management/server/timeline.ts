@@ -109,6 +109,18 @@ export interface ScheduleEntry {
   title: string | null;
   description: string | null;
   inEpg: boolean;
+  /** Plays only part of the block: leaves [skip, skip + take). Used by the week schedule to spread a programme over the windows of an hour clock. */
+  skip?: number;
+  take?: number | null;
+  /** Entries of one week-schedule occurrence share a group, so the EPG shows them as one programme. */
+  group?: string | null;
+}
+
+/** The leaves an entry plays (the whole block, or the part given by skip/take). */
+export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take">): Leaf[] {
+  const all = expandBlock(loader, entry.blockId);
+  const skip = entry.skip ?? 0;
+  return entry.take == null ? all.slice(skip) : all.slice(skip, skip + entry.take);
 }
 
 export interface TimelineEvent {
@@ -156,7 +168,7 @@ export function compile(loader: Loader, entries: ScheduleEntry[], from: number, 
     const nextStart = sorted[i + 1]?.start ?? Number.POSITIVE_INFINITY;
     let leaves: Leaf[] = [];
     try {
-      leaves = expandBlock(loader, entry.blockId);
+      leaves = entryLeaves(loader, entry);
     } catch {
       leaves = [];
     }
