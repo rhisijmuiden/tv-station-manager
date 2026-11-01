@@ -432,6 +432,8 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     source: z.coerce.number().int().optional(),
     category: z.enum(["program", "commercial", "jingle", "bumper", "filler"]).optional(),
     folder: z.string().max(1024).optional(),
+    /** Content category (sport, culture…); "none" = without category. */
+    categoryId: z.union([z.coerce.number().int(), z.literal("none")]).optional(),
     missing: z.coerce.boolean().optional(),
     limit: z.coerce.number().int().min(1).max(500).default(100),
     offset: z.coerce.number().int().min(0).default(0),
@@ -443,6 +445,8 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     if (!q.missing) where.push("m.missing = 0");
     if (q.source) where.push("m.source_id = ?"), args.push(q.source);
     if (q.category) where.push("m.category = ?"), args.push(q.category);
+    if (q.categoryId === "none") where.push("m.category_id IS NULL");
+    else if (q.categoryId) where.push("m.category_id = ?"), args.push(q.categoryId);
     if (q.folder !== undefined && q.folder !== "") where.push("(m.folder = ? OR m.folder LIKE ?)"), args.push(q.folder, `${q.folder}/%`);
     if (q.q) where.push("(m.name LIKE ? OR m.title LIKE ? OR m.path LIKE ?)"), args.push(`%${q.q}%`, `%${q.q}%`, `%${q.q}%`);
     const w = where.join(" AND ");
@@ -450,7 +454,8 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     const items = db
       .prepare(
         `SELECT m.id, m.source_id AS sourceId, m.path, m.name, m.title, m.folder, m.size, m.mtime, m.duration_ms AS durationMs, m.fps, m.width, m.height, m.codec,
-                m.category, m.probe_status AS probeStatus, m.probe_error AS probeError, m.missing, m.subtitle_path AS subtitlePath
+                m.category, m.probe_status AS probeStatus, m.probe_error AS probeError, m.missing, m.subtitle_path AS subtitlePath,
+                m.category_id AS categoryId
            FROM media m WHERE ${w} ORDER BY m.folder COLLATE NOCASE, m.name COLLATE NOCASE LIMIT ? OFFSET ?`,
       )
       .all(...args, q.limit, q.offset)
@@ -467,11 +472,13 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
         category: z.enum(["program", "commercial", "jingle", "bumper", "filler"]),
         title: z.string().max(200).nullable().optional(),
         durationMs: z.number().int().min(0).max(48 * 3600_000).nullable().optional(),
+        categoryId: z.number().int().nullable().optional(),
       })
       .parse(req.body);
     const cur = db.prepare("SELECT duration_ms FROM media WHERE id = ?").get(id) as { duration_ms: number | null } | undefined;
     if (!cur) throw new HttpError(404, "not_found");
     db.prepare("UPDATE media SET category = ?, title = ? WHERE id = ?").run(b.category, b.title || null, id);
+    if (b.categoryId !== undefined) db.prepare("UPDATE media SET category_id = ? WHERE id = ?").run(b.categoryId, id);
     if (b.durationMs !== undefined && b.durationMs !== cur.duration_ms) db.prepare("UPDATE media SET duration_ms = ?, probe_status = 'manual' WHERE id = ?").run(b.durationMs, id);
     onChange();
     return { ok: true };
@@ -491,6 +498,18 @@ export function registerMedia(app: FastifyInstance, platform: Platform, onChange
     for (const id of b.ids) st.run(b.category, id);
     onChange();
     return { ok: true };
+  });
+
+  /** Content category for a whole folder (and its subfolders) or a list of files. */
+  app.post("/api/media/assign-category", async (req) => {
+    requireRole(req, "editor");
+    const b = z.object({ ids: z.array(z.number().int()).max(5000).optional(), folder: z.string().max(1024).optional(), categoryId: z.number().int().nullable() }).parse(req.body);
+    let changed = 0;
+    if (b.folder !== undefined) changed += Number(db.prepare("UPDATE media SET category_id = ? WHERE folder = ? OR folder LIKE ?").run(b.categoryId, b.folder, `${b.folder}/%`).changes);
+    const st = db.prepare("UPDATE media SET category_id = ? WHERE id = ?");
+    for (const id of b.ids ?? []) changed += Number(st.run(b.categoryId, id).changes);
+    onChange();
+    return { changed };
   });
 
   // ---- subtitles ---------------------------------------------------------------

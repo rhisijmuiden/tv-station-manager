@@ -8,11 +8,13 @@ import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
 import { RemoteSources } from "./remote.js";
+import { WeekPlanner, registerWeek } from "./weekplan.js";
 
 export interface ManagementHandles {
   hub: DeviceHub;
   director: Director;
   remote: RemoteSources;
+  planner: WeekPlanner;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
@@ -26,11 +28,17 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       const hub = new DeviceHub(platform, opts.drivers ?? realDrivers);
       const remote = new RemoteSources(platform, hub);
       const director = new Director(platform, hub, remote);
-      const changed = () => director.invalidate();
+      const planner = new WeekPlanner(platform, () => director.invalidate());
+      // Content changed (blocks, media, manual schedule): the director recompiles and the week schedule is published again.
+      const changed = () => {
+        director.invalidate();
+        planner.requestPublish();
+      };
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
+      registerWeek(server, platform, planner);
       director.register(server);
 
       server.get("/api/management/overview", async () => {
@@ -53,13 +61,15 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       if (opts.autostart !== false) {
         director.start();
         remote.start();
+        planner.start();
       }
       server.addHook("onClose", async () => {
+        planner.stop();
         director.stop();
         remote.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote });
+      opts.onReady?.({ hub, director, remote, planner });
     },
   };
 }

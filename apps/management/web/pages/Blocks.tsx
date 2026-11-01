@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MediaPicker } from "../components/MediaPicker";
-import { categoryTone, errorText, fmtDuration, parseDuration, useGet, type BlockSummary, type LiveSource } from "../lib";
+import { categoryTone, errorText, fmtDuration, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
 
 interface Item {
   type: "media" | "block" | "live";
@@ -30,7 +30,8 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
-  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? "#3B6CFF" : "#F5A524", genre: "", description: "" });
+  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? "#3B6CFF" : "#F5A524", genre: "", description: "", categoryId: null as number | null });
+  const { categories } = useCategories();
   const [items, setItems] = useState<Item[]>([]);
   const [picker, setPicker] = useState(false);
   const [msg, setMsg] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
@@ -43,12 +44,12 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
     setMsg(null);
     setDirty(false);
     if (id === "new") {
-      setMeta({ name: "", color: kind === "program" ? "#3B6CFF" : "#F5A524", genre: "", description: "" });
+      setMeta({ name: "", color: kind === "program" ? "#3B6CFF" : "#F5A524", genre: "", description: "", categoryId: null });
       setItems([]);
       return;
     }
     void get<Detail>(`/api/blocks/${id}`).then((d) => {
-      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description });
+      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null });
       setItems(
         d.items.map((i) => ({
           type: i.type,
@@ -133,7 +134,18 @@ function Editor({ id, kind, onSaved }: { id: number | "new"; kind: "program" | "
         {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
           <Field label={t("common.name")}>{(fid) => <Input id={fid} value={meta.name} onChange={(e) => (setMeta({ ...meta, name: e.target.value }), setDirty(true))} placeholder={t(kind === "program" ? "mgmt.blocks.namePlaceholder" : "mgmt.ads.namePlaceholder")} />}</Field>
-          <Field label={t("mgmt.blocks.genre")}>{(fid) => <Input id={fid} value={meta.genre} onChange={(e) => (setMeta({ ...meta, genre: e.target.value }), setDirty(true))} placeholder={t("mgmt.blocks.genrePlaceholder")} />}</Field>
+          <Field label={t("mgmt.categoriesPage.one")}>
+            {(fid) => (
+              <Select id={fid} value={meta.categoryId ?? ""} onChange={(e) => (setMeta({ ...meta, categoryId: Number(e.target.value) || null }), setDirty(true))}>
+                <option value="">{t("mgmt.week.noCategory")}</option>
+                {categories?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
         </div>
         <Field label={t("mgmt.blocks.description")} hint={t("mgmt.blocks.descriptionHint")}>
           {(fid) => <Textarea id={fid} className="min-h-16 font-sans text-sm" value={meta.description} onChange={(e) => (setMeta({ ...meta, description: e.target.value }), setDirty(true))} />}
