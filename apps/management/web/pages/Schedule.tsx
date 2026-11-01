@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Select, Switch, Textarea, cx, del, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, CalendarPlus, ChevronLeft, ChevronRight, Copy, ListPlus, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarPlus, CalendarRange, ChevronLeft, ChevronRight, Copy, ListPlus, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -20,6 +20,9 @@ interface Entry {
   overrunMs: number;
   gapAfterMs: number;
   warnings: number;
+  origin: "manual" | "week";
+  weekSlotId: number | null;
+  occurrence: string | null;
 }
 interface EntryForm {
   id?: number;
@@ -200,7 +203,11 @@ export function SchedulePage() {
                 {e.overrunMs > 0 && <Badge tone="danger">{t("mgmt.schedule.overrun", { d: fmtDuration(e.overrunMs) })}</Badge>}
                 {e.gapAfterMs > 0 && <Badge tone="warn">{t("mgmt.schedule.gap", { d: fmtDuration(e.gapAfterMs) })}</Badge>}
                 <span className="w-16 text-right font-mono text-xs text-muted">{fmtDuration(Date.parse(e.endAt) - Date.parse(e.startAt))}</span>
-                {canEdit && (
+                {e.origin === "week" ? (
+                  <Link to={e.occurrence ? `/rundowns/${e.occurrence.replace(":", "/")}` : "/week"} title={t("mgmt.schedule.fromWeekHint")} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-brand">
+                    <CalendarRange className="size-3.5" /> {t("mgmt.schedule.fromWeek")}
+                  </Link>
+                ) : canEdit && (
                   <span className="flex shrink-0">
                     <Button
                       size="sm"

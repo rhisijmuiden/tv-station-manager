@@ -1,7 +1,9 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, Cast, Clapperboard, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Satellite, Tv } from "lucide-react";
+import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Satellite, Tags, Tv } from "lucide-react";
 import { BlocksPage } from "./pages/Blocks";
+import { CategoriesPage } from "./pages/Categories";
+import { ClocksPage } from "./pages/Clocks";
 import { ChannelsPage } from "./pages/Channels";
 import { ControlPage } from "./pages/Control";
 import { Dashboard } from "./pages/Dashboard";
@@ -11,7 +13,9 @@ import { GraphicsPage } from "./pages/Graphics";
 import { MediaPage } from "./pages/Media";
 import { OutputsPage } from "./pages/Outputs";
 import { RemoteSourcesPage } from "./pages/RemoteSources";
+import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
+import { WeekPage } from "./pages/Week";
 import en from "./i18n/en.json";
 import nl from "./i18n/nl.json";
 
@@ -30,10 +34,14 @@ mountPlatformApp({
     {
       label: "mgmt.nav.planning",
       items: [
+        { to: "/week", label: "mgmt.nav.week", icon: CalendarRange },
+        { to: "/rundowns", label: "mgmt.nav.rundowns", icon: ClipboardList },
         { to: "/schedule", label: "mgmt.nav.schedule", icon: CalendarDays },
+        { to: "/clocks", label: "mgmt.nav.clocks", icon: Clock3 },
         { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
         { to: "/ads", label: "mgmt.nav.ads", icon: Film },
         { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
+        { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
         { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
         { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
       ],
@@ -53,6 +61,12 @@ mountPlatformApp({
     { path: "/remote", element: <RemoteSourcesPage /> },
     { path: "/outputs", element: <OutputsPage /> },
     { path: "/schedule", element: <SchedulePage /> },
+    { path: "/week", element: <WeekPage /> },
+    { path: "/rundowns", element: <RundownsPage /> },
+    { path: "/rundowns/:slot/:date", element: <RundownsPage /> },
+    { path: "/clocks", element: <ClocksPage /> },
+    { path: "/clocks/:id", element: <ClocksPage /> },
+    { path: "/categories", element: <CategoriesPage /> },
     { path: "/blocks", element: <BlocksPage kind="program" /> },
     { path: "/blocks/:id", element: <BlocksPage kind="program" /> },
     { path: "/ads", element: <BlocksPage kind="commercial" /> },

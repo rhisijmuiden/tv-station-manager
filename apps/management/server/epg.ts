@@ -7,6 +7,7 @@ import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { dbLoader, scheduleEntries, type ChannelRow } from "./content.js";
 import { publicUrl } from "./director.js";
+import { stationTime } from "./hourclock.js";
 import { compile } from "./timeline.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -24,14 +25,39 @@ export interface Programme {
 
 export function epgProgrammes(platform: Platform, channels: ChannelRow[], from: number, to: number): Programme[] {
   const { db } = platform.ctx;
-  const genres = new Map((db.prepare("SELECT id, genre FROM blocks").all() as { id: number; genre: string }[]).map((b) => [b.id, b.genre || null]));
+  const genres = new Map((db.prepare("SELECT b.id, COALESCE(c.name, b.genre) AS genre FROM blocks b LEFT JOIN categories c ON c.id = b.category_id").all() as { id: number; genre: string }[]).map((b) => [b.id, b.genre || null]));
   const descriptions = new Map((db.prepare("SELECT id, description FROM blocks").all() as { id: number; description: string }[]).map((b) => [b.id, b.description || null]));
   const out: Programme[] = [];
   for (const ch of channels) {
     const { entries } = compile(dbLoader(db), scheduleEntries(db, ch.id, from, to), from, to);
+    // Entries of one week-schedule occurrence (programme windows between the fixed parts of the hour clock) are one programme.
+    const groups = new Map<string, Programme & { listed: boolean }>();
     for (const e of entries) {
-      if (!e.inEpg || e.end <= from || e.start >= to || e.end <= e.start) continue;
-      out.push({ channelId: ch.id, start: e.start, end: e.end, title: e.programTitle, description: e.description ?? descriptions.get(e.blockId) ?? null, genre: genres.get(e.blockId) ?? null });
+      if (e.end <= from || e.start >= to || e.end <= e.start) continue;
+      const p = { channelId: ch.id, start: e.start, end: e.end, title: e.programTitle, description: e.description ?? descriptions.get(e.blockId) ?? null, genre: genres.get(e.blockId) ?? null };
+      if (e.group) {
+        const g = groups.get(e.group);
+        if (!g) groups.set(e.group, { ...p, listed: e.inEpg });
+        else {
+          g.start = Math.min(g.start, e.start);
+          g.end = Math.max(g.end, e.end);
+          if (e.inEpg && !g.listed) Object.assign(g, { title: p.title, description: p.description, genre: p.genre, listed: true });
+        }
+        continue;
+      }
+      if (e.inEpg) out.push(p);
+    }
+    // A programme runs until the end of its slot (the clock may leave room at the end), or until a manual entry takes over.
+    const tz = platform.ctx.settings.get("station.timezone", "Europe/Amsterdam");
+    for (const [key, { listed, ...g }] of groups) {
+      if (!listed) continue;
+      const [slotId, date] = key.split(":");
+      const slot = db.prepare("SELECT start_min, duration_min FROM week_slots WHERE id = ?").get(Number(slotId)) as { start_min: number; duration_min: number } | undefined;
+      if (slot && date) {
+        const next = entries.find((e) => e.group !== key && e.start >= g.end);
+        g.end = Math.max(g.end, Math.min(stationTime(date, slot.start_min + slot.duration_min, tz), next?.start ?? Number.POSITIVE_INFINITY));
+      }
+      out.push(g);
     }
   }
   return out.sort((a, b) => a.channelId - b.channelId || a.start - b.start);

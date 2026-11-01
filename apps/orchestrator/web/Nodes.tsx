@@ -3,7 +3,7 @@ import { Clapperboard, Clock, Cpu, HardDrive, MemoryStick, Plus, Power, Radio, R
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-type Role = "unassigned" | "management" | "studio" | "other";
+type Role = "unassigned" | "management" | "studio" | "playout" | "live" | "other";
 interface Metrics {
   cpuCount: number;
   cpuPercent: number;
@@ -43,7 +43,7 @@ interface Detail {
   events: { type: string; message: string; at: string }[];
   commands: { id: number; type: string; status: string; result: string | null; createdAt: string }[];
 }
-const ROLES: Role[] = ["management", "studio", "other", "unassigned"];
+const ROLES: Role[] = ["management", "playout", "live", "studio", "other", "unassigned"];
 
 /** CasparCG, DeckLink outputs, RTMP ingest and media share of a studio node. */
 function StudioPanel({ s, onCommand, approved }: { s: StudioStatus; onCommand: (type: string) => void; approved: boolean }) {
@@ -548,7 +548,7 @@ export function NodesPage() {
                     </td>
                     <td className="px-3 py-3">{n.status === "rejected" ? <Badge>{t("orch.nodes.rejected")}</Badge> : <StatusDot node={n} />}</td>
                     <td className="px-3 py-3">
-                      <Badge tone={n.role === "studio" ? "danger" : n.role === "management" ? "brand" : "neutral"}>{t(`orch.nodes.role_${n.role}`)}</Badge>
+                      <Badge tone={n.role === "studio" || n.role === "playout" || n.role === "live" ? "danger" : n.role === "management" ? "brand" : "neutral"}>{t(`orch.nodes.role_${n.role}`)}</Badge>
                     </td>
                     <td className="px-3 py-3">{m && n.online ? <Meter value={m.cpuPercent} /> : "–"}</td>
                     <td className="px-3 py-3">{m && n.online ? <Meter value={pct(m.memUsed, m.memTotal)} /> : "–"}</td>
