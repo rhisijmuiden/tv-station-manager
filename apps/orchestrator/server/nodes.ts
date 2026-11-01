@@ -55,7 +55,7 @@ export const NODE_MIGRATIONS = [
 const HEARTBEAT_SECONDS = 10;
 const OFFLINE_AFTER_SECONDS = 45;
 const MAX_PENDING = 50;
-const ROLES = ["unassigned", "management", "studio", "other"] as const;
+const ROLES = ["unassigned", "management", "studio", "playout", "live", "other"] as const;
 const COMMANDS = ["restart-agent", "reboot", "update-agent", "restart-casparcg", "restart-ingest"] as const;
 
 const hashSecret = (s: string) => createHash("sha256").update(s).digest("hex");

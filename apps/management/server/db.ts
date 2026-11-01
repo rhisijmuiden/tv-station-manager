@@ -206,4 +206,6 @@ export const MANAGEMENT_MIGRATIONS = [
    ALTER TABLE schedule ADD COLUMN skip_items INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE schedule ADD COLUMN take_items INTEGER;
    CREATE INDEX schedule_origin ON schedule(channel_id, origin, start_at);`,
+  // Two studio nodes per channel: a playout node runs the schedule, a live node takes RTMP/SRT streams from events.
+  `ALTER TABLE studio_nodes ADD COLUMN role TEXT NOT NULL DEFAULT 'both' CHECK (role IN ('playout','live','both'));`,
 ];

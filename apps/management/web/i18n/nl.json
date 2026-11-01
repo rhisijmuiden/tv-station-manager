@@ -72,7 +72,12 @@
       "asrun": "As-run log",
       "noChannels": "Nog geen kanalen",
       "noChannelsIntro": "Maak eerst een kanaal aan en koppel het aan een ATEM en een studio-node.",
-      "remoteWaiting": "Een remote bron met Wacht op stream geeft zwart beeld tot de inzender begint met streamen."
+      "remoteWaiting": "Een remote bron op de playout-node geeft zwart beeld tot de inzender begint met streamen. Op een aparte live-node blijft de playout-node in de uitzending tot de stream binnen is.",
+      "node_playout": "Playout-node {{studio}}",
+      "node_live": "Live-node {{studio}}",
+      "node_fallback": "Reserve-ingang {{input}}",
+      "node_other": "ATEM-ingang {{input}}",
+      "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt."
     },
     "media": {
       "title_page": "Mediabibliotheek",
@@ -325,7 +330,14 @@
         "De Blackmagic-driver bepaalt de nummering, niet het slot op het moederbord. Bij meerdere kaarten volgt de volgorde de PCIe-bus, en die kan veranderen als je een kaart toevoegt of verplaatst.",
         "Een kaart kan meer SDI-aansluitingen hebben dan uitgangen: fill + key of monitoraansluitingen horen bij dezelfde uitgang. Een Duo 2 of Quad 2 doet zich voor als 2 of 4 losse apparaten.",
         "Klik op Uitgangen identificeren: elke uitgang toont 60 seconden een eigen kleur en een groot nummer. Bij fill + key geeft de key-aansluiting een wit beeld."
-      ]
+      ],
+      "role": "Rol",
+      "role_playout": "Playout-node",
+      "role_live": "Live-node",
+      "role_both": "Playout + live",
+      "roleHint_playout": "Speelt de programmering: clips, reclameblokken en graphics. Koppel hem bij Kanalen aan een kanaal.",
+      "roleHint_live": "Ontvangt RTMP/SRT-streams van evenementen en speelt ze naar zijn DeckLink-uitgang. De regisseur schakelt de ATEM ernaar zodra er een live-item gepland staat.",
+      "roleHint_both": "Eén node doet zowel playout als live-streams (elk op een eigen DeckLink-uitgang)."
     },
     "errors": {
       "generic": "Er ging iets mis.",
