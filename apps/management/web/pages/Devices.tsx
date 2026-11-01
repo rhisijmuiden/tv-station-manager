@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Select, Switch, del, post, put } from "@tvsm/ui";
-import { Hash, MonitorPlay, Pencil, Plus, Radio, SlidersHorizontal, Square, Trash2 } from "lucide-react";
+import { Hash, Lock, MonitorPlay, Network, Pencil, Plus, Radio, SlidersHorizontal, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -12,6 +12,100 @@ interface Atem {
   host: string;
   enabled: boolean;
   status: AtemStatus;
+  lock: { by: string | null; reason: string } | null;
+}
+interface OrchLink {
+  enabled: boolean;
+  url: string;
+  hasToken: boolean;
+  lastOkAt: string | null;
+  lastError: string | null;
+  locks: { host: string; name: string; by: string | null; reason: string }[];
+  known: { host: string; name: string }[];
+}
+
+/** Link to the orchestrator: it tells which ATEMs are locked for manual control there. */
+function OrchestratorLinkCard({ atems }: { atems: Atem[] }) {
+  const { t } = useTranslation();
+  const link = useGet<OrchLink>("/api/orchestrator-link", 5000);
+  const [f, setF] = useState<{ enabled: boolean; url: string; token: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const d = link.data;
+  if (!d) return null;
+  const form = f ?? { enabled: d.enabled, url: d.url, token: "" };
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await put("/api/orchestrator-link", { enabled: form.enabled, url: form.url, token: form.token || undefined });
+      setF(null);
+      await link.reload();
+    } catch (e) {
+      setErr(errorText(t, e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const unmatched = d.enabled && d.lastOkAt ? atems.filter((a) => !d.known.some((k) => k.host === a.host.trim().toLowerCase())) : [];
+  return (
+    <Card>
+      <CardHeader
+        icon={<Network className="size-4" />}
+        title={t("mgmt.devices.orchestrator")}
+        description={t("mgmt.devices.orchestratorIntro")}
+        actions={
+          d.enabled &&
+          (d.lastError ? (
+            <Badge tone="danger">{t("mgmt.devices.orchUnreachable")}</Badge>
+          ) : d.lastOkAt ? (
+            <Badge tone="ok">{t("mgmt.devices.orchConnected")}</Badge>
+          ) : (
+            <Badge>{t("mgmt.devices.connecting")}</Badge>
+          ))
+        }
+      />
+      <div className="space-y-4 px-5 pb-5">
+        {err && <Alert tone="danger">{err}</Alert>}
+        {d.enabled && d.lastError && (
+          <Alert tone="warn">
+            {d.lastError}
+            {d.locks.length > 0 && <span className="block text-xs">{t("mgmt.devices.orchKeepLocks")}</span>}
+          </Alert>
+        )}
+        <Switch checked={form.enabled} onChange={(enabled) => setF({ ...form, enabled })} label={t("mgmt.devices.orchEnabled")} description={t("mgmt.devices.orchEnabledHint")} />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={t("mgmt.devices.orchUrl")}>{(id) => <Input id={id} className="font-mono" placeholder="http://10.40.6.201:8080" value={form.url} onChange={(e) => setF({ ...form, url: e.target.value })} />}</Field>
+          <Field label={t("mgmt.devices.orchToken")} hint={d.hasToken ? t("mgmt.devices.orchTokenKept") : t("mgmt.devices.orchTokenHint")}>
+            {(id) => <Input id={id} type="password" autoComplete="off" className="font-mono" placeholder={d.hasToken ? "••••••••" : ""} value={form.token} onChange={(e) => setF({ ...form, token: e.target.value })} />}
+          </Field>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button loading={busy} onClick={() => void save()} disabled={!f}>
+            {t("common.save")}
+          </Button>
+          {d.lastOkAt && <span className="text-xs text-muted">{t("mgmt.devices.orchLastOk", { at: new Date(d.lastOkAt).toLocaleTimeString() })}</span>}
+        </div>
+        {d.locks.length > 0 && (
+          <div className="space-y-1.5">
+            {d.locks.map((l) => (
+              <p key={l.host} className="flex items-center gap-2 text-sm">
+                <Badge tone="warn">
+                  <Lock className="size-3" /> {t("mgmt.devices.locked")}
+                </Badge>
+                <span className="font-medium">{l.name}</span> <span className="font-mono text-xs text-muted">{l.host}</span>
+                <span className="text-xs text-muted">
+                  {t("mgmt.devices.lockedBy", { by: l.by ?? "?" })}
+                  {l.reason ? ` · ${l.reason}` : ""}
+                </span>
+              </p>
+            ))}
+          </div>
+        )}
+        {unmatched.length > 0 && <Alert tone="warn">{t("mgmt.devices.orchUnmatched", { names: unmatched.map((a) => `${a.name} (${a.host})`).join(", ") })}</Alert>}
+      </div>
+    </Card>
+  );
 }
 interface Studio {
   id: number;
@@ -111,7 +205,14 @@ export function DevicesPage() {
                     <Dot on={a.status.connected} />
                   </td>
                   <td className="px-3 py-3">
-                    <p className="font-medium">{a.name}</p>
+                    <p className="flex items-center gap-2 font-medium">
+                      {a.name}
+                      {a.lock && (
+                        <Badge tone="warn">
+                          <Lock className="size-3" /> {t("mgmt.devices.locked")}
+                        </Badge>
+                      )}
+                    </p>
                     <p className="font-mono text-xs text-muted">{a.host}</p>
                   </td>
                   <td className="px-3 py-3 text-muted">
@@ -137,6 +238,8 @@ export function DevicesPage() {
             </tbody>
           </table>
         </Card>
+
+        <OrchestratorLinkCard atems={atems.data?.atems ?? []} />
 
         <Card>
           <CardHeader

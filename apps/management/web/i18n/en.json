@@ -91,7 +91,9 @@
       "node_live": "Live node {{studio}}",
       "node_fallback": "Fallback input {{input}}",
       "node_other": "ATEM input {{input}}",
-      "standby": "Live item {{name}}: no stream yet (since {{since}}). The playout node stays on air and the ATEM cuts to the live node as soon as the stream comes in."
+      "standby": "Live item {{name}}: no stream yet (since {{since}}). The playout node stays on air and the ATEM cuts to the live node as soon as the stream comes in.",
+      "atemLocked": "ATEM locked in the orchestrator by {{by}}",
+      "atemLockedHint": "The schedule keeps playing on the servers, but the automation does not switch the ATEM until it is released in the orchestrator."
     },
     "media": {
       "title_page": "Media library",
@@ -354,7 +356,22 @@
       "role_both": "Playout + live",
       "roleHint_playout": "Runs the schedule: clips, ad breaks and graphics. Link it to a channel under Channels.",
       "roleHint_live": "Takes RTMP/SRT streams from events and plays them to its DeckLink output. The director cuts the ATEM to it when a live item is scheduled.",
-      "roleHint_both": "One node does both playout and live streams (one DeckLink output each)."
+      "roleHint_both": "One node does both playout and live streams (one DeckLink output each).",
+      "orchestrator": "Orchestrator link",
+      "orchestratorIntro": "In the orchestrator an ATEM can be locked for manual control. While locked, the automation here holds its switches for that ATEM; on release it takes what the schedule wants.",
+      "orchEnabled": "Follow the locks of the orchestrator",
+      "orchEnabledHint": "Off: the automation always switches (any locks are released here).",
+      "orchUrl": "Orchestrator address",
+      "orchToken": "Token",
+      "orchTokenHint": "In the orchestrator: ATEM switchers → Automation link.",
+      "orchTokenKept": "Stored. Leave empty to keep it.",
+      "orchConnected": "Connected",
+      "orchUnreachable": "Not reachable",
+      "orchKeepLocks": "The last known locks stay in force until the orchestrator answers again.",
+      "orchLastOk": "Last checked {{at}}",
+      "orchUnmatched": "Not known in the orchestrator under the same address, so they can never be locked from there: {{names}}",
+      "locked": "Locked",
+      "lockedBy": "by {{by}}"
     },
     "errors": {
       "generic": "Something went wrong.",
@@ -393,7 +410,9 @@
       "wordpress_failed": "No WordPress site found: {{message}}",
       "beeldkrant_in_use": "This beeldkrant is used in blocks.",
       "beeldkrant_required": "Choose a beeldkrant.",
-      "image_failed": "The picture could not be fetched."
+      "image_failed": "The picture could not be fetched.",
+      "atem_locked": "This ATEM is locked in the orchestrator: switch it there, or release it first.",
+      "url_required": "Enter the address of the orchestrator."
     },
     "remote": {
       "title": "Remote sources",

@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, PageHeader, Switch, cx, post, useSession, roleAtLeast } from "@tvsm/ui";
-import { AlertTriangle, MonitorPlay, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
+import { AlertTriangle, Lock, MonitorPlay, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -26,6 +26,7 @@ interface ChannelStatus {
   playout: { connected: boolean; version: string | null } | null;
   onAir: { input: number; node: "playout" | "live" | "fallback" | "other"; studio: string | null; source: string | null } | null;
   standby: { liveSourceId: number; name: string; since: string } | null;
+  atemLock: { name: string; by: string | null; at: string | null; reason: string } | null;
   lastError: string | null;
   graphics: { hidden: boolean; upNext: { visible: boolean; title: string } };
   asrun: { at: string; kind: string; title: string; detail: string | null; ok: number }[];
@@ -106,6 +107,18 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
         {canOperate && <Switch checked={s.automation} onChange={(on) => void act(`/api/control/${id}/automation`, { on })} label={t("mgmt.control.automation")} />}
       </div>
       <CardBody className="space-y-5">
+        {s.atemLock && (
+          <Alert tone="warn">
+            <span className="flex items-start gap-2">
+              <Lock className="mt-0.5 size-4 shrink-0" />
+              <span>
+                <span className="font-semibold">{t("mgmt.control.atemLocked", { by: s.atemLock.by ?? "?" })}</span>
+                {s.atemLock.reason && <span> · {s.atemLock.reason}</span>}
+                <span className="block text-xs opacity-80">{t("mgmt.control.atemLockedHint")}</span>
+              </span>
+            </span>
+          </Alert>
+        )}
         {s.standby && (
           <Alert tone="warn">
             <span className="flex items-center gap-2">
@@ -171,7 +184,7 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                   {s.atem.inputs.map((i) => (
                     <button
                       key={i.id}
-                      disabled={!canOperate}
+                      disabled={!canOperate || !!s.atemLock}
                       onClick={() => void act(`/api/control/${id}/atem`, { action: "program", input: i.id })}
                       title={i.longName}
                       className={cx("h-10 min-w-12 rounded-md border px-2 text-xs font-semibold transition disabled:cursor-default", program === i.id ? "border-onair bg-onair text-white shadow-md shadow-onair/30" : "border-line bg-surface hover:border-onair/60")}
@@ -185,7 +198,7 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                   {s.atem.inputs.map((i) => (
                     <button
                       key={i.id}
-                      disabled={!canOperate}
+                      disabled={!canOperate || !!s.atemLock}
                       onClick={() => void act(`/api/control/${id}/atem`, { action: "preview", input: i.id })}
                       title={i.longName}
                       className={cx("h-10 min-w-12 rounded-md border px-2 text-xs font-semibold transition disabled:cursor-default", preview === i.id ? "border-ok bg-ok text-white" : "border-line bg-surface hover:border-ok/60")}
@@ -196,10 +209,10 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                 </div>
                 {canOperate && (
                   <div className="flex gap-2">
-                    <Button variant="secondary" icon={<Scissors className="size-4" />} onClick={() => void act(`/api/control/${id}/atem`, { action: "cut" })}>
+                    <Button variant="secondary" disabled={!!s.atemLock} icon={<Scissors className="size-4" />} onClick={() => void act(`/api/control/${id}/atem`, { action: "cut" })}>
                       CUT
                     </Button>
-                    <Button variant="secondary" icon={<Shuffle className="size-4" />} onClick={() => void act(`/api/control/${id}/atem`, { action: "auto" })}>
+                    <Button variant="secondary" disabled={!!s.atemLock} icon={<Shuffle className="size-4" />} onClick={() => void act(`/api/control/${id}/atem`, { action: "auto" })}>
                       AUTO
                     </Button>
                   </div>
