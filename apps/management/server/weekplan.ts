@@ -304,6 +304,24 @@ export class WeekPlanner {
       else this.db.prepare("INSERT INTO week_fills (slot_id, date, block_id, mode, ready, updated_by) VALUES (?, ?, ?, 'manual', ?, ?)").run(occ.slot.id, occ.date, blockId, ready ? 1 : 0, user);
     });
   }
+  /**
+   * Adds items to an occurrence's rundown (drag and drop from the media library). Starts from what is
+   * planned now: the editor's rundown, the automatic pick or a copy of the fixed block. `at` inserts
+   * at that position, otherwise at the end. The ready flag stays as it was.
+   */
+  appendFill(occ: Occurrence, items: Parameters<WeekPlanner["writeItems"]>[1], user: string, at?: number) {
+    const content = this.content(occ, false);
+    const current =
+      content.blockId != null
+        ? (this.db
+            .prepare("SELECT type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, duration_ms AS durationMs, title FROM block_items WHERE block_id = ? ORDER BY position, id")
+            .all(content.blockId) as unknown as Parameters<WeekPlanner["writeItems"]>[1])
+        : [];
+    const pos = at == null ? current.length : Math.max(0, Math.min(current.length, at));
+    const next = [...current.slice(0, pos), ...items, ...current.slice(pos)];
+    this.saveFill(occ, next, content.state === "manual" ? !!content.fill?.ready : false, user);
+    return { added: items.length, total: next.length };
+  }
   resetFill(occ: Occurrence) {
     const f = this.fill(occ.slot.id, occ.date);
     if (f) this.db.prepare("DELETE FROM blocks WHERE id = ?").run(f.block_id); // cascades to the fill
@@ -809,6 +827,15 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
     planner.saveFill(occ, b.items, b.ready, req.user!.username);
     republish(occ.slot.channel_id);
     return { ok: true };
+  });
+  /** Drop media or blocks into the rundown of one date. */
+  app.post("/api/week/occurrences/:id/:date/append", async (req) => {
+    requireRole(req, "editor");
+    const occ = getOcc(req);
+    const b = z.object({ items: z.array(fillItemIn).min(1).max(500), at: z.number().int().min(0).optional() }).parse(req.body);
+    const r = planner.appendFill(occ, b.items, req.user!.username, b.at);
+    republish(occ.slot.channel_id);
+    return { ok: true, ...r };
   });
   /** Back to the slot's own content: the fixed block, or an automatic pick from the category. */
   app.delete("/api/week/occurrences/:id/:date", async (req) => {

@@ -1,10 +1,12 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, PageHeader, Select, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Film, Plus, RotateCcw, Save, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Film, GripVertical, MousePointerClick, Plus, RotateCcw, Save, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { distribute } from "../../server/hourclock";
 import { ChannelTabs } from "../components/ChannelPicker";
+import { indicatorClass, payloadItems, useDrop, useDropList, type DragPayload, type DropItem } from "../components/dnd";
+import { WithMediaBin } from "../components/MediaBin";
 import { MediaPicker } from "../components/MediaPicker";
 import { addDays, errorText, fmtDate, fmtDuration, fmtTime, isoDay, startOfWeek, useCategories, useChannelSelection, useChannels, useGet, type BlockSummary } from "../lib";
 
@@ -87,6 +89,12 @@ const toItem = (i: RawItem): Item => ({
   effectiveDurationMs: i.effectiveDurationMs,
   warning: i.type === "media" ? (i.mediaMissing ? "missing" : i.effectiveDurationMs == null ? "no_duration" : null) : null,
 });
+
+/** A clip or block from the media library as a rundown row. */
+const dropToItem = (d: DropItem): Item =>
+  d.type === "media"
+    ? { type: "media", mediaId: d.mediaId, label: d.media.title || d.media.name, sub: d.media.path, effectiveDurationMs: d.media.durationMs, warning: d.media.durationMs == null ? "no_duration" : null }
+    : { type: "block", childBlockId: d.childBlockId, label: d.block.name, effectiveDurationMs: d.block.durationMs };
 
 const stateTone = { block: "neutral", manual: "brand", auto: "ok", empty: "warn" } as const;
 
@@ -260,11 +268,32 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
   };
   const save = (ready: boolean) =>
     run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, durationMs, title })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
-  const ownFromBlock = async () => {
-    if (!occ?.blockId) return change([]);
-    const b = await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`);
-    change(b.items.map(toItem));
+  const ownFromBlock = async (extra: Item[] = [], at?: number) => {
+    const own = occ?.blockId ? (await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`)).items.map(toItem) : [];
+    const pos = at ?? own.length;
+    change([...own.slice(0, pos), ...extra, ...own.slice(pos)]);
   };
+  /** Library drops: insert at a position, or at the end. A fixed block becomes this date's own rundown first. */
+  const insert = (at: number | null, p: Exclude<DragPayload, { kind: "row" }>) => {
+    if (!canEdit) return;
+    const add = payloadItems(p).map(dropToItem);
+    if (!items) return void ownFromBlock(add, at ?? undefined);
+    const pos = at ?? items.length;
+    change([...items.slice(0, pos), ...add, ...items.slice(pos)]);
+  };
+  const dnd = useDropList({
+    list: "rundown",
+    length: items?.length ?? 0,
+    onInsert: (i, p) => insert(i, p),
+    onMove: (from, to) => {
+      if (!items) return;
+      const n = [...items];
+      const [x] = n.splice(from, 1);
+      n.splice(to, 0, x!);
+      change(n);
+    },
+  });
+  const fixedDrop = useDrop((p) => p.kind !== "row" && insert(null, p));
 
   if (!detail || !occ)
     return (
@@ -319,7 +348,8 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
           {msg.text}
         </Alert>
       )}
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+      <WithMediaBin onAdd={canEdit ? (p) => insert(null, p) : undefined} categoryId={occ.categoryId} hint={t("mgmt.bin.hintRundown")}>
+      <div className="grid gap-6 @4xl:grid-cols-[1fr_360px]">
         <Card className="self-start">
           <CardHeader
             icon={<Clapperboard className="size-4" />}
@@ -349,8 +379,9 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
           />
           <CardBody className="space-y-4">
             {!items ? (
-              <div className="rounded-md border border-dashed border-line px-4 py-8 text-center">
+              <div {...(canEdit ? fixedDrop.props : {})} className={cx("rounded-md border border-dashed px-4 py-8 text-center transition", fixedDrop.over ? "border-brand bg-brand/5" : "border-line")}>
                 <p className="text-sm">{t("mgmt.rundowns.fixedBlock", { name: blocks.data?.blocks.find((b) => b.id === occ.blockId)?.name ?? "" })}</p>
+                {canEdit && <p className="mt-1 text-xs text-muted">{t("mgmt.bin.dropOnFixed")}</p>}
                 {canEdit && (
                   <div className="mt-3 flex justify-center gap-2">
                     <Link to={`/blocks/${occ.blockId}`}>
@@ -390,12 +421,13 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
                     </Select>
                   </div>
                 )}
-                <ol className="divide-y divide-line rounded-md border border-line">
+                <ol {...(canEdit ? dnd.listProps : {})} className={cx("divide-y divide-line rounded-md border transition", dnd.indicator != null ? "border-brand/60" : "border-line")}>
                   {items.map((it, i) => {
                     const at = placedAt.get(i);
                     const out = i >= usedCount;
                     return (
-                      <li key={i} className={cx("flex items-center gap-3 px-3 py-2 text-sm", out && "bg-danger/5")}>
+                      <li key={i} {...(canEdit ? dnd.rowProps(i, it.title || it.label) : {})} className={cx("flex items-center gap-3 px-3 py-2 text-sm", out && "bg-danger/5", canEdit && "cursor-grab active:cursor-grabbing", indicatorClass(dnd.indicator, i, items.length))}>
+                        {canEdit && <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />}
                         <span className={cx("w-12 font-mono text-xs", out ? "text-danger" : "text-muted")}>{at ? fmtTime(at.start) : "—"}</span>
                         <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
                         <span className="min-w-0 flex-1">
@@ -421,7 +453,12 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
                       </li>
                     );
                   })}
-                  {!items.length && <li className="px-3 py-8 text-center text-sm text-muted">{t("mgmt.rundowns.emptyRundown")}</li>}
+                  {!items.length && (
+                    <li className={cx("px-3 py-10 text-center text-sm transition", dnd.indicator != null ? "bg-brand/5 text-brand" : "text-muted")}>
+                      <MousePointerClick className="mx-auto mb-2 size-6" />
+                      {canEdit ? t("mgmt.bin.dropHere") : t("mgmt.rundowns.emptyRundown")}
+                    </li>
+                  )}
                 </ol>
                 <p className="text-xs text-muted">{t("mgmt.rundowns.help")}</p>
                 {dirty && <p className="text-xs text-warn">{t("mgmt.blocks.unsaved")}</p>}
@@ -449,7 +486,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
               const used = pl ? pl.usedMs : (p.usedMs ?? 0);
               let cursor = p.start;
               return (
-                <li key={pi} className="my-2 rounded-lg border border-brand/30 bg-brand/[0.04] p-3">
+                <WindowDrop key={pi} enabled={canEdit} onDrop={(p) => insert(pl ? pl.skip + pl.take : null, p)}>
                   <div className="mb-2 flex items-center gap-2 text-xs">
                     <span className="font-mono font-semibold">
                       {fmtTime(p.startAt)}–{fmtTime(p.endAt)}
@@ -477,7 +514,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
                     {pl && !pl.tooLong && placed.length > 0 && p.end - p.start - used > 60_000 && <li className="text-[11px] text-warn">{t("mgmt.rundowns.gap", { d: fmtDuration(p.end - p.start - used) })}</li>}
                     {pl?.tooLong && <li className="text-[11px] text-danger">{t("mgmt.rundowns.cut")}</li>}
                   </ul>
-                </li>
+                </WindowDrop>
               );
             })}
           </ol>
@@ -486,6 +523,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
           )}
         </Card>
       </div>
+      </WithMediaBin>
       <MediaPicker
         open={picker}
         onClose={() => setPicker(false)}
@@ -493,5 +531,15 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
         onPick={(ms) => change([...(items ?? []), ...ms.map((m) => ({ type: "media" as const, mediaId: m.id, label: m.title || m.name, sub: m.path, effectiveDurationMs: m.durationMs, warning: m.durationMs == null ? "no_duration" : null }))])}
       />
     </>
+  );
+}
+
+/** A programme window in the timeline: dropping a clip here adds it after what already lands in this window. */
+function WindowDrop({ enabled, onDrop, children }: { enabled: boolean; onDrop: (p: Exclude<DragPayload, { kind: "row" }>) => void; children: ReactNode }) {
+  const { over, props } = useDrop((p) => p.kind !== "row" && onDrop(p));
+  return (
+    <li {...(enabled ? props : {})} className={cx("my-2 rounded-lg border p-3 transition", over ? "border-brand bg-brand/10 ring-2 ring-brand/30" : "border-brand/30 bg-brand/[0.04]")}>
+      {children}
+    </li>
   );
 }
