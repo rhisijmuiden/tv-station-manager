@@ -1,5 +1,13 @@
 # Visual Radio
 
+> **Geparkeerd (2026-11-01).** Visual Radio is verschoven naar een latere fase, zodat we ons eerst op de
+> redactionele kern richten. De code staat niet meer in `test`/`production`. Het complete werkende concept
+> (servermodule, pagina, tests, vertalingen) staat op de branch
+> [`parked/visual-radio`](https://github.com/rhisijmuiden/tv-station-manager/tree/parked/visual-radio)
+> (oorspronkelijk PR #22). Terugzetten: haal `apps/management/server/visualradio.ts`, `vrlogic.ts`,
+> `web/pages/VisualRadio.tsx`, `test/visualradio.test.ts`, de `mgmt.vr`-vertalingen en het menu-item van die branch,
+> en voeg de `vr_*`-tabellen toe als NIEUWE migratie achteraan (de oude plek ruimt ze nu op).
+
 Het tv-kanaal volgt de radio: bij elk nummer dat de radio draait speelt de Visual Radio node de bijpassende videoclip
 (zonder geluid, de radiomix is het geluid van het kanaal), en als een microfoon opengaat schakelt de ATEM naar de camera
 van die microfoon. Menu: **Visual Radio** in de management node.

@@ -239,68 +239,12 @@ export const MANAGEMENT_MIGRATIONS = [
      destination_id INTEGER NOT NULL REFERENCES stream_destinations(id) ON DELETE CASCADE,
      PRIMARY KEY (output_id, destination_id)
    );`,
-  // Visual Radio: the TV channel follows the radio (videoclip per song, camera per open microphone).
-  `CREATE TABLE vr_stations (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     name TEXT NOT NULL,
-     enabled INTEGER NOT NULL DEFAULT 0,
-     channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL,
-     studio_id INTEGER REFERENCES studio_nodes(id) ON DELETE SET NULL,
-     caspar_channel INTEGER NOT NULL DEFAULT 1,
-     clip_input INTEGER,
-     wide_input INTEGER,
-     loop_input INTEGER,
-     fallback TEXT NOT NULL DEFAULT 'loop' CHECK (fallback IN ('loop','wide')),
-     transition TEXT NOT NULL DEFAULT 'cut' CHECK (transition IN ('cut','mix')),
-     open_delay_ms INTEGER NOT NULL DEFAULT 250,
-     close_delay_ms INTEGER NOT NULL DEFAULT 1500,
-     min_shot_ms INTEGER NOT NULL DEFAULT 3000,
-     fuzzy_threshold REAL NOT NULL DEFAULT 0.82,
-     clip_source_id INTEGER REFERENCES media_sources(id) ON DELETE SET NULL,
-     clip_folder TEXT NOT NULL DEFAULT '',
-     -- TCP/UDP port that acts as an RDS encoder for playouts that only send song info as RDS text (Zenlex).
-     rds_port INTEGER,
-     token TEXT NOT NULL UNIQUE,
-     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-   );
-   CREATE TABLE vr_mics (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     station_id INTEGER NOT NULL REFERENCES vr_stations(id) ON DELETE CASCADE,
-     key TEXT NOT NULL,
-     name TEXT NOT NULL,
-     atem_input INTEGER NOT NULL,
-     priority INTEGER NOT NULL DEFAULT 0,
-     UNIQUE (station_id, key)
-   );
-   CREATE TABLE vr_clips (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     station_id INTEGER NOT NULL REFERENCES vr_stations(id) ON DELETE CASCADE,
-     media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
-     artist TEXT NOT NULL,
-     title TEXT NOT NULL,
-     song_id TEXT,
-     offset_ms INTEGER NOT NULL DEFAULT 0,
-     enabled INTEGER NOT NULL DEFAULT 1,
-     -- Edited by hand (or imported): a folder scan does not overwrite artist/title.
-     manual INTEGER NOT NULL DEFAULT 0,
-     plays INTEGER NOT NULL DEFAULT 0,
-     last_played_at TEXT,
-     UNIQUE (station_id, media_id)
-   );
-   CREATE INDEX vr_clips_song ON vr_clips(station_id, song_id);
-   -- Songs the radio played without a clip, and the clip an editor linked to one.
-   CREATE TABLE vr_songs (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     station_id INTEGER NOT NULL REFERENCES vr_stations(id) ON DELETE CASCADE,
-     match_key TEXT NOT NULL,
-     artist TEXT NOT NULL,
-     title TEXT NOT NULL,
-     song_id TEXT,
-     clip_id INTEGER REFERENCES vr_clips(id) ON DELETE SET NULL,
-     plays INTEGER NOT NULL DEFAULT 0,
-     last_at TEXT,
-     UNIQUE (station_id, match_key)
-   );`,
+  // Slot of the parked Visual Radio module (branch parked/visual-radio). Migrations are numbered by position,
+  // so this slot stays: it removes the tables on nodes that already created them and does nothing on new ones.
+  `DROP TABLE IF EXISTS vr_songs;
+   DROP TABLE IF EXISTS vr_clips;
+   DROP TABLE IF EXISTS vr_mics;
+   DROP TABLE IF EXISTS vr_stations;`,
   // RSS feeds (WordPress sites or any RSS/Atom feed) and full-screen beeldkranten (news pages) built from their items.
   // block_items gets a 'beeldkrant' type: SQLite cannot change a CHECK constraint, so the table is rebuilt.
   `CREATE TABLE rss_feeds (

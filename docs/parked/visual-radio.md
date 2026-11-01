@@ -1,5 +1,13 @@
 # Visual Radio
 
+> **Parked (2026-11-01).** Visual Radio is moved to a later phase so the team can focus on the core editorial
+> workflow. The code is no longer in `test`/`production`. The complete working concept (server module, UI page,
+> tests, translations) is kept on the branch
+> [`parked/visual-radio`](https://github.com/rhisijmuiden/tv-station-manager/tree/parked/visual-radio)
+> (originally PR #22). To bring it back: restore `apps/management/server/visualradio.ts`, `vrlogic.ts`,
+> `web/pages/VisualRadio.tsx`, `test/visualradio.test.ts`, the `mgmt.vr` translations and the menu entry from that
+> branch, and add the `vr_*` tables as a NEW migration at the end of the list (the old slot now drops them).
+
 The TV channel follows the radio: for every song the radio plays, the Visual Radio node plays the matching videoclip
 (without sound, the radio mix is the channel's audio), and when a microphone opens the ATEM switches to that
 microphone's camera. Menu: **Visual Radio** in the management node.
