@@ -134,4 +134,35 @@ export const MANAGEMENT_MIGRATIONS = [
    ALTER TABLE studio_nodes ADD COLUMN ingest_api_port INTEGER NOT NULL DEFAULT 9997;
    ALTER TABLE live_sources ADD COLUMN stream_key TEXT;
    CREATE UNIQUE INDEX live_sources_stream_key ON live_sources(stream_key);`,
+  // Stream output: CasparCG channels or remote sources streamed over RTMP(S) to stream servers / social platforms.
+  `CREATE TABLE stream_destinations (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     platform TEXT NOT NULL DEFAULT 'custom' CHECK (platform IN ('custom','youtube','facebook','twitch')),
+     url TEXT NOT NULL,
+     stream_key TEXT NOT NULL DEFAULT '',
+     enabled INTEGER NOT NULL DEFAULT 1,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE TABLE stream_outputs (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     source TEXT NOT NULL CHECK (source IN ('channel','remote')),
+     studio_id INTEGER REFERENCES studio_nodes(id) ON DELETE SET NULL,
+     caspar_channel INTEGER,
+     live_source_id INTEGER REFERENCES live_sources(id) ON DELETE SET NULL,
+     encoder TEXT NOT NULL DEFAULT 'x264' CHECK (encoder IN ('x264','nvenc')),
+     video_kbps INTEGER NOT NULL DEFAULT 4500,
+     audio_kbps INTEGER NOT NULL DEFAULT 160,
+     resolution TEXT NOT NULL DEFAULT 'source' CHECK (resolution IN ('source','720p')),
+     deinterlace INTEGER NOT NULL DEFAULT 1,
+     extra_args TEXT NOT NULL DEFAULT '',
+     active INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE TABLE stream_output_destinations (
+     output_id INTEGER NOT NULL REFERENCES stream_outputs(id) ON DELETE CASCADE,
+     destination_id INTEGER NOT NULL REFERENCES stream_destinations(id) ON DELETE CASCADE,
+     PRIMARY KEY (output_id, destination_id)
+   );`,
 ];

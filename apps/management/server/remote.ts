@@ -154,18 +154,35 @@ export class RemoteSources {
   auth(r: IngestAuthRequest): boolean {
     switch (r.action) {
       case "publish": {
+        // Stream output encoder: CasparCG on the studio node itself publishes the channel for the relays.
+        const out = /^program\/out-(\d+)$/.exec(r.path ?? "")?.[1];
+        if (out) return isLoopback(r.ip) && !!this.platform.ctx.db.prepare("SELECT id FROM stream_outputs WHERE id = ? AND source = 'channel'").get(Number(out));
         const key = /^live\/([A-Za-z0-9_-]{8,80})$/.exec(r.path ?? "")?.[1];
         if (!key) return false;
         return !!this.platform.ctx.db.prepare("SELECT id FROM live_sources WHERE kind = 'rtmp' AND stream_key = ?").get(key);
       }
       case "read":
-        // CasparCG and the agent on the studio node itself. Nobody else may pull streams from the node.
-        return isLoopback(r.ip);
+        // CasparCG and the agent on the studio node itself, and this management node (stream output relays).
+        return isLoopback(r.ip) || this.isManagement(r);
       case "api":
-        return isLoopback(r.ip) || (r.user === INGEST_API_USER && !!r.password && sameSecret(r.password, this.apiToken()));
+        return isLoopback(r.ip) || this.isManagement(r);
       default:
         return false;
     }
+  }
+
+  private isManagement(r: IngestAuthRequest) {
+    return r.user === INGEST_API_USER && !!r.password && sameSecret(r.password, this.apiToken());
+  }
+
+  /** Called after every ingest poll (stream outputs reconcile their relays). */
+  afterPoll: (() => Promise<void>)[] = [];
+
+  /** State of a path on a studio node's ingest server; null when that server could not be asked. */
+  pathStatus(studioId: number | null | undefined, path: string): IngestPath | null | undefined {
+    const s = studioId == null ? undefined : this.studios.get(studioId);
+    if (!s?.reachable) return null;
+    return s.paths.get(path);
   }
 
   private studioRows() {
@@ -200,6 +217,7 @@ export class RemoteSources {
         }),
       );
       await this.reconcile();
+      for (const f of this.afterPoll) await f().catch((e) => this.platform.ctx.log.warn({ err: (e as Error).message }, "after ingest poll"));
     } finally {
       this.polling = false;
     }

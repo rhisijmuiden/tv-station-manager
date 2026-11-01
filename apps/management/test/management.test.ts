@@ -10,6 +10,7 @@ import type { DriverFactory, PlayoutDriver, SwitcherDriver, SwitcherInfo } from 
 import { guessCategory, parseProbe, parseSmbListing } from "../server/media.ts";
 import { compile, expandBlock, BlockCycleError, casparClip, type Loader } from "../server/timeline.ts";
 import { toXmltv } from "../server/epg.ts";
+import { destinationUrl, encoderArgs, maskedUrl } from "../server/outputs.ts";
 
 // ---- pure logic ---------------------------------------------------------------
 
@@ -147,6 +148,12 @@ class FakePlayout extends EventEmitter implements PlayoutDriver {
     this.calls.push(`cgupdate ${ch}-${layer}`);
   }
   async cgStop() {}
+  async addConsumer(ch: number, index: number, consumer: string, params: string) {
+    this.calls.push(`add ${ch}-${index} ${consumer} ${params}`);
+  }
+  async removeConsumer(ch: number, index: number) {
+    this.calls.push(`remove ${ch}-${index}`);
+  }
   async close() {}
 }
 
@@ -385,4 +392,143 @@ test("subtitles: parse srt/vtt, match sidecar files, decode windows-1252", async
   assert.equal(decodeText(Buffer.from("café", "utf8")), "café");
   const listing = parseSmbListing("\\TV\r\n  Show.mp4    A 10  Fri Oct 30 09:15:42 2026\r\n  Show.srt    A 2  Fri Oct 30 09:15:42 2026\r\n", "TV");
   assert.deepEqual(listing.map((f) => f.path), ["Show.mp4", "Show.srt"]);
+});
+
+// ---- stream output ------------------------------------------------------------------
+
+test("stream output: encoder args and destination urls", () => {
+  const a = encoderArgs({ encoder: "x264", video_kbps: 4500, audio_kbps: 160, resolution: "720p", deinterlace: 1, extra_args: "" });
+  assert.equal(a, "-format flv -filter:v yadif=0:-1:0,scale=1280:720,format=yuv420p -codec:v libx264 -preset:v veryfast -tune:v zerolatency -b:v 4500k -maxrate:v 4500k -bufsize:v 9000k -g:v 50 -codec:a aac -b:a 160k");
+  assert.match(encoderArgs({ encoder: "nvenc", video_kbps: 6000, audio_kbps: 128, resolution: "source", deinterlace: 0, extra_args: "-profile:v high" }), /^-format flv -filter:v format=yuv420p -codec:v h264_nvenc .* -profile:v high$/);
+  assert.equal(destinationUrl({ platform: "youtube", url: "", stream_key: "abcd-1234" }), "rtmp://a.rtmp.youtube.com/live2/abcd-1234");
+  assert.equal(destinationUrl({ platform: "custom", url: "rtmp://stream.example.org/live/", stream_key: "" }), "rtmp://stream.example.org/live");
+  assert.equal(maskedUrl({ platform: "facebook", url: "", stream_key: "FB-1234567890" }), "rtmps://live-api-s.facebook.com:443/rtmp/••••7890");
+});
+
+class FakeProc extends EventEmitter {
+  stdout = new EventEmitter();
+  stderr = new EventEmitter();
+  exitCode: number | null = null;
+  killed = false;
+  constructor(public args: string[]) {
+    super();
+  }
+  kill() {
+    this.killed = true;
+    this.exitCode = 0;
+    this.emit("exit", 0);
+    return true;
+  }
+}
+
+test("stream output: channel encoder on CasparCG, one relay per destination, remote sources forwarded as is", async () => {
+  const studioId = (await api("GET", "/api/studios")).body.studios[0].id;
+  const procs: FakeProc[] = [];
+  h.outputs.spawner = ((_cmd: string, args: string[]) => {
+    const pr = new FakeProc(args);
+    procs.push(pr);
+    return pr;
+  }) as never;
+  let paths: object[] = [];
+  h.remote.fetcher = (async () => new Response(JSON.stringify({ items: paths }), { headers: { "content-type": "application/json" } })) as never;
+
+  // Destinations: the key is never sent back to the browser.
+  const yt = await api("POST", "/api/stream-destinations", { name: "YouTube", platform: "youtube", streamKey: "yt-secret-key-9876" });
+  assert.equal(yt.status, 200);
+  const own = await api("POST", "/api/stream-destinations", { name: "Website", platform: "custom", url: "rtmp://stream.example.org/live/tv" });
+  assert.equal((await api("POST", "/api/stream-destinations", { name: "Bad", platform: "custom" })).status, 400);
+  let list = (await api("GET", "/api/stream-outputs")).body;
+  assert.ok(!JSON.stringify(list).includes("yt-secret-key-9876"));
+  assert.equal(list.destinations.find((d: { id: number }) => d.id === yt.body.id).masked, "rtmp://a.rtmp.youtube.com/live2/••••9876");
+  // Updating without a key keeps it.
+  assert.equal((await api("PUT", `/api/stream-destinations/${yt.body.id}`, { name: "YouTube kanaal", platform: "youtube" })).status, 200);
+
+  const add = await api("POST", "/api/stream-outputs", { name: "Website stream", source: "channel", studioId, casparChannel: 1, destinationIds: [yt.body.id, own.body.id], extraArgs: "" });
+  assert.equal(add.status, 200);
+  assert.equal((await api("POST", "/api/stream-outputs", { name: "x", source: "channel", studioId, casparChannel: 1, extraArgs: "-x \"; rm" })).status, 400);
+  const oid = add.body.id as number;
+  const path = `program/out-${oid}`;
+
+  // Only CasparCG on the studio node itself may publish the programme stream.
+  const auth = (b: object) => api("POST", "/ingest/auth", b).then((r) => r.status);
+  assert.equal(await auth({ action: "publish", path, ip: "127.0.0.1" }), 200);
+  assert.equal(await auth({ action: "publish", path, ip: "203.0.113.9" }), 401);
+  assert.equal(await auth({ action: "publish", path: "program/out-9999", ip: "127.0.0.1" }), 401);
+  assert.equal(await auth({ action: "read", path, ip: "10.40.6.202", user: "tvsm-management", password: h.remote.apiToken() }), 200);
+  assert.equal(await auth({ action: "read", path, ip: "10.40.6.202", user: "tvsm-management", password: "wrong" }), 401);
+
+  // Start: CasparCG gets the encoder; the relays wait until the stream shows up on the ingest server.
+  po.calls.length = 0;
+  assert.equal((await api("POST", `/api/stream-outputs/${oid}/active`, { on: true })).status, 200);
+  await h.remote.poll();
+  const idx = 700 + oid;
+  assert.equal(po.calls[0], `remove 1-${idx}`);
+  assert.equal(po.calls[1], `add 1-${idx} STREAM rtmp://127.0.0.1:1935/${path} ${encoderArgs({ encoder: "x264", video_kbps: 4500, audio_kbps: 160, resolution: "source", deinterlace: 1, extra_args: "" })}`);
+  let o = (await api("GET", "/api/stream-outputs")).body.outputs.find((x: { id: number }) => x.id === oid);
+  assert.equal(o.status.state, "waiting");
+  assert.equal(o.status.reason, "encoder_starting");
+  assert.equal(procs.length, 0);
+
+  paths = [{ name: path, online: true, onlineTime: "2026-11-01T21:00:00Z", tracks2: [{ codec: "H264" }], readers: [], inboundBytes: 1 }];
+  await h.remote.poll();
+  assert.equal(procs.length, 2);
+  const src = `rtmp://10.40.6.60:1935/${path}?user=tvsm-management&pass=${h.remote.apiToken()}`;
+  assert.ok(procs.every((x) => x.args[x.args.indexOf("-i") + 1] === src));
+  assert.deepEqual(procs.map((x) => x.args.at(-1)).sort(), ["rtmp://a.rtmp.youtube.com/live2/yt-secret-key-9876", "rtmp://stream.example.org/live/tv"]);
+  assert.ok(procs[0]!.args.includes("copy"));
+  await h.remote.poll();
+  assert.equal(procs.length, 2, "no second relay while one runs");
+  assert.equal(po.calls.filter((c) => c.startsWith("add ")).length, 1);
+
+  procs[0]!.stdout.emit("data", Buffer.from("bitrate=4512.3kbits/s\ntotal_size=10240\nprogress=continue\n"));
+  procs[1]!.stdout.emit("data", Buffer.from("total_size=2048\n"));
+  o = (await api("GET", "/api/stream-outputs")).body.outputs.find((x: { id: number }) => x.id === oid);
+  assert.equal(o.status.state, "live");
+  assert.ok(o.status.destinations.some((d: { kbps: number | null }) => d.kbps === 4512));
+
+  // A failing destination retries with the error shown, without the stream key; the other keeps running.
+  const ytProc = procs.find((x) => x.args.at(-1)!.includes("youtube"))!;
+  ytProc.stderr.emit("data", Buffer.from("rtmp://a.rtmp.youtube.com/live2/yt-secret-key-9876: Input/output error\n"));
+  ytProc.exitCode = 1;
+  ytProc.emit("exit", 1);
+  o = (await api("GET", "/api/stream-outputs")).body.outputs.find((x: { id: number }) => x.id === oid);
+  const ytState = o.status.destinations.find((d: { id: number }) => d.id === yt.body.id);
+  assert.equal(ytState.state, "retrying");
+  assert.match(ytState.error, /Input\/output error/);
+  assert.ok(!ytState.error.includes("yt-secret-key-9876"));
+  await h.remote.poll();
+  assert.equal(procs.length, 2, "waits before retrying");
+
+  // CasparCG restarted: the encoder is added again.
+  po.session++;
+  po.calls.length = 0;
+  await h.remote.poll();
+  assert.deepEqual(po.calls.map((c) => c.split(" ")[0]), ["add"]);
+
+  // Stop: relays end and the encoder is removed from CasparCG.
+  po.calls.length = 0;
+  await api("POST", `/api/stream-outputs/${oid}/active`, { on: false });
+  assert.ok(procs.every((x) => x.exitCode !== null));
+  assert.deepEqual(po.calls, [`remove 1-${idx}`]);
+  assert.equal((await api("GET", "/api/stream-outputs")).body.outputs.find((x: { id: number }) => x.id === oid).status.state, "off");
+
+  // A live event (remote source) is forwarded as it comes in, as soon as the contributor starts.
+  const live = await api("POST", "/api/live-sources", { name: "Event", kind: "rtmp", atemInput: 3, studioId, casparChannel: 1 });
+  const key = (await api("GET", "/api/live-sources")).body.sources.find((x: { id: number }) => x.id === live.body.id).push.streamKey;
+  const ev = await api("POST", "/api/stream-outputs", { name: "Event to YouTube", source: "remote", liveSourceId: live.body.id, destinationIds: [yt.body.id] });
+  assert.equal(ev.status, 200);
+  paths = [];
+  await h.remote.poll();
+  await api("POST", `/api/stream-outputs/${ev.body.id}/active`, { on: true });
+  o = (await api("GET", "/api/stream-outputs")).body.outputs.find((x: { id: number }) => x.id === ev.body.id);
+  assert.equal(o.status.reason, "waiting_for_stream");
+  const before = procs.length;
+  po.calls.length = 0;
+  paths = [{ name: `live/${key}`, online: true, onlineTime: "2026-11-01T21:30:00Z", tracks2: [], readers: [], inboundBytes: 5 }];
+  await h.remote.poll();
+  assert.equal(procs.length, before + 1);
+  assert.equal(procs.at(-1)!.args[procs.at(-1)!.args.indexOf("-i") + 1], `rtmp://10.40.6.60:1935/live/${key}?user=tvsm-management&pass=${h.remote.apiToken()}`);
+  assert.ok(!po.calls.some((c) => c.startsWith("add ")), "no encoder for a remote source");
+  assert.equal((await api("DELETE", `/api/stream-outputs/${ev.body.id}`)).status, 200);
+  assert.ok(procs.at(-1)!.exitCode !== null);
 });
