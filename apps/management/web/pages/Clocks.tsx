@@ -1,10 +1,12 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowUp, Clock3, Copy, Film, Plus, Save, Trash2, Tv, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, Clock3, Copy, Film, GripVertical, Plus, Save, Trash2, Tv, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { layoutClock } from "../../server/hourclock";
 import { ClockRing } from "../components/ClockRing";
+import { indicatorClass, useDrop, useDropList, type DragPayload } from "../components/dnd";
+import { WithMediaBin } from "../components/MediaBin";
 import { errorText, fmtDuration, parseDuration, useGet, type BlockSummary, type ClockItem, type HourClock } from "../lib";
 import { ColorPicker } from "./Categories";
 
@@ -12,7 +14,7 @@ const PROGRAM_COLOR = "var(--color-brand)";
 /** Minute and second within the hour: 330000 -> "05:30" */
 const mmss = (ms: number) => `${String(Math.floor(ms / 60_000)).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 
-function ClockEditor({ id, onSaved }: { id: number | "new"; onSaved: () => void }) {
+function ClockEditor({ id, onSaved, onInsertRef }: { id: number | "new"; onSaved: () => void; onInsertRef?: { current: ((p: Exclude<DragPayload, { kind: "row" }>) => void) | null } }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const blocks = useGet<{ blocks: BlockSummary[] }>("/api/blocks");
@@ -58,6 +60,33 @@ function ClockEditor({ id, onSaved }: { id: number | "new"; onSaved: () => void 
     n.splice(i + d, 0, x!);
     change(n);
   };
+
+  /** Library drops: a block goes in as a fixed part; clips become a block first (the same clip reuses its block). */
+  const insert = async (at: number | null, p: Exclude<DragPayload, { kind: "row" }>) => {
+    setMsg(null);
+    try {
+      let blockId: number;
+      if (p.kind === "block") blockId = p.block.id;
+      else {
+        const r = await post<{ id: number; created: boolean }>("/api/blocks/from-media", { mediaIds: p.media.map((m) => m.id) });
+        blockId = r.id;
+        await blocks.reload();
+        if (r.created) setMsg({ tone: "ok", text: t("mgmt.bin.blockCreated") });
+      }
+      setItems((cur) => {
+        const pos = at ?? cur.length;
+        return [...cur.slice(0, pos), { kind: "block", blockId, durationMs: null, title: null }, ...cur.slice(pos)];
+      });
+      setDirty(true);
+    } catch (e) {
+      setMsg({ tone: "danger", text: errorText(t, e) });
+    }
+  };
+  const dnd = useDropList({ list: "clock", length: items.length, onInsert: (i, p) => void insert(i, p), onMove: (from, to) => move(from, to - from) });
+  const ringDrop = useDrop((p) => p.kind !== "row" && void insert(null, p));
+  useEffect(() => {
+    if (onInsertRef) onInsertRef.current = (p) => void insert(null, p);
+  });
 
   const save = async () => {
     setMsg(null);
@@ -115,7 +144,7 @@ function ClockEditor({ id, onSaved }: { id: number | "new"; onSaved: () => void 
           </Alert>
         )}
         <div className="flex flex-col gap-6 md:flex-row md:items-start">
-          <div className="flex flex-col items-center gap-3">
+          <div {...ringDrop.props} className={cx("flex flex-col items-center gap-3 rounded-full p-1 transition", ringDrop.over && "bg-brand/10 ring-2 ring-brand/40")}>
             <ClockRing layout={layout} colors={segColor} size={200} highlight={hover} />
             {usage > 0 && <Badge tone="brand">{t("mgmt.clocks.usedBy", { n: usage })}</Badge>}
           </div>
@@ -138,18 +167,25 @@ function ClockEditor({ id, onSaved }: { id: number | "new"; onSaved: () => void 
               {t("mgmt.clocks.addProgram")}
             </Button>
           </div>
-          <ol className="divide-y divide-line rounded-md border border-line">
+          <ol {...dnd.listProps} className={cx("divide-y divide-line rounded-md border transition", dnd.indicator != null ? "border-brand/60" : "border-line")}>
             {items.map((it, i) => {
               const seg = layout.segments[i];
               const b = it.blockId ? byId.get(it.blockId) : undefined;
               return (
-                <li key={i} className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5 text-sm transition", hover === i && "bg-surface-2/60")} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+                <li
+                  key={i}
+                  {...dnd.rowProps(i, it.kind === "program" ? t("mgmt.clocks.program") : (b?.name ?? ""))}
+                  className={cx("flex cursor-grab flex-wrap items-center gap-3 px-3 py-2.5 text-sm transition active:cursor-grabbing", hover === i && "bg-surface-2/60", indicatorClass(dnd.indicator, i, items.length))}
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
                   <span className="w-12 font-mono text-xs text-muted">{mmss(seg?.offsetMs ?? 0)}</span>
                   <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.kind === "program" ? "bg-brand/10 text-brand" : "text-white")} style={it.kind === "block" ? { background: b?.color ?? "#64748B" } : undefined}>
                     {it.kind === "program" ? <Tv className="size-3.5" /> : <Film className="size-3.5" />}
                   </span>
                   {it.kind === "block" ? (
-                    <Select className="h-8 min-w-48 flex-1 text-[13px]" value={it.blockId ?? ""} onChange={(e) => patch(i, { blockId: Number(e.target.value) || null })}>
+                    <Select className="h-8 min-w-36 flex-1 text-[13px]" value={it.blockId ?? ""} onChange={(e) => patch(i, { blockId: Number(e.target.value) || null })}>
                       <option value="">{t("mgmt.clocks.chooseBlock")}</option>
                       {sortedBlocks.map((x) => (
                         <option key={x.id} value={x.id}>
@@ -159,7 +195,7 @@ function ClockEditor({ id, onSaved }: { id: number | "new"; onSaved: () => void 
                       ))}
                     </Select>
                   ) : (
-                    <span className="min-w-48 flex-1">
+                    <span className="min-w-36 flex-1">
                       <span className="block font-medium">{t("mgmt.clocks.program")}</span>
                       <span className="block text-xs text-muted">{t("mgmt.clocks.programHint")}</span>
                     </span>
@@ -205,9 +241,9 @@ function ClockEditor({ id, onSaved }: { id: number | "new"; onSaved: () => void 
                 </li>
               );
             })}
-            {!items.length && <li className="px-3 py-8 text-center text-sm text-muted">{t("mgmt.clocks.empty")}</li>}
+            {!items.length && <li className={cx("px-3 py-8 text-center text-sm", dnd.indicator != null ? "bg-brand/5 text-brand" : "text-muted")}>{t("mgmt.clocks.empty")}</li>}
           </ol>
-          <p className="mt-2 text-xs text-muted">{t("mgmt.clocks.help")}</p>
+          <p className="mt-2 text-xs text-muted">{t("mgmt.clocks.help")} {t("mgmt.bin.hintClock")}</p>
           {dirty && <p className="mt-1 text-xs text-warn">{t("mgmt.blocks.unsaved")}</p>}
         </div>
       </CardBody>
@@ -222,6 +258,8 @@ export function ClocksPage() {
   const canEdit = roleAtLeast(user?.role, "editor");
   const list = useGet<{ clocks: HourClock[] }>("/api/clocks");
   const sel = params.id === "new" ? "new" : params.id ? Number(params.id) : null;
+  const insertRef = useRef<((p: Exclude<DragPayload, { kind: "row" }>) => void) | null>(null);
+  const editing = sel != null && canEdit;
   return (
     <>
       <PageHeader
@@ -235,9 +273,10 @@ export function ClocksPage() {
           )
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <WithMediaBin onAdd={editing ? (p) => insertRef.current?.(p) : undefined} hint={editing ? t("mgmt.bin.hintClock") : t("mgmt.bin.hintClockSelect")}>
+      <div className="grid gap-6 @4xl:grid-cols-[240px_1fr]">
         <Card className="self-start">
-          <ul className="max-h-[70vh] divide-y divide-line overflow-y-auto">
+          <ul className="max-h-[40vh] divide-y divide-line overflow-y-auto @4xl:max-h-[70vh]">
             {list.data?.clocks.map((c) => (
               <li key={c.id}>
                 <Link to={`/clocks/${c.id}`} className={cx("flex items-center gap-3 px-4 py-3 transition", sel === c.id ? "bg-brand/8" : "hover:bg-surface-2/60")}>
@@ -254,7 +293,7 @@ export function ClocksPage() {
           </ul>
         </Card>
         {sel != null && canEdit ? (
-          <ClockEditor id={sel} onSaved={() => void list.reload()} />
+          <ClockEditor id={sel} onSaved={() => void list.reload()} onInsertRef={insertRef} />
         ) : (
           <Card>
             <CardBody className="py-16 text-center text-muted">
@@ -264,6 +303,7 @@ export function ClocksPage() {
           </Card>
         )}
       </div>
+      </WithMediaBin>
     </>
   );
 }

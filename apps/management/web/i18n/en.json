@@ -766,6 +766,42 @@
         },
         "network": "The management node needs outbound access to the destinations (TCP 1935 for RTMP, 443 for RTMPS/Facebook) and to TCP 1935 on the studio node. The upload of your internet line must carry the bitrate once per destination."
       }
+    },
+    "bin": {
+      "title": "Media library",
+      "open": "Show media library",
+      "close": "Hide media library",
+      "dragHint": "Drag clips into the clock, week or rundown",
+      "tab_media": "Clips",
+      "tab_blocks": "Blocks",
+      "folder": "Folder",
+      "select": "Select",
+      "clear": "Clear",
+      "clips": "{{n}} clips",
+      "selection": "{{n}} selected · {{d}}",
+      "items": "{{n}} items",
+      "kind_program": "Programme block",
+      "kind_commercial": "Ad break",
+      "more": "Showing {{n}} of {{total}}. Search or pick a folder to narrow it down.",
+      "dropHere": "Drag clips from the media library here, or use Add media.",
+      "dropOnFixed": "Drop clips here to make an own rundown for this date with the block plus your clips.",
+      "dropOnSlot": "Add to this slot",
+      "newSlot": "new slot",
+      "hintRundown": "Drop between rows to insert, or on a programme window in the timeline. Drag rows to reorder.",
+      "hintClock": "Drop a clip or block on the clock (or between rows) to add a fixed part. Drag rows to reorder.",
+      "hintClockSelect": "Open an hour clock to drag clips into it.",
+      "hintBlock": "Drop clips or blocks between the rows. Drag rows to reorder.",
+      "hintBlockSelect": "Open a block to drag clips into it.",
+      "hintWeek": "Drop on a slot to add to the rundown of a date; drop on an empty spot to plan a new slot with it.",
+      "blockCreated": "The clip is now a block, so it can be part of the hour clock. Save the clock to keep it.",
+      "blockNotAllowed": "That block cannot go in here.",
+      "whichDate": "Add “{{what}}” to which broadcast?",
+      "whichDateHint": "{{title}} repeats every week. Choose the date ({{d}} is added at the end of its rundown).",
+      "becomesOwn": "Fixed block: this date gets its own rundown with the block plus the new clips.",
+      "noRoom": "Only {{d}} left; what does not fit moves to the next window or is left out.",
+      "noDates": "No upcoming dates for this slot.",
+      "added": "“{{what}}” added to the rundown of {{date}}.",
+      "openRundown": "Open the rundown"
     }
   }
 }

@@ -205,7 +205,8 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
           </div>
         )}
         <main key={location.pathname} className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8">{children}</div>
+          {/* Pages with a docked side panel (data-wide-page) get more room. */}
+          <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 has-[[data-wide-page]]:max-w-[112rem]">{children}</div>
         </main>
       </div>
       <InfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} logo={logoMark} />

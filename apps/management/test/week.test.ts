@@ -264,6 +264,37 @@ test("week schedule: hour clock, category slot, editor rundown, publish to sched
   assert.equal((await api("DELETE", `/api/week/occurrences/${slotId}/${date}`)).status, 200);
   assert.equal((await api("GET", `/api/week/occurrences/${slotId}/${date}`)).body.occurrence.state, "auto");
 
+  // Drag and drop: media dropped on a date is added to what is planned (here the automatic pick).
+  const before = (await api("GET", `/api/week/occurrences/${slotId}/${date}`)).body.items.length as number;
+  const dropped = await api("POST", `/api/week/occurrences/${slotId}/${date}/append`, { items: [{ type: "media", mediaId: id("news") }], at: 0 });
+  assert.equal(dropped.status, 200);
+  assert.equal(dropped.body.total, before + 1);
+  const afterDrop = (await api("GET", `/api/week/occurrences/${slotId}/${date}`)).body;
+  assert.equal(afterDrop.occurrence.state, "manual");
+  assert.equal(afterDrop.items[0].mediaId, id("news"));
+  // Dropped at the end, keeps the order of what was there.
+  await api("POST", `/api/week/occurrences/${slotId}/${date}/append`, { items: [{ type: "block", childBlockId: ident }] });
+  const items2 = (await api("GET", `/api/week/occurrences/${slotId}/${date}`)).body.items as { type: string; mediaId: number | null; childBlockId: number | null }[];
+  assert.equal(items2.length, before + 2);
+  assert.equal(items2.at(-1)!.childBlockId, ident);
+  assert.equal((await api("POST", `/api/week/occurrences/${slotId}/${date}/append`, { items: [] })).status, 400);
+  await api("DELETE", `/api/week/occurrences/${slotId}/${date}`);
+
+  // A clip dropped on an hour clock becomes a block; the same clip again reuses it.
+  const fm = await api("POST", "/api/blocks/from-media", { mediaIds: [id("ident")] });
+  assert.equal(fm.status, 200);
+  assert.equal(fm.body.created, true);
+  assert.equal((await api("POST", "/api/blocks/from-media", { mediaIds: [id("ident")] })).body.id, fm.body.id);
+  const fmBlock = (await api("GET", `/api/blocks/${fm.body.id}`)).body;
+  assert.equal(fmBlock.block.name, "ident");
+  assert.equal(fmBlock.block.durationMs, 30_000);
+  const multi = (await api("POST", "/api/blocks/from-media", { mediaIds: [id("a"), id("b")] })).body;
+  assert.equal(multi.created, true);
+  const mb = (await api("GET", `/api/blocks/${multi.id}`)).body;
+  assert.equal(mb.block.name, "a +1");
+  assert.equal(mb.block.categoryId, sport);
+  assert.equal((await api("POST", "/api/blocks/from-media", { mediaIds: [999999] })).status, 404);
+
   // Switching the week schedule off removes the generated entries.
   await api("PUT", `/api/week/channels/${ch}`, { weekEnabled: false, clockId: clock.body.id });
   assert.deepEqual((await sched()).map((e) => e.programTitle), ["Live match"]);
