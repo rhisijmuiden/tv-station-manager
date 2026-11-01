@@ -8,6 +8,15 @@ $ErrorActionPreference = "Stop"
 $data = Join-Path $env:ProgramData "TVSM\studio"
 $cfg = Get-Content (Join-Path $data "studio.json") -Raw | ConvertFrom-Json
 
+# Native commands (net.exe) write to stderr when e.g. a connection does not exist; with
+# $ErrorActionPreference = "Stop" Windows PowerShell 5.1 turns that into a terminating error. Run them with
+# "Continue" and let the caller check $LASTEXITCODE.
+function Invoke-Native([string]$exe, [string[]]$arguments) {
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try { & $exe @arguments 2>&1 | Out-Null } finally { $ErrorActionPreference = $prev }
+}
+
 function Connect-Share {
   $credFile = Join-Path $data "smb.cred"
   if (-not $cfg.mediaPath -or -not $cfg.mediaPath.StartsWith("\\") -or -not (Test-Path $credFile)) { return }
@@ -18,8 +27,8 @@ function Connect-Share {
   # \\host\share\sub\dir -> \\host\share
   $root = ($cfg.mediaPath.TrimEnd("\") -split "\\" | Select-Object -First 4) -join "\"
   for ($i = 1; $i -le 10; $i++) {
-    net use $root /delete /y 2>$null | Out-Null
-    net use $root $pw /user:$($c.username) /persistent:no 2>&1 | Out-Null
+    Invoke-Native net @("use", $root, "/delete", "/y")
+    Invoke-Native net @("use", $root, $pw, "/user:$($c.username)", "/persistent:no")
     if ($LASTEXITCODE -eq 0 -and (Test-Path $cfg.mediaPath)) { Write-Host "Media share $root connected"; return }
     Write-Host "Media share $root not reachable yet (attempt $i), retrying"
     Start-Sleep -Seconds ([Math]::Min(30, 3 * $i))

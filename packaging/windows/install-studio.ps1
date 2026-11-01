@@ -49,6 +49,14 @@ $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw "Run this script in an elevated (Administrator) PowerShell." }
 if (-not [Environment]::Is64BitOperatingSystem) { throw "64-bit Windows is required." }
 
+# Native commands (net.exe) write to stderr when e.g. a connection does not exist; with
+# $ErrorActionPreference = "Stop" Windows PowerShell 5.1 turns that into a terminating error. Run them with
+# "Continue" and let the caller check $LASTEXITCODE.
+function Invoke-Native([string]$exe, [string[]]$arguments) {
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try { & $exe @arguments 2>&1 | Out-Null } finally { $ErrorActionPreference = $prev }
+}
 function Step($m) { Write-Host ""; Write-Host "==> $m" -ForegroundColor Cyan }
 function Warn($m) { Write-Host "WARNING: $m" -ForegroundColor Yellow }
 $headers = @{ "User-Agent" = "tvsm-studio-installer" }
@@ -92,7 +100,7 @@ function Get-Verified($asset, [string]$expected) {
 function Install-WinSW([string]$dir, [string]$id, [string]$xml) {
   $exe = Join-Path $dir "$id-service.exe"
   if (Get-Service $id -ErrorAction SilentlyContinue) {
-    & $exe stop 2>$null | Out-Null
+    Invoke-Native $exe @("stop")
     # CasparCG can take a while to release the DeckLink; WinSW keeps its exe locked until the service has stopped.
     try { (Get-Service $id).WaitForStatus("Stopped", [TimeSpan]::FromSeconds(60)) } catch { Warn "$id did not stop within 60 seconds" }
     for ($i = 0; $i -lt 20 -and (Get-Process | Where-Object { $_.Path -eq $exe }); $i++) { Start-Sleep 1 }
@@ -218,10 +226,10 @@ if ($MediaPath.StartsWith("\\") -and $SmbUser) {
   $enc = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($plain), $null, "LocalMachine")
   Write-Utf8 (Join-Path $data "smb.cred") (@{ username = $SmbUser; password = [Convert]::ToBase64String($enc) } | ConvertTo-Json)
   $root = ($MediaPath.TrimEnd("\") -split "\\" | Select-Object -First 4) -join "\"
-  net use $root /delete /y 2>$null | Out-Null
-  net use $root $plain /user:$SmbUser /persistent:no 2>&1 | Out-Null
+  Invoke-Native net @("use", $root, "/delete", "/y")
+  Invoke-Native net @("use", $root, $plain, "/user:$SmbUser", "/persistent:no")
   if ($LASTEXITCODE -eq 0 -and (Test-Path $MediaPath)) { Write-Host "Media share reachable" } else { Warn "Could not open $MediaPath with these credentials. CasparCG retries at every start." }
-  net use $root /delete /y 2>$null | Out-Null
+  Invoke-Native net @("use", $root, "/delete", "/y")
   $plain = $null
 }
 
