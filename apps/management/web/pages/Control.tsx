@@ -8,7 +8,7 @@ import { errorText, fmtDuration, fmtTime, useGet, type AtemStatus, type Channel,
 
 interface Ev {
   key: string;
-  type: "media" | "live" | "filler";
+  type: "media" | "live" | "beeldkrant" | "filler";
   title: string;
   programTitle: string;
   startAt: string;
@@ -151,6 +151,7 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                   <span className={cx("min-w-0 flex-1 truncate", e.type === "filler" && "text-muted italic")}>{evLabel(e)}</span>
                   {e.warning && <AlertTriangle className="size-4 text-warn" aria-label={t(`mgmt.warnings.${e.warning}`)} />}
                   {e.type === "live" && <Badge tone="brand">{t("mgmt.blocks.types.live")}</Badge>}
+                  {e.type === "beeldkrant" && <Badge tone="ok">{t("mgmt.blocks.types.beeldkrant")}</Badge>}
                   {e.blockKind === "commercial" && <Badge tone="warn">{t("mgmt.categories.commercial")}</Badge>}
                   <span className="font-mono text-xs text-muted">{fmtDuration(Date.parse(e.endAt) - Date.parse(e.startAt))}</span>
                 </li>

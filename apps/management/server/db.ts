@@ -301,4 +301,71 @@ export const MANAGEMENT_MIGRATIONS = [
      last_at TEXT,
      UNIQUE (station_id, match_key)
    );`,
+  // RSS feeds (WordPress sites or any RSS/Atom feed) and full-screen beeldkranten (news pages) built from their items.
+  // block_items gets a 'beeldkrant' type: SQLite cannot change a CHECK constraint, so the table is rebuilt.
+  `CREATE TABLE rss_feeds (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     kind TEXT NOT NULL DEFAULT 'wordpress' CHECK (kind IN ('wordpress','rss')),
+     url TEXT NOT NULL,
+     -- WordPress categories [{ id, slug, name }]; empty = all posts.
+     categories TEXT NOT NULL DEFAULT '[]',
+     enabled INTEGER NOT NULL DEFAULT 1,
+     refresh_min INTEGER NOT NULL DEFAULT 10,
+     max_items INTEGER NOT NULL DEFAULT 20,
+     last_fetch_at TEXT,
+     last_ok_at TEXT,
+     last_error TEXT,
+     -- How the last fetch was done: 'wp-json' (REST API, featured images) or 'rss'.
+     via TEXT,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE TABLE rss_items (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     feed_id INTEGER NOT NULL REFERENCES rss_feeds(id) ON DELETE CASCADE,
+     guid TEXT NOT NULL,
+     title TEXT NOT NULL,
+     summary TEXT NOT NULL DEFAULT '',
+     body TEXT NOT NULL DEFAULT '',
+     link TEXT,
+     image_url TEXT,
+     author TEXT,
+     categories TEXT NOT NULL DEFAULT '[]',
+     published_at TEXT,
+     seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+     UNIQUE (feed_id, guid)
+   );
+   CREATE INDEX rss_items_feed ON rss_items(feed_id, published_at);
+   CREATE TABLE beeldkranten (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     -- Layout and timing (JSON, see beeldkrantSchema in rsslogic.ts).
+     settings TEXT NOT NULL DEFAULT '{}',
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE TABLE beeldkrant_feeds (
+     beeldkrant_id INTEGER NOT NULL REFERENCES beeldkranten(id) ON DELETE CASCADE,
+     feed_id INTEGER NOT NULL REFERENCES rss_feeds(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (beeldkrant_id, feed_id)
+   );
+
+   CREATE TABLE block_items_new (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL,
+     type TEXT NOT NULL CHECK (type IN ('media','block','live','beeldkrant')),
+     media_id INTEGER REFERENCES media(id) ON DELETE CASCADE,
+     child_block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+     live_source_id INTEGER REFERENCES live_sources(id) ON DELETE CASCADE,
+     beeldkrant_id INTEGER REFERENCES beeldkranten(id) ON DELETE CASCADE,
+     duration_ms INTEGER,
+     title TEXT
+   );
+   INSERT INTO block_items_new (id, block_id, position, type, media_id, child_block_id, live_source_id, duration_ms, title)
+     SELECT id, block_id, position, type, media_id, child_block_id, live_source_id, duration_ms, title FROM block_items;
+   DROP TABLE block_items;
+   ALTER TABLE block_items_new RENAME TO block_items;
+   CREATE INDEX block_items_block ON block_items(block_id, position);`,
 ];
