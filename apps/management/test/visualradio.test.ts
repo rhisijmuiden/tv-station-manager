@@ -124,6 +124,8 @@ class FakePlayout extends EventEmitter implements PlayoutDriver {
   async cgAdd() {}
   async cgUpdate() {}
   async cgStop() {}
+  async addConsumer() {}
+  async removeConsumer() {}
   async volume(ch: number, layer: number, v: number) {
     this.calls.push(`volume ${ch}-${layer} ${v}`);
   }
