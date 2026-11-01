@@ -8,6 +8,7 @@ import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
 import { RemoteSources } from "./remote.js";
+import { VisualRadio, registerVisualRadio } from "./visualradio.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
 export interface ManagementHandles {
@@ -15,6 +16,7 @@ export interface ManagementHandles {
   director: Director;
   remote: RemoteSources;
   planner: WeekPlanner;
+  visualRadio: VisualRadio;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
@@ -29,6 +31,8 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       const remote = new RemoteSources(platform, hub);
       const director = new Director(platform, hub, remote);
       const planner = new WeekPlanner(platform, () => director.invalidate());
+      const visualRadio = new VisualRadio(platform, hub);
+      director.yieldTo = (channelId) => visualRadio.owns(channelId);
       // Content changed (blocks, media, manual schedule): the director recompiles and the week schedule is published again.
       const changed = () => {
         director.invalidate();
@@ -39,6 +43,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       registerContent(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
       registerWeek(server, platform, planner);
+      registerVisualRadio(server, platform, visualRadio, () => director.invalidate());
       director.register(server);
 
       server.get("/api/management/overview", async () => {
@@ -62,14 +67,16 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         director.start();
         remote.start();
         planner.start();
+        visualRadio.start();
       }
       server.addHook("onClose", async () => {
         planner.stop();
+        visualRadio.stop();
         director.stop();
         remote.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner });
+      opts.onReady?.({ hub, director, remote, planner, visualRadio });
     },
   };
 }

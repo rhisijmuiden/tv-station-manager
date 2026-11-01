@@ -42,7 +42,7 @@ async function copyText(text: string) {
   ta.remove();
 }
 
-function CopyField({ label, value, secret, hint }: { label: string; value: string; secret?: boolean; hint?: ReactNode }) {
+export function CopyField({ label, value, secret, hint }: { label: string; value: string; secret?: boolean; hint?: ReactNode }) {
   const { t } = useTranslation();
   const [shown, setShown] = useState(!secret);
   const [copied, setCopied] = useState(false);

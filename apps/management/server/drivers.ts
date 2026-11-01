@@ -57,6 +57,8 @@ export interface PlayoutDriver extends EventEmitter {
   cgAdd(channel: number, layer: number, template: string, data: unknown): Promise<void>;
   cgUpdate(channel: number, layer: number, data: unknown): Promise<void>;
   cgStop(channel: number, layer: number): Promise<void>;
+  /** Audio level of a layer, 0 = muted, 1 = normal (Visual Radio plays clips without sound). Optional: fakes may leave it out. */
+  volume?(channel: number, layer: number, volume: number): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -201,6 +203,9 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
   }
   cgStop(channel: number, layer: number) {
     return this.send(this.c.cgStop({ channel, layer, cgLayer: 1 }));
+  }
+  volume(channel: number, layer: number, volume: number) {
+    return this.send(this.c.mixerVolume({ channel, layer, value: volume }));
   }
   async close() {
     this.c.removeAllListeners();
