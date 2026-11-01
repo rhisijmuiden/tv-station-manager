@@ -1,4 +1,4 @@
-import { DatabaseBackup, Mail, PackageCheck, Users } from "lucide-react";
+import { DatabaseBackup, KeyRound, Mail, PackageCheck, Users } from "lucide-react";
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -9,11 +9,13 @@ import { AccountPage } from "./pages/Account";
 import { LoginPage, SetupPage } from "./pages/Auth";
 import { BackupPage } from "./pages/Backup";
 import { MailPage } from "./pages/Mail";
+import { SsoPage } from "./pages/Sso";
 import { UpdatesPage } from "./pages/Updates";
 import { UsersPage } from "./pages/Users";
 import { SessionProvider, useSession, useTheme } from "./session";
-import logoOnDark from "../../../branding/logo-on-dark.svg";
-import logoMark from "../../../branding/logo-mark.svg";
+import logoOnDark from "@brand/logo-on-dark.svg";
+import logoMark from "@brand/logo-mark.svg";
+import favicon from "@brand/favicon.svg";
 
 export interface AppRoute {
   path: string;
@@ -34,6 +36,7 @@ const systemNav: NavGroup = {
   minRole: "admin",
   items: [
     { to: "/system/users", label: "nav.users", icon: Users },
+    { to: "/system/sso", label: "nav.sso", icon: KeyRound },
     { to: "/system/mail", label: "nav.mail", icon: Mail },
     { to: "/system/backup", label: "nav.backup", icon: DatabaseBackup },
     { to: "/system/updates", label: "nav.updates", icon: PackageCheck },
@@ -58,6 +61,7 @@ function Gate({ opts }: { opts: PlatformAppOptions }) {
           <Route key={r.path} path={r.path} element={r.element} />
         ))}
         <Route path="/system/users" element={<UsersPage />} />
+        <Route path="/system/sso" element={<SsoPage />} />
         <Route path="/system/mail" element={<MailPage />} />
         <Route path="/system/backup" element={<BackupPage />} />
         <Route path="/system/updates" element={<UpdatesPage />} />
@@ -71,6 +75,7 @@ function Gate({ opts }: { opts: PlatformAppOptions }) {
 export function mountPlatformApp(opts: PlatformAppOptions) {
   initI18n(opts.translations);
   document.title = opts.appName;
+  document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute("href", favicon);
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <BrowserRouter>

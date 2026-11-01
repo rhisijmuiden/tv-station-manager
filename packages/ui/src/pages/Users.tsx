@@ -5,6 +5,8 @@ import { ApiError, del, get, post, put } from "../api";
 import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Select } from "../components/ui";
 import { useSession } from "../session";
 
+const MsBadge = () => <Badge tone="brand">Microsoft</Badge>;
+
 interface User {
   id: number;
   username: string;
@@ -12,6 +14,8 @@ interface User {
   email: string | null;
   role: string;
   language: string;
+  authProvider: "local" | "entra";
+  linked: boolean;
 }
 const ROLES = ["admin", "editor", "operator"] as const;
 const tone = (r: string) => (r === "admin" ? "danger" : r === "editor" ? "brand" : "neutral") as "danger" | "brand" | "neutral";
@@ -29,9 +33,10 @@ export function UsersPage() {
     if (!edit) return;
     setError(null);
     try {
-      const body = { displayName: edit.displayName || null, email: edit.email || null, role: edit.role ?? "editor", language: edit.language ?? "en", password: edit.password ?? "" };
+      const entra = edit.authProvider === "entra";
+      const body = { displayName: edit.displayName || null, email: edit.email || null, role: edit.role ?? "editor", language: edit.language ?? "en", password: entra ? "" : (edit.password ?? "") };
       if (edit.id) await put(`/api/users/${edit.id}`, body);
-      else await post("/api/users", { ...body, username: edit.username });
+      else await post("/api/users", { ...body, username: edit.username, authProvider: edit.authProvider ?? "local", password: entra ? undefined : body.password });
       setEdit(null);
       load();
     } catch (e) {
@@ -55,7 +60,7 @@ export function UsersPage() {
         title={t("users.title")}
         description={t("users.intro")}
         actions={
-          <Button icon={<Plus className="size-4" />} onClick={() => setEdit({ role: "editor", language: "nl" })}>
+          <Button icon={<Plus className="size-4" />} onClick={() => setEdit({ role: "editor", language: "nl", authProvider: "local" })}>
             {t("users.add")}
           </Button>
         }
@@ -69,6 +74,7 @@ export function UsersPage() {
                 <th className="px-5 py-2.5 font-medium">{t("auth.username")}</th>
                 <th className="px-5 py-2.5 font-medium">{t("account.displayName")}</th>
                 <th className="px-5 py-2.5 font-medium">{t("users.role")}</th>
+                <th className="px-5 py-2.5 font-medium">{t("users.signIn")}</th>
                 <th className="px-5 py-2.5" />
               </tr>
             </thead>
@@ -79,6 +85,16 @@ export function UsersPage() {
                   <td className="px-5 py-3 text-muted">{u.displayName ?? "–"}</td>
                   <td className="px-5 py-3">
                     <Badge tone={tone(u.role)}>{t(`users.roles.${u.role}`, { defaultValue: u.role })}</Badge>
+                  </td>
+                  <td className="px-5 py-3 text-muted">
+                    {u.authProvider === "entra" ? (
+                      <span className="inline-flex items-center gap-2">
+                        <MsBadge />
+                        {!u.linked && <span className="text-xs">{t("users.notSignedInYet")}</span>}
+                      </span>
+                    ) : (
+                      t("users.provider_local")
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
                     <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEdit({ ...u })}>
@@ -113,7 +129,15 @@ export function UsersPage() {
         {edit && (
           <div className="space-y-4">
             {error && <Alert tone="danger">{error}</Alert>}
-            <Field label={t("auth.username")}>{(id) => <Input id={id} value={edit.username ?? ""} disabled={!!edit.id} onChange={(e) => setEdit({ ...edit, username: e.target.value })} />}</Field>
+            <Field label={t("users.signIn")} hint={edit.authProvider === "entra" ? t("users.entraHint") : undefined}>
+              {(id) => (
+                <Select id={id} value={edit.authProvider ?? "local"} disabled={!!edit.id} onChange={(e) => setEdit({ ...edit, authProvider: e.target.value as User["authProvider"] })}>
+                  <option value="local">{t("users.provider_local")}</option>
+                  <option value="entra">{t("users.provider_entra")}</option>
+                </Select>
+              )}
+            </Field>
+            <Field label={edit.authProvider === "entra" ? t("users.microsoftLogin") : t("auth.username")}>{(id) => <Input id={id} value={edit.username ?? ""} disabled={!!edit.id} onChange={(e) => setEdit({ ...edit, username: e.target.value })} />}</Field>
             <Field label={t("account.displayName")}>{(id) => <Input id={id} value={edit.displayName ?? ""} onChange={(e) => setEdit({ ...edit, displayName: e.target.value })} />}</Field>
             <Field label={t("auth.email")}>{(id) => <Input id={id} type="email" value={edit.email ?? ""} onChange={(e) => setEdit({ ...edit, email: e.target.value })} />}</Field>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -137,9 +161,11 @@ export function UsersPage() {
                 )}
               </Field>
             </div>
-            <Field label={edit.id ? t("users.newPassword") : t("auth.password")} hint={t("auth.passwordHint")}>
-              {(id) => <Input id={id} type="password" autoComplete="new-password" value={edit.password ?? ""} onChange={(e) => setEdit({ ...edit, password: e.target.value })} />}
-            </Field>
+            {edit.authProvider !== "entra" && (
+              <Field label={edit.id ? t("users.newPassword") : t("auth.password")} hint={t("auth.passwordHint")}>
+                {(id) => <Input id={id} type="password" autoComplete="new-password" value={edit.password ?? ""} onChange={(e) => setEdit({ ...edit, password: e.target.value })} />}
+              </Field>
+            )}
           </div>
         )}
       </Dialog>

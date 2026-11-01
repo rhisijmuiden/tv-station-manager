@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, CardBody, Dialog, Field, Input, PageHeader, Select, Switch, del, post, put } from "@tvsm/ui";
+import { Alert, Badge, Button, Card, CardBody, Dialog, Field, Input, PageHeader, Select, Switch, brandColor, del, post, put } from "@tvsm/ui";
 import { Pencil, Plus, Trash2, Tv } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -48,7 +48,7 @@ export function ChannelsPage() {
     setErr(null);
     const body = {
       name: edit.name ?? "",
-      color: edit.color ?? "#3B6CFF",
+      color: edit.color ?? brandColor("primary"),
       enabled: edit.enabled ?? true,
       atemId: edit.atemId ?? null,
       atemMe: edit.atemMe ?? 0,
@@ -81,7 +81,7 @@ export function ChannelsPage() {
         title={t("mgmt.channels.title")}
         description={t("mgmt.channels.intro")}
         actions={
-          <Button icon={<Plus className="size-4" />} onClick={() => (setEdit({ casparChannel: (channels?.length ?? 0) * 2 + 1, transition: "cut", enabled: true, color: "#3B6CFF" }), setFillerName(null))}>
+          <Button icon={<Plus className="size-4" />} onClick={() => (setEdit({ casparChannel: (channels?.length ?? 0) * 2 + 1, transition: "cut", enabled: true, color: brandColor("primary") }), setFillerName(null))}>
             {t("mgmt.channels.add")}
           </Button>
         }
@@ -142,7 +142,7 @@ export function ChannelsPage() {
             {err && <Alert tone="danger">{err}</Alert>}
             <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
               <Field label={t("common.name")}>{(id) => <Input id={id} value={edit.name ?? ""} placeholder="TV Noord" onChange={(e) => setEdit({ ...edit, name: e.target.value })} />}</Field>
-              <Field label={t("mgmt.blocks.color")}>{(id) => <Input id={id} type="color" className="p-1" value={edit.color ?? "#3B6CFF"} onChange={(e) => setEdit({ ...edit, color: e.target.value })} />}</Field>
+              <Field label={t("mgmt.blocks.color")}>{(id) => <Input id={id} type="color" className="p-1" value={edit.color ?? brandColor("primary")} onChange={(e) => setEdit({ ...edit, color: e.target.value })} />}</Field>
             </div>
             <fieldset className="space-y-4 rounded-md border border-line p-4">
               <legend className="px-1 text-sm font-semibold">{t("mgmt.channels.switching")}</legend>

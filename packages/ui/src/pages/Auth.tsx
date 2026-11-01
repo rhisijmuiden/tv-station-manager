@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
 import { Alert, Button, Field, Input } from "../components/ui";
@@ -14,13 +14,13 @@ function AuthLayout({ logo, title, intro, children }: { logo: string; title: str
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{
           background:
-            "radial-gradient(60rem 40rem at 10% -10%, rgb(59 108 255 / 0.35), transparent 60%), radial-gradient(40rem 30rem at 110% 110%, rgb(255 61 87 / 0.18), transparent 60%)",
+            "radial-gradient(60rem 40rem at 10% -10%, color-mix(in srgb, var(--tvsm-primary) 35%, transparent), transparent 60%), radial-gradient(40rem 30rem at 110% 110%, color-mix(in srgb, var(--tvsm-accent) 22%, transparent), transparent 60%)",
         }}
       />
       <div className="relative w-full max-w-md">
-        <img src={logo} alt="TV Station Manager" className="mx-auto mb-8 h-12" />
+        <img src={logo} alt="" className="mx-auto mb-8 h-12" />
         <div className="rounded-xl border border-line bg-surface p-8 shadow-2xl">
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="font-display text-xl font-semibold">{title}</h1>
           {intro && <p className="mt-1 text-sm text-muted">{intro}</p>}
           <div className="mt-6">{children}</div>
         </div>
@@ -36,13 +36,39 @@ function AuthLayout({ logo, title, intro, children }: { logo: string; title: str
   );
 }
 
+function MicrosoftLogo() {
+  return (
+    <svg viewBox="0 0 21 21" className="size-5" aria-hidden>
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+    </svg>
+  );
+}
+
+/** Reads ?sso_error=... left by a failed Microsoft sign-in, and removes it from the address bar. */
+function useSsoError() {
+  const [code] = useState(() => new URLSearchParams(window.location.search).get("sso_error"));
+  useEffect(() => {
+    if (!code) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("sso_error");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [code]);
+  return code;
+}
+
 export function LoginPage({ appName, logo }: { appName: string; logo: string }) {
   const { t } = useTranslation();
-  const { refresh } = useSession();
+  const { refresh, sso } = useSession();
+  const ssoError = useSsoError();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showLocal, setShowLocal] = useState(!sso);
+  const returnTo = window.location.pathname + window.location.search.replace(/[?&]sso_error=[^&]*/, "");
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -58,16 +84,44 @@ export function LoginPage({ appName, logo }: { appName: string; logo: string }) 
   };
   return (
     <AuthLayout logo={logo} title={t("auth.signInTitle", { app: appName })}>
-      <form onSubmit={submit} className="space-y-4">
+      {ssoError && (
+        <Alert tone="danger" className="mb-4">
+          {t(`auth.ssoErrors.${ssoError}`, { defaultValue: t("auth.ssoErrors.generic") })}
+        </Alert>
+      )}
+      {sso && (
+        <>
+          <a
+            href={`/api/auth/sso/login?returnTo=${encodeURIComponent(returnTo || "/")}`}
+            className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-line bg-surface-2 text-sm font-semibold transition hover:border-brand hover:bg-surface"
+          >
+            <MicrosoftLogo />
+            {sso.label || t("auth.signInMicrosoft")}
+          </a>
+          {!showLocal && (
+            <button type="button" onClick={() => setShowLocal(true)} className="mt-4 w-full text-center text-xs text-muted hover:text-fg">
+              {t("auth.useLocalAccount")}
+            </button>
+          )}
+          {showLocal && (
+            <div className="my-5 flex items-center gap-3 text-xs text-muted">
+              <span className="h-px flex-1 bg-line" />
+              {t("auth.orLocal")}
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          )}
+        </>
+      )}
+      {showLocal && <form onSubmit={submit} className="space-y-4">
         {error && <Alert tone="danger">{t("auth.invalid")}</Alert>}
-        <Field label={t("auth.username")}>{(id) => <Input id={id} autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />}</Field>
+        <Field label={t("auth.username")}>{(id) => <Input id={id} autoFocus={!sso} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />}</Field>
         <Field label={t("auth.password")}>
           {(id) => <Input id={id} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
         </Field>
         <Button type="submit" className="w-full" loading={busy}>
           {t("auth.signIn")}
         </Button>
-      </form>
+      </form>}
     </AuthLayout>
   );
 }

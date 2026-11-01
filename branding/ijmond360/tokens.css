@@ -1,0 +1,49 @@
+/* IJmond360 design tokens (brand "ijmond360"), taken from ijmond360.nl. Source of truth: tokens.json. Every brand defines the same variables. */
+:root {
+  --tvsm-primary: #713C80;
+  --tvsm-primary-light: #8E55A0;
+  --tvsm-primary-dark: #5A2E66;
+  --tvsm-on-air: #E92E7F;
+  --tvsm-accent: #E92E7F;
+  --tvsm-ink: #2A1430;
+
+  --tvsm-success: #1DB97A;
+  --tvsm-warning: #F5A524;
+  --tvsm-danger: #DC2F45;
+  --tvsm-info: #2FA6DF;
+
+  --tvsm-bg: #F7F5F9;
+  --tvsm-surface: #FFFFFF;
+  --tvsm-surface-2: #F0ECF3;
+  --tvsm-border: #E3DCE8;
+  --tvsm-text: #1B1320;
+  --tvsm-text-muted: #6B5F72;
+  --tvsm-sidebar: #2A1430;
+  --tvsm-sidebar-text: #DCCFE2;
+
+  --tvsm-font-sans: "Inter Variable", Inter, system-ui, sans-serif;
+  --tvsm-font-display: "Epilogue Variable", Epilogue, "Inter Variable", Inter, system-ui, sans-serif;
+  --tvsm-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+  --tvsm-radius-sm: 4px;
+  --tvsm-radius-md: 8px;
+  --tvsm-radius-lg: 12px;
+  --tvsm-radius-xl: 16px;
+  --tvsm-shadow-card: 0 1px 2px rgb(42 20 48 / 0.06), 0 4px 16px rgb(42 20 48 / 0.06);
+}
+
+:root[data-theme="dark"] {
+  /* The brand purple is too dark on a dark background, so the dark theme uses a lighter tint. */
+  --tvsm-primary: #9A5BAE;
+  --tvsm-primary-light: #B57FC6;
+  --tvsm-primary-dark: #713C80;
+
+  --tvsm-bg: #0E0911;
+  --tvsm-surface: #18101C;
+  --tvsm-surface-2: #221727;
+  --tvsm-border: #352840;
+  --tvsm-text: #EFE9F2;
+  --tvsm-text-muted: #A396AA;
+  --tvsm-sidebar: #120A15;
+  --tvsm-shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.3);
+}

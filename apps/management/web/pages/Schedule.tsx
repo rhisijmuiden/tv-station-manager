@@ -48,7 +48,7 @@ function DayBar({ entries, day }: { entries: Entry[]; day: Date }) {
       {entries.map((e) => {
         const s = Math.max(0, Date.parse(e.startAt) - from);
         const en = Math.min(span, Date.parse(e.endAt) - from);
-        return <div key={e.id} title={`${fmtTime(e.startAt)} ${e.programTitle}`} className="absolute top-0 bottom-0 border-r border-surface" style={{ left: `${(s / span) * 100}%`, width: `${((en - s) / span) * 100}%`, background: e.block?.color ?? "#3B6CFF", opacity: 0.85 }} />;
+        return <div key={e.id} title={`${fmtTime(e.startAt)} ${e.programTitle}`} className="absolute top-0 bottom-0 border-r border-surface" style={{ left: `${(s / span) * 100}%`, width: `${((en - s) / span) * 100}%`, background: e.block?.color ?? "var(--tvsm-primary)", opacity: 0.85 }} />;
       })}
       {Array.from({ length: 23 }, (_, i) => (
         <div key={i} className="absolute top-0 h-2 border-l border-fg/20" style={{ left: `${((i + 1) / 24) * 100}%` }} />

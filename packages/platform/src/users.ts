@@ -36,6 +36,8 @@ export function registerUsers(app: FastifyInstance, ctx: PlatformContext) {
     email: (r.email as string) ?? null,
     role: String(r.role),
     language: String(r.language),
+    authProvider: String(r.auth_provider ?? "local"),
+    linked: !!r.external_id,
     createdAt: String(r.created_at),
   });
   const adminCount = () => (ctx.db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get() as { n: number }).n;
@@ -50,12 +52,22 @@ export function registerUsers(app: FastifyInstance, ctx: PlatformContext) {
   });
 
   app.post("/api/users", async (req) => {
-    const b = base.extend({ username: z.string().trim().min(3).max(64).regex(/^[\w.@-]+$/), password: z.string().min(10).max(256) }).parse(req.body);
-    const exists = ctx.db.prepare("SELECT 1 FROM users WHERE username = ?").get(b.username);
+    const b = base
+      .extend({
+        username: z.string().trim().min(3).max(64).regex(/^[\w.@-]+$/),
+        // "entra": a Microsoft account (username = the Microsoft sign-in name, e.g. jan@example.com); no password.
+        authProvider: z.enum(["local", "entra"]).default("local"),
+        password: z.string().max(256).optional(),
+      })
+      .parse(req.body);
+    if (b.authProvider === "local" && (!b.password || b.password.length < 10)) throw new HttpError(400, "password_too_short");
+    const username = b.authProvider === "entra" ? b.username.toLowerCase() : b.username;
+    const exists = ctx.db.prepare("SELECT 1 FROM users WHERE username = ?").get(username);
     if (exists) throw new HttpError(409, "username_taken");
+    const hash = b.authProvider === "entra" ? "!" : await hashPassword(b.password!);
     const r = ctx.db
-      .prepare("INSERT INTO users (username, password_hash, display_name, email, role, language) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(b.username, await hashPassword(b.password), b.displayName ?? null, b.email ?? null, b.role, b.language);
+      .prepare("INSERT INTO users (username, password_hash, display_name, email, role, language, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(username, hash, b.displayName ?? null, b.email ?? null, b.role, b.language, b.authProvider);
     return pub(ctx.db.prepare("SELECT * FROM users WHERE id = ?").get(Number(r.lastInsertRowid)) as Record<string, unknown>);
   });
 
@@ -66,6 +78,7 @@ export function registerUsers(app: FastifyInstance, ctx: PlatformContext) {
     const b = base.extend({ password: z.string().min(10).max(256).optional().or(z.literal("").transform(() => undefined)) }).parse(req.body);
     if (cur.role === "admin" && b.role !== "admin" && adminCount() <= 1) throw new HttpError(400, "last_admin");
     ctx.db.prepare("UPDATE users SET display_name = ?, email = ?, role = ?, language = ? WHERE id = ?").run(b.displayName ?? null, b.email ?? null, b.role, b.language, id);
+    if (b.password && cur.auth_provider !== "local") throw new HttpError(400, "sso_account");
     if (b.password) {
       ctx.db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(b.password), id);
       if (id !== req.user!.id) ctx.db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);

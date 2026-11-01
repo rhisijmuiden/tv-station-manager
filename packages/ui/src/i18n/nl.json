@@ -35,7 +35,8 @@
     "language": "Taal",
     "collapse": "Menu inklappen",
     "menu": "Menu",
-    "users": "Gebruikers"
+    "users": "Gebruikers",
+    "sso": "Single sign-on"
   },
   "auth": {
     "signIn": "Inloggen",
@@ -51,7 +52,24 @@
     "passwordMismatch": "Wachtwoorden komen niet overeen",
     "createAccount": "Account aanmaken",
     "defaultPasswordWarning": "Je gebruikt het standaard beheerderswachtwoord. Wijzig het voordat je live gaat.",
-    "changeNow": "Wachtwoord wijzigen"
+    "changeNow": "Wachtwoord wijzigen",
+    "signInMicrosoft": "Inloggen met Microsoft",
+    "useLocalAccount": "Liever inloggen met een lokaal account",
+    "orLocal": "of met een lokaal account",
+    "ssoErrors": {
+      "generic": "Inloggen met Microsoft is mislukt. Probeer het opnieuw of gebruik een lokaal account.",
+      "disabled": "Inloggen met Microsoft staat niet aan.",
+      "provider_unreachable": "Microsoft is niet bereikbaar. Controleer de netwerkverbinding van deze server.",
+      "provider_error": "Microsoft gaf een foutmelding. Vraag een beheerder de app-registratie te controleren.",
+      "access_denied": "Het inloggen is afgebroken of je hebt geen toegang tot deze applicatie.",
+      "flow_expired": "Het inloggen duurde te lang of is in een andere browser gestart. Probeer het opnieuw.",
+      "token_invalid": "Het antwoord van Microsoft kon niet worden gecontroleerd. Probeer het opnieuw.",
+      "missing_claims": "Microsoft heeft geen gebruikersnaam voor je account meegestuurd.",
+      "domain_not_allowed": "Accounts van dit domein mogen hier niet inloggen.",
+      "no_role": "Je Microsoft-account heeft geen rol voor deze applicatie. Vraag een beheerder er een toe te wijzen in Entra ID.",
+      "not_provisioned": "Er is hier nog geen account voor je. Vraag een beheerder je toe te voegen.",
+      "account_conflict": "Er bestaat al een lokaal account met deze naam. Vraag een beheerder dit op te lossen."
+    }
   },
   "account": {
     "title": "Mijn account",
@@ -62,7 +80,9 @@
     "currentPassword": "Huidig wachtwoord",
     "newPassword": "Nieuw wachtwoord",
     "passwordChanged": "Wachtwoord gewijzigd",
-    "wrongPassword": "Huidig wachtwoord is onjuist"
+    "wrongPassword": "Huidig wachtwoord is onjuist",
+    "signInMethod": "Inloggen",
+    "microsoftManaged": "Je logt in met je Microsoft-account. Je wachtwoord wordt beheerd door Microsoft (Office 365)."
   },
   "info": {
     "title": "Over deze installatie",
@@ -225,7 +245,54 @@
       "username_taken": "Deze gebruikersnaam is al in gebruik.",
       "last_admin": "Er moet minstens één beheerder zijn.",
       "cannot_delete_self": "Je kunt je eigen account niet verwijderen.",
-      "validation_failed": "Controleer de velden: gebruikersnaam minstens 3 tekens, wachtwoord minstens 10."
+      "validation_failed": "Controleer de velden: gebruikersnaam minstens 3 tekens, wachtwoord minstens 10.",
+      "password_too_short": "Het wachtwoord moet minstens 10 tekens zijn.",
+      "sso_account": "Microsoft-accounts hebben hier geen wachtwoord."
+    },
+    "signIn": "Inloggen",
+    "provider_local": "Wachtwoord",
+    "provider_entra": "Microsoft (Office 365)",
+    "microsoftLogin": "Microsoft-inlognaam",
+    "entraHint": "Het Office 365-adres van de gebruiker, bijv. jan@voorbeeld.nl. Die logt in met Microsoft; hier wordt geen wachtwoord opgeslagen.",
+    "notSignedInYet": "nog niet ingelogd"
+  },
+  "sso": {
+    "title": "Single sign-on",
+    "intro": "Laat mensen inloggen met hun Office 365-account (Microsoft Entra ID). Lokale accounts blijven werken als terugvaloptie.",
+    "provider": "Microsoft Entra ID",
+    "tenantId": "Map-ID (tenant)",
+    "tenantIdHint": "Entra-beheercentrum → App-registraties → jouw app → Overzicht (Directory (tenant) ID).",
+    "clientId": "Toepassings-ID (client)",
+    "clientIdHint": "Staat op dezelfde Overzicht-pagina (Application (client) ID).",
+    "clientSecret": "Clientgeheim",
+    "clientSecretHint": "De Waarde van het geheim (niet de Geheim-ID), uit Certificaten en geheimen.",
+    "buttonLabel": "Tekst op de knop",
+    "registration": "App-registratie",
+    "registrationIntro": "Voeg dit adres in Entra toe onder Verificatie → Web → Omleidings-URI's.",
+    "redirectUri": "Omleidings-URI",
+    "redirectUriHint": "Moet precies kloppen, inclusief https en poort.",
+    "publicUrl": "Publiek adres van deze app",
+    "publicUrlHint": "Alleen nodig als het adres hierboven niet klopt, bijvoorbeeld achter een reverse proxy.",
+    "httpsRequired": "Microsoft accepteert alleen https-omleidingsadressen (behalve localhost). Zet deze app achter een reverse proxy met certificaat en vul het publieke adres in.",
+    "accounts": "Accounts en rollen",
+    "autoCreate": "Accounts automatisch aanmaken",
+    "autoCreateHint": "Bij de eerste keer inloggen met Microsoft. Uit: voeg mensen eerst toe op de pagina Gebruikers (inloggen: Microsoft).",
+    "defaultRole": "Rol voor nieuwe accounts",
+    "defaultRoleAppRoles": "Niet gebruikt: de rol komt uit de Entra-app-rollen.",
+    "allowedDomains": "Toegestane e-maildomeinen",
+    "allowedDomainsHint": "Gescheiden door komma's. Leeg: elk account in je tenant.",
+    "useAppRoles": "Rollen overnemen uit Entra-app-rollen",
+    "useAppRolesHint": "De rol wordt bij elke keer inloggen bijgewerkt. Mensen zonder rol kunnen niet inloggen.",
+    "roleValue": "Waarde van de app-rol voor {{role}}",
+    "test": "Verbinding testen",
+    "testOk": "Verbinding OK: tenant, toepassings-ID en clientgeheim worden door Microsoft geaccepteerd.",
+    "testFailed": "Test mislukt:",
+    "copy": "Kopiëren",
+    "fallback": "Het lokale beheerdersaccount blijft werken met zijn wachtwoord, ook als Microsoft onbereikbaar is. Log uit en kies op de inlogpagina \"Liever inloggen met een lokaal account\".",
+    "errors": {
+      "validation": "Controleer de velden.",
+      "tenant_id_guid": "De tenant-ID moet de Map-ID (tenant) zijn, een GUID zoals 00000000-0000-0000-0000-000000000000.",
+      "sso_incomplete": "Vul tenant-ID, toepassings-ID en clientgeheim in voordat je het aanzet."
     }
   }
 }

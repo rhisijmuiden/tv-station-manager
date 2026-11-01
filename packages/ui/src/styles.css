@@ -1,7 +1,8 @@
 @import "tailwindcss";
-@import "../../../branding/tokens.css";
+@import "@brand/tokens.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/epilogue";
 
 @source "./";
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -15,14 +16,15 @@
   --color-muted: var(--tvsm-text-muted);
   --color-sidebar: var(--tvsm-sidebar);
   --color-sidebar-fg: var(--tvsm-sidebar-text);
-  --color-brand: var(--tvsm-signal-blue);
-  --color-brand-light: var(--tvsm-signal-blue-light);
-  --color-brand-dark: var(--tvsm-signal-blue-dark);
+  --color-brand: var(--tvsm-primary);
+  --color-brand-light: var(--tvsm-primary-light);
+  --color-brand-dark: var(--tvsm-primary-dark);
   --color-onair: var(--tvsm-on-air);
   --color-ok: var(--tvsm-success);
   --color-warn: var(--tvsm-warning);
   --color-danger: var(--tvsm-danger);
   --font-sans: var(--tvsm-font-sans);
+  --font-display: var(--tvsm-font-display);
   --font-mono: var(--tvsm-font-mono);
   --radius-sm: var(--tvsm-radius-sm);
   --radius-md: var(--tvsm-radius-md);
@@ -39,4 +41,4 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
-::selection { background: color-mix(in srgb, var(--tvsm-signal-blue) 30%, transparent); }
+::selection { background: color-mix(in srgb, var(--tvsm-primary) 30%, transparent); }
