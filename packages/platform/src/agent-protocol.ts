@@ -2,7 +2,8 @@
 
 export const AGENT_API = "/agent-api/v1";
 
-export type NodeRole = "unassigned" | "management" | "studio" | "other";
+/** studio = playout + live on one node; playout = runs the schedule; live = RTMP/SRT ingest from events. */
+export type NodeRole = "unassigned" | "management" | "studio" | "playout" | "live" | "other";
 export type NodeStatus = "pending" | "approved" | "rejected";
 export type CommandType = "restart-agent" | "reboot" | "update-agent" | "restart-casparcg" | "restart-ingest";
 

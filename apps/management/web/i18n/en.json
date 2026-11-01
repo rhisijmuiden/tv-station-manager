@@ -72,7 +72,12 @@
       "asrun": "As-run log",
       "noChannels": "No channels yet",
       "noChannelsIntro": "Create a channel first and link it to an ATEM and a studio node.",
-      "remoteWaiting": "A remote source marked Waiting for stream shows black until the contributor starts streaming."
+      "remoteWaiting": "A remote source on the playout node shows black until the contributor starts streaming. On a separate live node the playout node stays on air until the stream is in.",
+      "node_playout": "Playout node {{studio}}",
+      "node_live": "Live node {{studio}}",
+      "node_fallback": "Fallback input {{input}}",
+      "node_other": "ATEM input {{input}}",
+      "standby": "Live item {{name}}: no stream yet (since {{since}}). The playout node stays on air and the ATEM cuts to the live node as soon as the stream comes in."
     },
     "media": {
       "title_page": "Media library",
@@ -325,7 +330,14 @@
         "The Blackmagic driver decides the numbering, not the slot on the motherboard. With several cards the order follows the PCIe bus, which can change when you add or move a card.",
         "A card can have more SDI connectors than outputs: fill + key or monitoring connectors belong to the same output. A Duo 2 or Quad 2 shows up as 2 or 4 separate devices.",
         "Click Identify outputs: every output shows its own colour and a large number for 60 seconds. With fill + key, the key connector shows a white picture."
-      ]
+      ],
+      "role": "Role",
+      "role_playout": "Playout node",
+      "role_live": "Live node",
+      "role_both": "Playout + live",
+      "roleHint_playout": "Runs the schedule: clips, ad breaks and graphics. Link it to a channel under Channels.",
+      "roleHint_live": "Takes RTMP/SRT streams from events and plays them to its DeckLink output. The director cuts the ATEM to it when a live item is scheduled.",
+      "roleHint_both": "One node does both playout and live streams (one DeckLink output each)."
     },
     "errors": {
       "generic": "Something went wrong.",
