@@ -22,7 +22,8 @@
       "beeldkrant": "Beeldkrant",
       "editorial": "Redactie",
       "newHour": "Nieuw uurblok",
-      "broadcast": "Uitzending"
+      "broadcast": "Uitzending",
+      "recordings": "Opnames"
     },
     "categories": {
       "program": "Programma",
@@ -90,7 +91,9 @@
       "node_live": "Live-node {{studio}}",
       "node_fallback": "Reserve-ingang {{input}}",
       "node_other": "ATEM-ingang {{input}}",
-      "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt."
+      "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt.",
+      "atemLocked": "ATEM vastgezet in de orchestrator door {{by}}",
+      "atemLockedHint": "Het schema speelt door op de servers, maar de automatiek schakelt de ATEM niet tot hij in de orchestrator wordt vrijgegeven."
     },
     "media": {
       "title_page": "Mediabibliotheek",
@@ -353,7 +356,22 @@
       "role_both": "Playout + live",
       "roleHint_playout": "Speelt de programmering: clips, reclameblokken en graphics. Koppel hem bij Kanalen aan een kanaal.",
       "roleHint_live": "Ontvangt RTMP/SRT-streams van evenementen en speelt ze naar zijn DeckLink-uitgang. De regisseur schakelt de ATEM ernaar zodra er een live-item gepland staat.",
-      "roleHint_both": "Eén node doet zowel playout als live-streams (elk op een eigen DeckLink-uitgang)."
+      "roleHint_both": "Eén node doet zowel playout als live-streams (elk op een eigen DeckLink-uitgang).",
+      "orchestrator": "Koppeling orchestrator",
+      "orchestratorIntro": "In de orchestrator kun je een ATEM vastzetten voor handmatige bediening. Zolang hij vastgezet is, houdt de automatiek hier zijn schakelingen voor die ATEM vast; bij vrijgeven neemt hij wat het schema wil.",
+      "orchEnabled": "Vergrendelingen van de orchestrator volgen",
+      "orchEnabledHint": "Uit: de automatiek schakelt altijd (eventuele vergrendelingen vervallen hier).",
+      "orchUrl": "Adres orchestrator",
+      "orchToken": "Token",
+      "orchTokenHint": "In de orchestrator: ATEM-mengtafels → Koppeling automatiek.",
+      "orchTokenKept": "Opgeslagen. Leeg laten om hem te houden.",
+      "orchConnected": "Verbonden",
+      "orchUnreachable": "Niet bereikbaar",
+      "orchKeepLocks": "De laatst bekende vergrendelingen blijven gelden tot de orchestrator weer antwoordt.",
+      "orchLastOk": "Laatst gecontroleerd {{at}}",
+      "orchUnmatched": "Niet onder hetzelfde adres bekend in de orchestrator, dus van daaruit nooit vast te zetten: {{names}}",
+      "locked": "Vastgezet",
+      "lockedBy": "door {{by}}"
     },
     "errors": {
       "generic": "Er ging iets mis.",
@@ -387,7 +405,17 @@
       "wordpress_failed": "Geen WordPress-site gevonden: {{message}}",
       "beeldkrant_in_use": "Deze beeldkrant staat in blokken.",
       "beeldkrant_required": "Kies een beeldkrant.",
-      "image_failed": "De foto kon niet worden opgehaald."
+      "image_failed": "De foto kon niet worden opgehaald.",
+      "recording_no_file": "Het opnamebestand staat (niet meer) op deze server.",
+      "recording_busy": "De opname wordt nog verwerkt; probeer het zo nog eens.",
+      "recording_no_library": "Er is geen mediabibliotheek om de opname in te zetten.",
+      "recording_not_in_library": "Zet de opname eerst in de bibliotheek.",
+      "recording_too_short": "Wat na het knippen overblijft moet minstens één seconde zijn.",
+      "repeat_in_past": "Een herhaling kan niet in het verleden liggen.",
+      "not_recording": "Deze opname is al gestopt.",
+      "thumb_failed": "Kon geen beeld uit de opname halen.",
+      "atem_locked": "Deze ATEM is vastgezet in de orchestrator: schakel daar, of geef hem eerst vrij.",
+      "url_required": "Vul het adres van de orchestrator in."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -529,7 +557,8 @@
         "outputN": "Uitgang {{n}}",
         "missingOutput": "Uitgang {{n}} (bestaat niet)"
       },
-      "outputError": "CasparCG startte de stream niet: {{message}}. Elke 30 seconden opnieuw geprobeerd."
+      "outputError": "CasparCG startte de stream niet: {{message}}. Elke 30 seconden opnieuw geprobeerd.",
+      "recording": "Neemt op"
     },
     "categoriesPage": {
       "title": "Categorieën",
@@ -1041,6 +1070,139 @@
       "another": "Nog een maken",
       "openBlock": "Blok openen",
       "ownClock": "Zelf een uurklok in elkaar klikken →"
+    },
+    "rec": {
+      "title": "Opnames",
+      "intro": "Elke live-uitzending die via RTMP of SRT binnenkomt wordt automatisch opgenomen. Knip het begin en einde bij en zet hem in de mediabibliotheek of plan hem meteen als herhaling.",
+      "status": {
+        "recording": "Neemt op",
+        "processing": "Verwerken",
+        "ready": "Klaar om na te kijken",
+        "publishing": "Naar bibliotheek",
+        "published": "In bibliotheek",
+        "failed": "Mislukt"
+      },
+      "kpi": {
+        "recording": "Nu aan het opnemen",
+        "toCheck": "Wacht op nakijken",
+        "disk": "Vrije schijfruimte"
+      },
+      "noLibrary": "Er is nog geen mediabibliotheek, dus opnames kunnen er niet in. Voeg eerst de UNAS-share toe:",
+      "now": "Nu aan het opnemen",
+      "nowIntro": "Stopt vanzelf als de stream stopt of kort na het programma in het uitzendschema.",
+      "since": "sinds {{time}}",
+      "reconnects_one": "verbinding 1 keer onderbroken",
+      "reconnects_other": "verbinding {{count}} keer onderbroken",
+      "stopsAfter": "stopt na het programma ({{time}})",
+      "stopsWhenStreamEnds": "stopt als de stream stopt",
+      "stop": "Opname stoppen",
+      "stopConfirm": "Deze opname nu stoppen? Er wordt pas weer opgenomen als de stream stopt of het volgende programma begint.",
+      "list": "Opnames",
+      "listIntro": "Nieuwste bovenaan. Knip het begin en einde bij voordat een opname weer uitgezonden wordt.",
+      "outdated": "Bibliotheek heeft een oudere versie",
+      "trimmedFrom": "ingekort van {{length}}",
+      "pendingRepeats_one": "1 herhaling wordt ingepland zodra hij in de bibliotheek staat",
+      "pendingRepeats_other": "{{count}} herhalingen worden ingepland zodra hij in de bibliotheek staat",
+      "localRemoved": "De kopie op deze server is opgeruimd; het bestand in de bibliotheek blijft. Knippen kan niet meer.",
+      "errorLine": "Probleem: {{message}}",
+      "trimBtn": "Knippen",
+      "toLibrary": "Naar bibliotheek",
+      "update": "Bibliotheek bijwerken",
+      "repeatBtn": "Herhaling inplannen",
+      "deleteConfirm": "De opname \"{{name}}\" verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "deleteConfirmLibrary": "De opname \"{{name}}\" van deze server verwijderen? Het bestand in de mediabibliotheek en ingeplande herhalingen blijven staan.",
+      "none": "Nog geen opnames. Zodra een remote bron een stream stuurt, wordt hij hier opgenomen.",
+      "sources": "Automatisch na de opname, per remote bron",
+      "sourcesIntro": "Wel of niet opnemen, categorie, meteen naar de bibliotheek, vaste herhaaltijden.",
+      "noSources": "Nog geen remote bronnen. Voeg er een toe bij",
+      "blocked": {
+        "disk_full": "Neemt niet op: schijf bijna vol"
+      },
+      "category": "Categorie",
+      "categoryHint": "Hiermee wordt hij per categorie ingepland in de uurklokken.",
+      "noCategory": "Geen categorie",
+      "trim": {
+        "title": "Knippen: {{name}}",
+        "strip": "Tijdlijn van de opname",
+        "back": "Eén seconde terug",
+        "forward": "Eén seconde vooruit",
+        "frameBack": "Eén beeld terug",
+        "frameForward": "Eén beeld vooruit",
+        "play": "Afspelen",
+        "pause": "Pauze",
+        "start": "Begin",
+        "end": "Einde",
+        "setHere": "Hier zetten",
+        "watchStart": "Bekijk de eerste 5 seconden",
+        "watchEnd": "Bekijk de laatste 5 seconden",
+        "result": "Lengte na knippen:",
+        "removed": "{{start}} van het begin, {{end}} van het einde eraf",
+        "reset": "Knippen ongedaan maken",
+        "keyframeNote": "Er wordt geknipt zonder opnieuw te coderen (geen kwaliteitsverlies, klaar in seconden). Het begin valt op het dichtstbijzijnde sleutelbeeld, hooguit 1–2 seconden eerder.",
+        "name": "Naam",
+        "nameHint": "Zoals hij in de bibliotheek, het uitzendschema en de programmagids staat.",
+        "saveLibrary": "Opslaan en naar bibliotheek",
+        "saveUpdate": "Opslaan en bibliotheek bijwerken"
+      },
+      "repeat": {
+        "title": "Herhaling inplannen: {{name}}",
+        "firstLibrary": "De opname wordt eerst in de mediabibliotheek gezet; de herhalingen worden ingepland zodra hij daar staat.",
+        "channel": "Kanaal",
+        "when": "Wanneer",
+        "date": "Datum",
+        "time": "Tijd",
+        "tonight": "Vanavond 22:00",
+        "tomorrowMorning": "Morgen 10:00",
+        "tomorrowSame": "Morgen {{time}}",
+        "nextWeek": "Volgende week {{time}}",
+        "another": "Nog een tijd",
+        "length": "Duurt {{length}} in de uitzending.",
+        "overlaps": "{{at}}: overlapt met \"{{title}}\" (met de hand gepland, {{time}}). Dat programma wordt afgekapt.",
+        "replacesWeek": "{{at}}: komt in de plaats van \"{{title}}\" uit het weekbord ({{time}}).",
+        "planned": "Ingeplande herhalingen",
+        "plan_one": "Herhaling inplannen",
+        "plan_other": "{{count}} herhalingen inplannen"
+      },
+      "settings": {
+        "button": "Instellingen",
+        "title": "Instellingen opnames",
+        "library": "Mediabibliotheek",
+        "libraryHint": "Waar klare opnames naartoe gaan (de UNAS-share).",
+        "firstLibrary": "Eerste mediabibliotheek",
+        "folder": "Map",
+        "folderHint": "Map in die bibliotheek, bijv. Opnames.",
+        "grace": "Onderbrekingstijd (seconden)",
+        "graceHint": "Een stream die binnen deze tijd terugkomt blijft één opname.",
+        "postRoll": "Doorlopen na het programma (seconden)",
+        "postRollHint": "Na het einde van het live-item in het uitzendschema.",
+        "min": "Minimale lengte (seconden)",
+        "minHint": "Kortere opnames (teststreams) worden weggegooid.",
+        "keep": "Lokale kopie bewaren (dagen)",
+        "keepHint": "Nadat hij in de bibliotheek staat, om nog eens te kunnen knippen.",
+        "minFree": "Minimale vrije ruimte (GB)",
+        "minFreeHint": "Daaronder geen nieuwe opnames; er gaat een waarschuwingsmail uit."
+      },
+      "source": {
+        "title": "Opname: {{name}}",
+        "enabled": "Deze bron opnemen",
+        "enabledHint": "Elke stream die op deze streamsleutel binnenkomt wordt opgenomen.",
+        "categoryHint": "De opname krijgt deze categorie in de bibliotheek.",
+        "toLibrary": "Meteen naar de bibliotheek",
+        "toLibraryHint": "Zodra de opname klaar is. Knippen kan daarna nog; de bibliotheek wordt dan bijgewerkt.",
+        "repeats": "Automatisch herhalen",
+        "repeatsHint": "Wordt ingepland zodra de opname in de bibliotheek staat. Tijden gaan uit van de dag van de uitzending.",
+        "day": "Dag",
+        "sameDay": "Zelfde dag",
+        "nextDay": "Volgende dag",
+        "dayN": "Na {{n}} dagen",
+        "sameChannel": "Zelfde kanaal als de uitzending",
+        "addRepeat": "Herhaaltijd toevoegen",
+        "on": "Wordt opgenomen",
+        "off": "Wordt niet opgenomen",
+        "autoLibrary": "meteen naar bibliotheek",
+        "manualLibrary": "naar bibliotheek na nakijken",
+        "autoRepeats": "herhalingen: {{list}}"
+      }
     }
   }
 }

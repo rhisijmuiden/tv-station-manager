@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
-import { ATEM_MIGRATIONS, registerAtem, type AtemLink, type AtemSnapshot } from "../server/atem.ts";
+import { ATEM_CONTROL_MIGRATIONS, ATEM_MIGRATIONS, registerAtem, type AtemLink, type AtemSnapshot, type SwitchAction } from "../server/atem.ts";
+import { DIAGRAM_MIGRATIONS, registerDiagram } from "../server/diagram.ts";
 import { NODE_MIGRATIONS, registerNodes } from "../server/nodes.ts";
 
 const root = mkdtempSync(join(tmpdir(), "tvsm-atem-"));
@@ -35,11 +36,12 @@ const snap = (): AtemSnapshot => ({
   preview: [2],
 });
 
-/** Fake switcher: in-memory state, records renames, never switches. */
+/** Fake switcher: in-memory state, records renames and switches. */
 class FakeLink extends EventEmitter implements AtemLink {
   connected = false;
   state = snap();
   renames: [number, string, string][] = [];
+  switches: [SwitchAction, number, number | undefined][] = [];
   constructor(public host: string) {
     super();
   }
@@ -59,6 +61,13 @@ class FakeLink extends EventEmitter implements AtemLink {
     const i = this.state.inputs.find((x) => x.id === input)!;
     Object.assign(i, { longName, shortName, namesDefault: false });
   }
+  async switch(action: SwitchAction, me: number, input?: number) {
+    this.switches.push([action, me, input]);
+    if (action === "program") this.state.program[me] = input!;
+    if (action === "preview") this.state.preview[me] = input!;
+    if (action === "cut") [this.state.program[me], this.state.preview[me]] = [this.state.preview[me]!, this.state.program[me]!];
+    if (action === "aux") (this.state.auxSources ??= [])[me] = input!;
+  }
   async close() {
     this.connected = false;
   }
@@ -77,14 +86,15 @@ const call = async (method: string, url: string, payload?: unknown) => {
 test.before(async () => {
   p = await createPlatform({
     app: { id: "orchestrator", name: "Orch", defaultPort: 0 },
-    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS],
+    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS],
     register: (s, pl) => {
       registerNodes(s, pl);
-      registerAtem(s, pl, (host) => {
+      const atem = registerAtem(s, pl, (host) => {
         const l = new FakeLink(host);
         links.push(l);
         return l;
       });
+      registerDiagram(s, pl, atem.list);
     },
   });
 });
@@ -148,4 +158,106 @@ test("register an ATEM, read its state, rename inputs and link nodes", async () 
 
   assert.equal((await call("DELETE", `/api/atem/${id}`)).status, 200);
   assert.equal((await call("GET", "/api/atem")).body.switchers.length, 0);
+});
+
+test("switch from the orchestrator, lock and release for the automation", async () => {
+  await call("POST", "/api/auth/login", { username: "admin", password: "admin" });
+  const id = (await call("POST", "/api/atem", { name: "Master", host: "10.40.6.250" })).body.id;
+  const link = links.at(-1)!;
+  assert.equal((await call("POST", `/api/atem/${id}/switch`, { action: "program", input: 2 })).status, 409);
+  link.up();
+  assert.equal((await call("POST", `/api/atem/${id}/switch`, { action: "program" })).status, 400);
+  assert.equal((await call("POST", `/api/atem/${id}/switch`, { action: "program", input: 77 })).status, 400);
+  assert.equal((await call("POST", `/api/atem/${id}/switch`, { action: "cut", me: 3 })).status, 400);
+
+  const sw = await call("POST", `/api/atem/${id}/switch`, { action: "program", input: 2 });
+  assert.equal(sw.status, 200);
+  assert.equal(sw.body.snapshot.program[0], 2);
+  assert.equal(sw.body.control.mode, "automation");
+  assert.equal((await call("POST", `/api/atem/${id}/switch`, { action: "aux", me: 0, input: 10010 })).status, 200);
+  assert.deepEqual(link.switches, [["program", 0, 2], ["aux", 0, 10010]]);
+
+  // Switching with lock: the automation keeps its hands off from now on.
+  const locked = await call("POST", `/api/atem/${id}/switch`, { action: "cut", lock: true });
+  assert.equal(locked.body.control.mode, "locked");
+  assert.equal(locked.body.control.by, "admin");
+  const ev = (await call("GET", `/api/atem/${id}`)).body.events.map((e: { type: string }) => e.type);
+  assert.ok(ev.includes("control") && ev.includes("switch"));
+
+  // Management nodes read the modes with the automation token.
+  const tok = await call("GET", "/api/automation");
+  assert.equal(tok.status, 200);
+  const api = (auth?: string) => p.server.inject({ method: "GET", url: tok.body.path, headers: auth ? { authorization: auth } : {} });
+  assert.equal((await api()).statusCode, 401);
+  assert.equal((await api("Bearer wrong")).statusCode, 401);
+  const res = JSON.parse((await api(`Bearer ${tok.body.token}`)).body);
+  assert.deepEqual(
+    res.switchers.map((s: { host: string; mode: string }) => [s.host, s.mode]),
+    [["10.40.6.250", "locked"]],
+  );
+  assert.equal((await call("GET", "/api/automation")).body.lastPollAt.ip, "127.0.0.1");
+
+  const rel = await call("PUT", `/api/atem/${id}/control`, { mode: "automation" });
+  assert.equal(rel.body.control.mode, "automation");
+  assert.equal(JSON.parse((await api(`Bearer ${tok.body.token}`)).body).switchers[0].mode, "automation");
+
+  const fresh = await call("POST", "/api/automation/token");
+  assert.notEqual(fresh.body.token, tok.body.token);
+  assert.equal((await api(`Bearer ${tok.body.token}`)).statusCode, 401);
+  await call("DELETE", `/api/atem/${id}`);
+});
+
+test("connection diagram: devices, cards, cables, fed-by sync", async () => {
+  await call("POST", "/api/auth/login", { username: "admin", password: "admin" });
+  const a = (await call("POST", "/api/atem", { name: "Studio", host: "10.40.6.240" })).body.id;
+  const b = (await call("POST", "/api/atem", { name: "Master", host: "10.40.6.241" })).body.id;
+  links.at(-2)!.up();
+  links.at(-1)!.up();
+
+  let d = await call("GET", "/api/diagram");
+  assert.equal(d.body.available.atems.length, 2);
+  const placeA = await call("POST", "/api/diagram/devices", { kind: "atem", refId: a, x: 400, y: 0 });
+  const placeB = await call("POST", "/api/diagram/devices", { kind: "atem", refId: b, x: 800, y: 0 });
+  assert.equal((await call("POST", "/api/diagram/devices", { kind: "atem", refId: a })).status, 409);
+  assert.equal((await call("POST", "/api/diagram/devices", { kind: "device" })).status, 400);
+  const srv = await call("POST", "/api/diagram/devices", {
+    kind: "device",
+    name: "Playout PC",
+    deviceType: "server",
+    cards: [{ id: "c1", model: "decklink-duo-2", name: "DeckLink Duo 2", ports: [{ id: "p1", label: "SDI 1", dir: "out", type: "SDI" }, { id: "p2", label: "SDI 2", dir: "out" }] }],
+  });
+  assert.equal(srv.status, 200);
+  d = await call("GET", "/api/diagram");
+  const atemA = d.body.devices.find((x: { id: string }) => x.id === placeA.body.id);
+  assert.deepEqual(
+    atemA.ports.map((p: { key: string }) => p.key),
+    ["in:1", "in:2", "pgm", "aux:1", "mv:1"],
+  );
+  assert.equal(atemA.name, "Studio");
+  assert.equal(d.body.available.atems.length, 0);
+
+  const cable = (from: [string, string], to: [string, string]) => call("POST", "/api/diagram/links", { from: { device: from[0], port: from[1] }, to: { device: to[0], port: to[1] } });
+  assert.equal((await cable([srv.body.id, "c1:p1"], [placeA.body.id, "pgm"])).status, 400); // out → out
+  assert.equal((await cable([placeA.body.id, "in:1"], [srv.body.id, "c1:p1"])).status, 400);
+  assert.equal((await cable([srv.body.id, "c1:p1"], [placeA.body.id, "in:9"])).status, 400);
+  assert.equal((await cable([srv.body.id, "c1:p1"], [placeA.body.id, "in:1"])).status, 200);
+  assert.equal((await cable([srv.body.id, "c1:p2"], [placeA.body.id, "in:1"])).status, 409); // input taken
+  assert.equal((await cable([placeA.body.id, "pgm"], [placeB.body.id, "in:2"])).status, 200);
+
+  // Removing a port from the card removes its cable.
+  await call("PUT", `/api/diagram/devices/${srv.body.id}`, { cards: [{ id: "c1", model: "custom", name: "Card", ports: [{ id: "p2", label: "SDI 2", dir: "out" }] }] });
+  d = await call("GET", "/api/diagram");
+  assert.equal(d.body.links.length, 1);
+  assert.equal((await call("PUT", "/api/diagram/layout", { positions: [{ id: srv.body.id, x: 12.4, y: 99.6 }] })).status, 200);
+  assert.deepEqual(
+    (await call("GET", "/api/diagram")).body.devices.filter((x: { id: string }) => x.id === srv.body.id).map((x: { x: number; y: number }) => [x.x, x.y]),
+    [[12, 100]],
+  );
+
+  // Removing an ATEM from the inventory removes it (and its cables) from the diagram.
+  await call("DELETE", `/api/atem/${b}`);
+  d = await call("GET", "/api/diagram");
+  assert.equal(d.body.devices.length, 2);
+  assert.equal(d.body.links.length, 0);
+  await call("DELETE", `/api/atem/${a}`);
 });

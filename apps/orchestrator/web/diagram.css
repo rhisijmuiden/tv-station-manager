@@ -1,0 +1,36 @@
+/* React Flow themed with the active house style (tokens.css). */
+.tvsm-flow .react-flow {
+  --xy-background-color: var(--tvsm-surface);
+  --xy-background-pattern-color: color-mix(in srgb, var(--tvsm-text-muted) 35%, transparent);
+  --xy-node-background-color: transparent;
+  --xy-node-border: none;
+  --xy-node-boxshadow-hover: none;
+  --xy-node-boxshadow-selected: none;
+  --xy-controls-button-background-color: var(--tvsm-surface);
+  --xy-controls-button-background-color-hover: var(--tvsm-surface-2);
+  --xy-controls-button-color: var(--tvsm-text);
+  --xy-controls-button-border-color: var(--tvsm-border);
+  --xy-minimap-background-color: var(--tvsm-surface-2);
+  --xy-edge-label-background-color: var(--tvsm-surface);
+  --xy-edge-label-color: var(--tvsm-text-muted);
+  --xy-connectionline-stroke-default: var(--tvsm-primary);
+  font-family: var(--tvsm-font-sans);
+}
+.tvsm-flow .react-flow__node { padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 12px; }
+.tvsm-flow .react-flow__controls { box-shadow: var(--tvsm-shadow-card); border-radius: 8px; overflow: hidden; }
+.tvsm-flow .react-flow__minimap { border-radius: 8px; overflow: hidden; border: 1px solid var(--tvsm-border); }
+
+.tvsm-flow .tvsm-handle {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 2px solid var(--tvsm-surface);
+  background: var(--tvsm-text-muted);
+  transition: transform 0.12s, background 0.12s;
+}
+.tvsm-flow .tvsm-handle-in { left: -6px; }
+.tvsm-flow .tvsm-handle-out { right: -6px; background: var(--tvsm-primary); }
+.tvsm-flow .react-flow__handle.connectingto,
+.tvsm-flow .react-flow__handle.valid { background: var(--tvsm-success); transform: scale(1.35); }
+.tvsm-flow .react-flow__handle-connecting:not(.valid) { background: var(--tvsm-danger); }
+.tvsm-flow .react-flow__handle.connectable:hover { transform: scale(1.35); cursor: crosshair; }

@@ -215,6 +215,8 @@ export function RemoteSourcesPage() {
   const live = useGet<{ sources: LiveSource[] }>("/api/live-sources", 3000);
   const studios = useGet<{ studios: Studio[] }>("/api/studios", 5000);
   const info = useGet<{ authUrl: string }>("/api/remote-sources/info");
+  const rec = useGet<{ sources: { id: number; active: boolean; recording: { enabled: boolean } }[] }>("/api/recordings/sources", 5000);
+  const recOf = (id: number) => rec.data?.sources.find((x) => x.id === id);
   const sources = (live.data?.sources ?? []).filter((s) => s.kind === "rtmp");
   const [how, setHow] = useState<boolean | null>(null);
   const [edit, setEdit] = useState<Form | null>(null);
@@ -296,6 +298,13 @@ export function RemoteSourcesPage() {
                       <p className="font-medium">{s.name}</p>
                       <StatusBadge s={s} />
                       {s.onOutput && <Badge tone="brand">{t("mgmt.remote.onOutput")}</Badge>}
+                      {recOf(s.id)?.active && (
+                        <Link to="/recordings">
+                          <Badge tone="danger">
+                            <span className="size-1.5 animate-pulse rounded-full bg-danger" /> {t("mgmt.remote.recording")}
+                          </Badge>
+                        </Link>
+                      )}
                     </div>
                     <p className="mt-0.5 text-xs text-muted">
                       {t("mgmt.remote.route", { studio: st?.name ?? "–", output: s.casparChannel, input: s.atemInput })}

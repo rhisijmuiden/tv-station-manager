@@ -1,8 +1,9 @@
 import { Alert, ApiError, Badge, Button, Card, CardBody, CardHeader, Dialog, Field, Input, Mono, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { ArrowLeft, Cable, Info, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowLeft, Cable, Copy, Gamepad2, KeyRound, Network, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { AtemControl, type ControlState } from "./AtemControl";
 import { AtemFrontPanel, type PanelSnapshot } from "./AtemPanel";
 import type { PanelInput } from "./atemLayout";
 import type { NodeInfo } from "./Nodes";
@@ -14,6 +15,7 @@ interface Snapshot extends PanelSnapshot {
   mediaPlayers: number;
   superSources: number;
   multiviewers: number;
+  auxSources?: (number | null)[];
   inputs: (PanelInput & { namesDefault: boolean })[];
 }
 interface Switcher {
@@ -26,6 +28,7 @@ interface Switcher {
   lastSeenAt: string | null;
   snapshot: Snapshot | null;
   inputs: { inputId: number; nodeId: string | null; note: string }[];
+  control: ControlState;
 }
 
 function useErr() {
@@ -244,10 +247,22 @@ function Detail({ id }: { id: string }) {
                 <span className="flex items-center gap-1.5">
                   <span className="size-2.5 rounded-sm bg-ok" /> {t("orch.atem.preview")}
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <Info className="size-3.5" /> {t("orch.atem.noControl")}
-                </span>
               </div>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader
+              title={t("orch.control.title")}
+              description={t("orch.control.intro")}
+              icon={<Gamepad2 className="size-4" />}
+              actions={
+                <Link to="/diagram" className="inline-flex items-center gap-1.5 text-sm text-brand hover:underline">
+                  <Network className="size-4" /> {t("orch.nav.diagram")}
+                </Link>
+              }
+            />
+            <CardBody>
+              <AtemControl sw={sw} onChanged={() => void load()} />
             </CardBody>
           </Card>
           <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
@@ -393,6 +408,82 @@ function Detail({ id }: { id: string }) {
   );
 }
 
+/** The token management nodes use to read which ATEMs are locked (Devices → Orchestrator link on the management node). */
+function AutomationDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const [d, setD] = useState<{ token: string; path: string; lastPollAt: { at: string; ip: string } | null } | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    void get<typeof d>("/api/automation").then(setD);
+  }, []);
+  const url = window.location.origin;
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("orch.automation.title")}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          {t("common.close")}
+        </Button>
+      }
+    >
+      {d && (
+        <div className="space-y-4 text-sm">
+          <p>{t("orch.automation.intro")}</p>
+          <Field label={t("orch.automation.url")}>{(id) => <Input id={id} readOnly className="font-mono" value={url} onFocus={(e) => e.target.select()} />}</Field>
+          <Field label={t("orch.automation.token")}>
+            {(id) => (
+              <div className="flex gap-2">
+                <Input id={id} readOnly className="font-mono" value={d.token} onFocus={(e) => e.target.select()} />
+                <Button
+                  variant="secondary"
+                  icon={<Copy className="size-4" />}
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(d.token);
+                    setCopied(true);
+                  }}
+                >
+                  {copied ? t("orch.automation.copied") : t("orch.automation.copy")}
+                </Button>
+              </div>
+            )}
+          </Field>
+          <p className="text-xs text-muted">
+            {d.lastPollAt ? t("orch.automation.lastPoll", { at: new Date(d.lastPollAt.at).toLocaleString(), ip: d.lastPollAt.ip }) : t("orch.automation.neverPolled")}
+          </p>
+          {confirm ? (
+            <Alert tone="warn">
+              <p className="mb-2">{t("orch.automation.regenerateText")}</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setConfirm(false)}>
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={async () => {
+                    setD(await post<NonNullable<typeof d>>("/api/automation/token"));
+                    setConfirm(false);
+                    setCopied(false);
+                  }}
+                >
+                  {t("orch.automation.regenerate")}
+                </Button>
+              </div>
+            </Alert>
+          ) : (
+            <Button size="sm" variant="ghost" icon={<RefreshCw className="size-3.5" />} onClick={() => setConfirm(true)}>
+              {t("orch.automation.regenerate")}
+            </Button>
+          )}
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
 function List() {
   const { t } = useTranslation();
   const nav = useNavigate();
@@ -400,6 +491,7 @@ function List() {
   const admin = roleAtLeast(user?.role, "admin");
   const [list, setList] = useState<Switcher[] | null>(null);
   const [adding, setAdding] = useState(false);
+  const [automation, setAutomation] = useState(false);
   const load = useCallback(() => get<{ switchers: Switcher[] }>("/api/atem").then((r) => setList(r.switchers)), []);
   useEffect(() => {
     void load();
@@ -414,9 +506,14 @@ function List() {
         description={t("orch.atem.intro")}
         actions={
           admin && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
-              {t("orch.atem.add")}
-            </Button>
+            <>
+              <Button variant="secondary" icon={<KeyRound className="size-4" />} onClick={() => setAutomation(true)}>
+                {t("orch.automation.button")}
+              </Button>
+              <Button icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+                {t("orch.atem.add")}
+              </Button>
+            </>
           )
         }
       />
@@ -463,11 +560,16 @@ function List() {
                         </dd>
                       </div>
                     </dl>
-                    {pgm && (
-                      <p className="mt-3 flex items-center gap-2 text-sm">
-                        <Badge tone="danger">PGM</Badge> {pgm.longName}
-                      </p>
-                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                      {pgm && (
+                        <>
+                          <Badge tone="danger">PGM</Badge> {pgm.longName}
+                        </>
+                      )}
+                      <span className="ml-auto">
+                        {sw.control.mode === "locked" ? <Badge tone="warn">{t("orch.control.locked")}</Badge> : <Badge tone="brand">{t("orch.control.automation")}</Badge>}
+                      </span>
+                    </div>
                     {sw.location && <p className="mt-2 text-xs text-muted">{sw.location}</p>}
                   </CardBody>
                 </Card>
@@ -476,6 +578,7 @@ function List() {
           })}
         </div>
       )}
+      {automation && <AutomationDialog onClose={() => setAutomation(false)} />}
       {adding && (
         <SwitcherDialog
           onClose={() => setAdding(false)}

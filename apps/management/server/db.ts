@@ -312,4 +312,44 @@ export const MANAGEMENT_MIGRATIONS = [
    DROP TABLE block_items;
    ALTER TABLE block_items_new RENAME TO block_items;
    CREATE INDEX block_items_block ON block_items(block_id, position);`,
+  // Recordings of remote sources (RTMP/SRT): recorded on the management node, trimmed, then put in the library.
+  `ALTER TABLE live_sources ADD COLUMN recording TEXT NOT NULL DEFAULT '{}';
+   CREATE TABLE recordings (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     live_source_id INTEGER REFERENCES live_sources(id) ON DELETE SET NULL,
+     source_name TEXT NOT NULL,
+     title TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'recording' CHECK (status IN ('recording','processing','ready','publishing','published','failed')),
+     -- Why the recording stopped: stream_end, programme_end, manual, restart.
+     stop_reason TEXT,
+     started_at TEXT NOT NULL,
+     ended_at TEXT,
+     -- Programme in the schedule that this recording is (live item of the remote source), if any.
+     schedule_id INTEGER,
+     channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL,
+     -- Pieces recorded so far (JSON array of file names; a new piece starts when the stream reconnects).
+     parts TEXT NOT NULL DEFAULT '[]',
+     file TEXT,
+     size INTEGER,
+     duration_ms INTEGER,
+     width INTEGER,
+     height INTEGER,
+     fps REAL,
+     codec TEXT,
+     trim_in_ms INTEGER NOT NULL DEFAULT 0,
+     trim_out_ms INTEGER,
+     category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+     media_id INTEGER REFERENCES media(id) ON DELETE SET NULL,
+     media_source_id INTEGER REFERENCES media_sources(id) ON DELETE SET NULL,
+     media_path TEXT,
+     -- Trim points of the file in the library ("in:out"); differs from the current ones after trimming again.
+     published_trim TEXT,
+     published_at TEXT,
+     block_id INTEGER REFERENCES blocks(id) ON DELETE SET NULL,
+     -- Repeats to plan once the recording is in the library (JSON [{channelId, at}]).
+     pending_repeats TEXT NOT NULL DEFAULT '[]',
+     error TEXT,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE INDEX recordings_started ON recordings(started_at);`,
 ];

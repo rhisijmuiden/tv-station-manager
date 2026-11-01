@@ -7,7 +7,9 @@ import { Director } from "./director.js";
 import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
+import { OrchestratorLink, registerOrchestratorLink } from "./orchestrator.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
+import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
@@ -19,10 +21,14 @@ export interface ManagementHandles {
   outputs: StreamOutputs;
   planner: WeekPlanner;
   rss: RssFeeds;
+  recorder: Recorder;
+  orchestrator: OrchestratorLink;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
-export function managementOptions(opts: { webDir?: string; drivers?: DriverFactory; autostart?: boolean; onReady?: (h: ManagementHandles) => void } = {}): PlatformOptions {
+export function managementOptions(
+  opts: { webDir?: string; drivers?: DriverFactory; autostart?: boolean; fetch?: typeof fetch; onReady?: (h: ManagementHandles) => void } = {},
+): PlatformOptions {
   return {
     app: { id: "management", name: "TV Station Manager", defaultPort: 8080 },
     webDir: opts.webDir,
@@ -30,6 +36,9 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
     backupSources: (ctx) => ({ graphics: join(ctx.config.dataDir, "graphics") }),
     register: async (server, platform: Platform) => {
       const hub = new DeviceHub(platform, opts.drivers ?? realDrivers);
+      const orchestrator = new OrchestratorLink(platform, opts.fetch);
+      hub.lockFor = (host) => orchestrator.lockFor(host);
+      orchestrator.on("change", () => void hub.locksChanged());
       const remote = new RemoteSources(platform, hub);
       const director = new Director(platform, hub, remote);
       const planner = new WeekPlanner(platform, () => director.invalidate());
@@ -37,7 +46,9 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       const changed = () => {
         director.invalidate();
         planner.requestPublish();
+        recorder.invalidate();
       };
+      const recorder = new Recorder(platform, remote, () => changed());
       const outputs = new StreamOutputs(platform, hub, remote);
       const rss = new RssFeeds(platform, changed);
       registerMedia(server, platform, changed);
@@ -48,6 +59,8 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
+      registerRecordings(server, platform, recorder);
+      registerOrchestratorLink(server, orchestrator);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -71,16 +84,20 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         remote.start();
         planner.start();
         rss.start();
+        recorder.start();
+        orchestrator.start();
       }
       server.addHook("onClose", async () => {
         planner.stop();
+        recorder.stop();
+        orchestrator.stop();
         rss.stop();
         director.stop();
         remote.stop();
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, rss });
+      opts.onReady?.({ hub, director, remote, planner, outputs, rss, recorder, orchestrator });
     },
   };
 }
