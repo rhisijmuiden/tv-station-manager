@@ -1,18 +1,77 @@
 import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
+import { EventEmitter } from "node:events";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DriverFactory, PlayoutDriver, SwitcherDriver } from "./drivers.js";
 import { publicUrl } from "./director.js";
 import { IDENTIFY_LAYER, IDENTIFY_SECONDS, identifyPage } from "./identify.js";
+import type { AtemLock } from "./orchestrator.js";
 import { newStreamKey, type IngestAuthRequest, type LiveRow, type RemoteSources } from "./remote.js";
 
 export const STUDIO_ROLES = ["playout", "live", "both"] as const;
 export type StudioRole = (typeof STUDIO_ROLES)[number];
 
+/**
+ * Wraps an ATEM driver so the automation keeps its hands off while the switcher is locked in the orchestrator.
+ * While locked, program/preview/cut/auto calls are held (not sent) and the last held program per M/E is remembered;
+ * when the lock is released that program is taken, so the station follows the schedule again. Without a held
+ * switch the picture stays as the operator left it until the next item.
+ */
+export class GuardedSwitcher extends EventEmitter implements SwitcherDriver {
+  private held = new Map<number, { input: number; transition: "cut" | "mix" }>();
+  constructor(
+    readonly inner: SwitcherDriver,
+    private lock: () => AtemLock | null,
+  ) {
+    super();
+    inner.on("change", () => this.emit("change"));
+    inner.on("log", (m) => this.emit("log", m));
+  }
+  locked() {
+    return this.lock();
+  }
+  info() {
+    return this.inner.info();
+  }
+  async program(input: number, me: number, transition: "cut" | "mix") {
+    if (this.lock()) {
+      this.held.set(me, { input, transition });
+      return;
+    }
+    this.held.delete(me);
+    await this.inner.program(input, me, transition);
+  }
+  async preview(input: number, me: number) {
+    if (!this.lock()) await this.inner.preview(input, me);
+  }
+  async cut(me: number) {
+    if (!this.lock()) await this.inner.cut(me);
+  }
+  async auto(me: number) {
+    if (!this.lock()) await this.inner.auto(me);
+  }
+  /** Held switches, for the UI. */
+  pending() {
+    return [...this.held].map(([me, h]) => ({ me, input: h.input }));
+  }
+  /** Lock released: take what the automation wanted in the meantime. */
+  async release() {
+    if (this.lock()) return;
+    const held = [...this.held];
+    this.held.clear();
+    for (const [me, h] of held) if (this.inner.info().program[me] !== h.input) await this.inner.program(h.input, me, h.transition).catch((e) => this.emit("log", `release: ${(e as Error).message}`));
+  }
+  close() {
+    return this.inner.close();
+  }
+}
+
 /** Keeps one live connection per ATEM switcher and per studio node (CasparCG), and their CRUD API. */
 export class DeviceHub {
-  switchers = new Map<number, { name: string; host: string; driver: SwitcherDriver }>();
+  switchers = new Map<number, { name: string; host: string; driver: GuardedSwitcher }>();
+  /** Orchestrator lock lookup by ATEM host; set once the orchestrator link exists. */
+  lockFor: (host: string) => AtemLock | null = () => null;
   playouts = new Map<number, { name: string; host: string; port: number; driver: PlayoutDriver }>();
   private listeners = new Set<() => void>();
   constructor(
@@ -37,7 +96,7 @@ export class DeviceHub {
       const cur = this.switchers.get(a.id);
       if (cur) cur.name = a.name;
       else {
-        const driver = this.factory.switcher(a.host);
+        const driver = new GuardedSwitcher(this.factory.switcher(a.host), () => this.lockFor(a.host));
         driver.on("change", this.changed);
         driver.on("log", (m) => log.debug({ atem: a.name, m }, "atem"));
         this.switchers.set(a.id, { name: a.name, host: a.host, driver });
@@ -72,6 +131,15 @@ export class DeviceHub {
   switcher(id: number | null | undefined) {
     return id == null ? undefined : this.switchers.get(id)?.driver;
   }
+  /** Orchestrator lock of an ATEM (by local id), or null. */
+  lock(id: number | null | undefined) {
+    return this.switcher(id)?.locked() ?? null;
+  }
+  /** Locks changed in the orchestrator: released switchers take what the automation held. */
+  async locksChanged() {
+    for (const s of this.switchers.values()) await s.driver.release();
+    this.changed();
+  }
   playout(id: number | null | undefined) {
     return id == null ? undefined : this.playouts.get(id)?.driver;
   }
@@ -96,6 +164,7 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
     host: r.host,
     enabled: !!r.enabled,
     status: hub.switcher(r.id)?.info() ?? { connected: false, model: null, productName: null, mixEffects: 0, inputs: [], program: [], preview: [] },
+    lock: hub.lock(r.id),
   });
   app.get("/api/atems", async () => ({ atems: (db.prepare("SELECT * FROM atem_devices ORDER BY name").all() as Parameters<typeof atemOut>[0][]).map(atemOut) }));
   app.post("/api/atems", async (req) => {

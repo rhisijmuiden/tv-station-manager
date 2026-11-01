@@ -1,7 +1,9 @@
 # ATEM inventory (orchestrator)
 
 The orchestrator keeps an overview of every Blackmagic ATEM switcher in the facility, next to the nodes.
-It **does not switch**: program/preview/transitions stay with the management node (the director).
+Normally the management node (the director) switches the ATEMs by schedule. An operator can also switch by hand from
+the orchestrator and **lock** an ATEM so the automation leaves it alone: see
+[connection-diagram.md](connection-diagram.md).
 
 ## What it does
 
@@ -30,4 +32,4 @@ It **does not switch**: program/preview/transitions stay with the management nod
   The orchestrator uses one per switcher, next to the management node and any ATEM Software Control instances.
 - Changing the address of a switcher reconnects; removing it only removes it from the orchestrator.
 - API: `GET/POST /api/atem`, `GET/PUT/DELETE /api/atem/:id`, `PUT /api/atem/:id/inputs/:input`
-  (`{ longName?, shortName?, nodeId?, note? }`).
+  (`{ longName?, shortName?, nodeId?, note? }`), `POST /api/atem/:id/switch`, `PUT /api/atem/:id/control`.
