@@ -12,7 +12,6 @@ import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
-import { VisualRadio, registerVisualRadio } from "./visualradio.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
 export interface ManagementHandles {
@@ -21,7 +20,6 @@ export interface ManagementHandles {
   remote: RemoteSources;
   outputs: StreamOutputs;
   planner: WeekPlanner;
-  visualRadio: VisualRadio;
   rss: RssFeeds;
   recorder: Recorder;
   orchestrator: OrchestratorLink;
@@ -44,8 +42,6 @@ export function managementOptions(
       const remote = new RemoteSources(platform, hub);
       const director = new Director(platform, hub, remote);
       const planner = new WeekPlanner(platform, () => director.invalidate());
-      const visualRadio = new VisualRadio(platform, hub);
-      director.yieldTo = (channelId) => visualRadio.owns(channelId);
       // Content changed (blocks, media, manual schedule): the director recompiles and the week schedule is published again.
       const changed = () => {
         director.invalidate();
@@ -60,7 +56,6 @@ export function managementOptions(
       registerContent(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
       registerWeek(server, platform, planner);
-      registerVisualRadio(server, platform, visualRadio, () => director.invalidate());
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
@@ -88,7 +83,6 @@ export function managementOptions(
         director.start();
         remote.start();
         planner.start();
-        visualRadio.start();
         rss.start();
         recorder.start();
         orchestrator.start();
@@ -98,13 +92,12 @@ export function managementOptions(
         recorder.stop();
         orchestrator.stop();
         rss.stop();
-        visualRadio.stop();
         director.stop();
         remote.stop();
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio, rss, recorder, orchestrator });
+      opts.onReady?.({ hub, director, remote, planner, outputs, rss, recorder, orchestrator });
     },
   };
 }

@@ -9,7 +9,7 @@ The management node plans the linear channel per week.
 
 ## Menu
 
-The left menu follows the editor's work: **Editorial** (New hour block, Week board, Day planning, Hour blocks, Hour clocks, Media library, Categories, Ad breaks, Beeldkrant), **On air** (Control room, Schedule, Programme guide, Remote sources, Stream output, Visual Radio) and **Setup** (Graphics, Channels, Devices; editors and admins). The dashboard shows the three editorial steps.
+The left menu follows the editor's work: **Editorial** (New hour block, Week board, Day planning, Hour blocks, Hour clocks, Media library, Categories, Ad breaks, Beeldkrant), **On air** (Control room, Schedule, Programme guide, Remote sources, Stream output) and **Setup** (Graphics, Channels, Devices; editors and admins). The dashboard shows the three editorial steps.
 
 ## New hour block (step by step)
 

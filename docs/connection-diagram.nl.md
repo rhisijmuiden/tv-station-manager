@@ -53,8 +53,8 @@ vraagt nooit, dat verandert niets aan wat er op zender is.
 Per ATEM: **Automatiek** (de regisseur van de tv-manager mag schakelen) of **Vastgezet** (alleen mensen schakelen).
 Vastzetten kan met een reden; wie en wanneer staat overal bij. Zolang een ATEM vastgezet is:
 
-- Blijven de regisseur en Visual Radio het schema op de servers draaien (CasparCG speelt door), maar ze schakelen die
-  ATEM **niet**. Hun schakelingen worden vastgehouden.
+- Blijft de regisseur het schema op de servers draaien (CasparCG speelt door), maar hij schakelt die
+  ATEM **niet**. Zijn schakelingen worden vastgehouden.
 - Bij vrijgeven wordt de laatst vastgehouden program-schakeling meteen uitgevoerd, zodat de zender weer het schema
   volgt. Wilde het schema tijdens de vergrendeling niet schakelen, dan blijft het beeld zoals de operator het liet tot
   het volgende item.

@@ -52,8 +52,8 @@ what is on air.
 Per ATEM: **Automation** (the management node's director may switch it) or **Locked** (only people switch it). Lock
 with an optional reason; who and when is shown everywhere. While locked:
 
-- The director and Visual Radio keep running the schedule on the servers (CasparCG keeps playing), but they do
-  **not** switch that ATEM. Their switches are held.
+- The director keeps running the schedule on the servers (CasparCG keeps playing), but it does
+  **not** switch that ATEM. Its switches are held.
 - On release, the last held program switch is taken straight away, so the station is back on the schedule. If the
   schedule did not want a switch during the lock, the picture stays as the operator left it until the next item.
 - Manual switching in the management node's control room for that ATEM is refused ("locked in the orchestrator");

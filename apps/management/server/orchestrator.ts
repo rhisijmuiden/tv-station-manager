@@ -1,7 +1,7 @@
 /**
  * Link to the orchestrator: which ATEMs are locked for manual control there.
  *
- * In the orchestrator an operator can lock an ATEM ("vastzetten"); the director (and Visual Radio) then hold their
+ * In the orchestrator an operator can lock an ATEM ("vastzetten"); the director then holds its
  * switches for that ATEM until it is released ("vrijgeven"). This node polls
  * `GET <orchestrator>/automation-api/v1/atem-control` with the orchestrator's automation token every few seconds.
  * ATEMs are matched by address (host), so both sides must use the same IP/hostname.
