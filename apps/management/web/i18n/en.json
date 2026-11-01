@@ -13,7 +13,8 @@
       "setup": "Setup",
       "channels": "Channels",
       "devices": "Devices",
-      "remote": "Remote sources"
+      "remote": "Remote sources",
+      "outputs": "Stream output"
     },
     "categories": {
       "program": "Programme",
@@ -335,7 +336,10 @@
       "not_remote": "This is not a remote source.",
       "no_such_output": "This studio node does not have that DeckLink output. Available: {{message}}.",
       "studio_offline": "CasparCG on this studio node is not connected.",
-      "identify_failed": "Could not show the test card: {{message}}"
+      "identify_failed": "Could not show the test card: {{message}}",
+      "rtmp_url": "Enter an rtmp:// or rtmps:// address.",
+      "extra_args": "Extra encoder options may only contain letters, digits, spaces and - : = . , + /",
+      "output_needs_source": "Choose what to stream."
     },
     "remote": {
       "title": "Remote sources",
@@ -478,6 +482,132 @@
         "missingOutput": "Output {{n}} (does not exist)"
       },
       "outputError": "CasparCG did not start the stream: {{message}}. Retried every 30 seconds."
+    },
+    "outputs": {
+      "title": "Stream output",
+      "intro": "Stream a TV channel (with logo and graphics) or a live event to your own stream server for the website, YouTube, Facebook or any RTMP server.",
+      "addDest": "Add destination",
+      "editDest": "Edit destination",
+      "addStream": "Add stream",
+      "editStream": "Edit stream",
+      "streams": "Streams",
+      "streamsIntro": "What is streamed and where to. A started stream keeps running and restarts by itself after an interruption.",
+      "destinations": "Destinations",
+      "destinationsIntro": "Stream servers and platform accounts. One stream can go to several destinations at once.",
+      "noStreams": "No streams yet. Add a destination first, then a stream.",
+      "noDestinations": "No destinations yet.",
+      "start": "Start streaming",
+      "stop": "Stop",
+      "confirmStop": "Stop streaming \"{{name}}\"? Viewers will lose the stream.",
+      "studioOutput": "{{studio}}, output {{n}}",
+      "remoteLabel": "Live event: {{name}}",
+      "usedBy_one": "used by {{count}} stream",
+      "usedBy_other": "used by {{count}} streams",
+      "disabled": "Off",
+      "encoderError": "CasparCG encoder: {{message}}",
+      "state": {
+        "off": "Off",
+        "waiting": "Waiting",
+        "starting": "Connecting",
+        "live": "Live",
+        "error": "Problem",
+        "retrying": "Reconnecting",
+        "disabled": "Destination off"
+      },
+      "reason": {
+        "no_studio": "The studio node of this stream is missing or switched off.",
+        "casparcg_offline": "CasparCG on the studio node is not connected.",
+        "encoder_failed": "CasparCG refused the stream encoder (see below).",
+        "encoder_starting": "CasparCG is starting the encoder…",
+        "no_source": "The remote source of this stream no longer exists.",
+        "waiting_for_stream": "Armed: forwarding starts as soon as the live event comes in.",
+        "no_destinations": "Pick at least one destination."
+      },
+      "platform": {
+        "custom": "Own server / RTMP",
+        "youtube": "YouTube",
+        "facebook": "Facebook",
+        "twitch": "Twitch"
+      },
+      "form": {
+        "destNamePlaceholder": "e.g. Website stream server",
+        "streamNamePlaceholder": "e.g. IJmond360 live on the website",
+        "server": "Server URL",
+        "serverHint": {
+          "custom": "rtmp:// or rtmps:// address of the stream server, e.g. rtmp://stream.example.org/live. You may also paste the full URL including the key and leave the key empty.",
+          "youtube": "Leave empty for the default YouTube server.",
+          "facebook": "Leave empty for the default Facebook server (RTMPS).",
+          "twitch": "Leave empty for the default Twitch server."
+        },
+        "key": "Stream key",
+        "keyHint": {
+          "custom": "Optional, added to the URL as the last part.",
+          "youtube": "YouTube Studio → Go live → Stream → Stream key.",
+          "facebook": "Facebook → Live Producer → Streaming software → Stream key (use a persistent key for a 24/7 stream).",
+          "twitch": "Twitch → Creator Dashboard → Settings → Stream → Primary stream key."
+        },
+        "keyKeep": "Stored. Leave empty to keep it.",
+        "enabled": "Active",
+        "enabledHint": "Switched off, streams skip this destination.",
+        "source": "What do you want to stream?",
+        "source_channel": "TV channel output",
+        "source_channelHint": "What CasparCG plays on a channel, including logo and graphics. Encoded once on the studio node.",
+        "source_remote": "Live event (remote source)",
+        "source_remoteHint": "An incoming RTMP/SRT stream, forwarded as it comes in, e.g. to YouTube and Facebook.",
+        "channel": "Channel / output",
+        "channelHint": "The CasparCG channel (= DeckLink output) whose picture is streamed.",
+        "encoding": "Encoding",
+        "videoKbps": "Video bitrate (kbit/s)",
+        "audioKbps": "Audio bitrate",
+        "resolution": "Resolution",
+        "resSource": "Same as the channel",
+        "encoder": "Encoder",
+        "encX264": "x264 (CPU), works everywhere",
+        "encNvenc": "NVIDIA NVENC (GPU), less CPU load",
+        "deinterlace": "Deinterlace",
+        "deinterlaceHint": "Keep on for interlaced channels (1080i50): websites and platforms show progressive video.",
+        "extraArgs": "Extra encoder options",
+        "extraArgsHint": "Added to the CasparCG FFmpeg consumer, e.g. -profile:v high. Only for specialists.",
+        "remote": "Remote source",
+        "remoteHint": "The live event that is forwarded.",
+        "noRemote": "There are no remote sources yet. Add one under",
+        "remoteNote": "The stream is forwarded exactly as the contributor sends it (no logo, no second encode). Most platforms want H.264 + AAC with a keyframe every 2 seconds. Want the logo on it? Stream the TV channel output while the event is on air instead.",
+        "destinations": "Send to",
+        "noDest": "Add a destination first (Add destination)."
+      },
+      "how": {
+        "title": "How does stream output work?",
+        "intro": "One encode per stream, any number of destinations. A destination that fails does not affect the others.",
+        "channel": {
+          "title": "TV channel output",
+          "text": "CasparCG encodes the channel (with logo) on the studio node. The management node sends that stream on to every destination."
+        },
+        "remote": {
+          "title": "Live event",
+          "text": "An incoming live stream is forwarded unchanged to the destinations, while it is also available for the ATEM."
+        },
+        "chain": {
+          "casparcg": "CasparCG channel",
+          "encoder": "H.264 encoder",
+          "ingest": "Ingest server (studio node)",
+          "relay": "Management node",
+          "destinations": "Website · YouTube · Facebook",
+          "contributor": "Live event (OBS, vMix, encoder)"
+        },
+        "dest": {
+          "title": "Add destinations",
+          "text": "Your stream server for the website, and if you like YouTube, Facebook or Twitch with their stream keys."
+        },
+        "stream": {
+          "title": "Add a stream",
+          "text": "Choose a TV channel or a live event and tick the destinations."
+        },
+        "start": {
+          "title": "Start",
+          "text": "Press Start streaming. The status per destination shows when it is live and the bitrate."
+        },
+        "network": "The management node needs outbound access to the destinations (TCP 1935 for RTMP, 443 for RTMPS/Facebook) and to TCP 1935 on the studio node. The upload of your internet line must carry the bitrate once per destination."
+      }
     }
   }
 }
