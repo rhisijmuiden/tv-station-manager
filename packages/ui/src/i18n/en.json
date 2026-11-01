@@ -35,7 +35,8 @@
     "language": "Language",
     "collapse": "Collapse menu",
     "menu": "Menu",
-    "users": "Users"
+    "users": "Users",
+    "sso": "Single sign-on"
   },
   "auth": {
     "signIn": "Sign in",
@@ -51,7 +52,24 @@
     "passwordMismatch": "Passwords do not match",
     "createAccount": "Create account",
     "defaultPasswordWarning": "You are using the default administrator password. Change it before going live.",
-    "changeNow": "Change password"
+    "changeNow": "Change password",
+    "signInMicrosoft": "Sign in with Microsoft",
+    "useLocalAccount": "Sign in with a local account instead",
+    "orLocal": "or with a local account",
+    "ssoErrors": {
+      "generic": "Microsoft sign-in failed. Try again or use a local account.",
+      "disabled": "Microsoft sign-in is not enabled.",
+      "provider_unreachable": "Microsoft could not be reached. Check the network connection of this server.",
+      "provider_error": "Microsoft returned an error. Ask an administrator to check the app registration.",
+      "access_denied": "Sign-in was cancelled or you have no access to this application.",
+      "flow_expired": "The sign-in took too long or was started in another browser. Try again.",
+      "token_invalid": "The answer from Microsoft could not be verified. Try again.",
+      "missing_claims": "Microsoft did not send a username for your account.",
+      "domain_not_allowed": "Accounts from this domain may not sign in here.",
+      "no_role": "Your Microsoft account has no role for this application. Ask an administrator to assign one in Entra ID.",
+      "not_provisioned": "There is no account for you here yet. Ask an administrator to add you.",
+      "account_conflict": "A local account with this name already exists. Ask an administrator to resolve it."
+    }
   },
   "account": {
     "title": "My account",
@@ -62,7 +80,9 @@
     "currentPassword": "Current password",
     "newPassword": "New password",
     "passwordChanged": "Password changed",
-    "wrongPassword": "Current password is incorrect"
+    "wrongPassword": "Current password is incorrect",
+    "signInMethod": "Sign-in",
+    "microsoftManaged": "You sign in with your Microsoft account. Your password is managed by Microsoft (Office 365)."
   },
   "info": {
     "title": "About this installation",
@@ -225,7 +245,54 @@
       "username_taken": "This username is already in use.",
       "last_admin": "There must be at least one administrator.",
       "cannot_delete_self": "You cannot delete your own account.",
-      "validation_failed": "Check the fields: username at least 3 characters, password at least 10."
+      "validation_failed": "Check the fields: username at least 3 characters, password at least 10.",
+      "password_too_short": "The password must be at least 10 characters.",
+      "sso_account": "Microsoft accounts have no password here."
+    },
+    "signIn": "Sign-in",
+    "provider_local": "Password",
+    "provider_entra": "Microsoft (Office 365)",
+    "microsoftLogin": "Microsoft sign-in name",
+    "entraHint": "The user's Office 365 address, e.g. jan@example.com. They sign in with Microsoft; no password is stored here.",
+    "notSignedInYet": "not signed in yet"
+  },
+  "sso": {
+    "title": "Single sign-on",
+    "intro": "Let people sign in with their Office 365 account (Microsoft Entra ID). Local accounts keep working as a fallback.",
+    "provider": "Microsoft Entra ID",
+    "tenantId": "Directory (tenant) ID",
+    "tenantIdHint": "Entra admin center → App registrations → your app → Overview.",
+    "clientId": "Application (client) ID",
+    "clientIdHint": "Shown on the same Overview page.",
+    "clientSecret": "Client secret",
+    "clientSecretHint": "The secret Value (not the Secret ID), from Certificates & secrets.",
+    "buttonLabel": "Button text",
+    "registration": "App registration",
+    "registrationIntro": "Add this address in Entra under Authentication → Web → Redirect URIs.",
+    "redirectUri": "Redirect URI",
+    "redirectUriHint": "Must match exactly, including https and the port.",
+    "publicUrl": "Public address of this app",
+    "publicUrlHint": "Only needed when the address above is wrong, for example behind a reverse proxy.",
+    "httpsRequired": "Microsoft only accepts https redirect addresses (except localhost). Put this app behind a reverse proxy with a certificate and fill in the public address.",
+    "accounts": "Accounts and roles",
+    "autoCreate": "Create accounts automatically",
+    "autoCreateHint": "On the first Microsoft sign-in. Off: add people on the Users page first (sign-in: Microsoft).",
+    "defaultRole": "Role for new accounts",
+    "defaultRoleAppRoles": "Not used: the role comes from Entra app roles.",
+    "allowedDomains": "Allowed e-mail domains",
+    "allowedDomainsHint": "Comma separated. Empty: every account in your tenant.",
+    "useAppRoles": "Take roles from Entra app roles",
+    "useAppRolesHint": "The role is updated on every sign-in. People without a role cannot sign in.",
+    "roleValue": "App role value for {{role}}",
+    "test": "Test connection",
+    "testOk": "Connection OK: tenant, client ID and client secret are accepted by Microsoft.",
+    "testFailed": "Test failed:",
+    "copy": "Copy",
+    "fallback": "The local administrator account keeps working with its password, also when Microsoft is unreachable. Sign out and use \"Sign in with a local account\" on the login page.",
+    "errors": {
+      "validation": "Check the fields.",
+      "tenant_id_guid": "The tenant ID must be the Directory (tenant) ID, a GUID like 00000000-0000-0000-0000-000000000000.",
+      "sso_incomplete": "Fill in tenant ID, client ID and client secret before enabling."
     }
   }
 }

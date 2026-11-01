@@ -44,6 +44,10 @@ const MIGRATIONS: string[] = [
      started_at TEXT NOT NULL,
      finished_at TEXT
    );`,
+  // Single sign-on: 'local' (password) or 'entra' (Microsoft Entra ID); external_id = "<tenant id>:<object id>".
+  `ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local';
+   ALTER TABLE users ADD COLUMN external_id TEXT;
+   CREATE UNIQUE INDEX users_external_id ON users(external_id) WHERE external_id IS NOT NULL;`,
 ];
 
 export function openDb(dataDir: string): Db {
