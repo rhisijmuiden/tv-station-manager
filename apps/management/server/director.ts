@@ -61,6 +61,8 @@ export class Director {
   private dirty = true;
   private busy = new Set<number>();
   now = () => Date.now();
+  /** Channels another module drives right now (Visual Radio); the director leaves those alone. */
+  yieldTo: (channelId: number) => boolean = () => false;
 
   constructor(
     private platform: Platform,
@@ -109,7 +111,7 @@ export class Director {
     for (const ch of chans) {
       const s = this.state(ch.id);
       if (recompileAll || now - s.compiledAt > 60_000) this.recompile(ch);
-      if (!ch.automation || this.busy.has(ch.id)) continue;
+      if (!ch.automation || this.busy.has(ch.id) || this.yieldTo(ch.id)) continue;
       this.busy.add(ch.id);
       try {
         await this.step(ch, s, now);
