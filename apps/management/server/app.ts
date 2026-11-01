@@ -8,6 +8,7 @@ import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
+import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
 import { VisualRadio, registerVisualRadio } from "./visualradio.js";
@@ -21,6 +22,7 @@ export interface ManagementHandles {
   planner: WeekPlanner;
   visualRadio: VisualRadio;
   rss: RssFeeds;
+  recorder: Recorder;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
@@ -41,7 +43,9 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       const changed = () => {
         director.invalidate();
         planner.requestPublish();
+        recorder.invalidate();
       };
+      const recorder = new Recorder(platform, remote, () => changed());
       const outputs = new StreamOutputs(platform, hub, remote);
       const rss = new RssFeeds(platform, changed);
       registerMedia(server, platform, changed);
@@ -53,6 +57,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
+      registerRecordings(server, platform, recorder);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -77,9 +82,11 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         planner.start();
         visualRadio.start();
         rss.start();
+        recorder.start();
       }
       server.addHook("onClose", async () => {
         planner.stop();
+        recorder.stop();
         rss.stop();
         visualRadio.stop();
         director.stop();
@@ -87,7 +94,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio, rss });
+      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio, rss, recorder });
     },
   };
 }

@@ -1,9 +1,10 @@
 import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { SUB_EXT, matchSubtitles, parseSubtitles, type Cue } from "./subtitles.js";
@@ -31,7 +32,7 @@ const sourceInput = z.discriminatedUnion("type", [
   z.object({ name: z.string().trim().min(1).max(80), type: z.literal("smb"), enabled: z.boolean().default(true), config: smbConfig }),
   z.object({ name: z.string().trim().min(1).max(80), type: z.literal("local"), enabled: z.boolean().default(true), config: localConfig }),
 ]);
-type SmbConfig = z.infer<typeof smbConfig>;
+export type SmbConfig = z.infer<typeof smbConfig>;
 type SourceInput = z.infer<typeof sourceInput>;
 
 export interface ListedFile {
@@ -243,7 +244,39 @@ export function decodeText(buf: Buffer) {
   }
 }
 
-interface SourceRow {
+/** Connection settings of a media source, with the SMB password decrypted. */
+export function readSourceConfig(secrets: { decrypt: (v: string) => string }, row: Pick<SourceRow, "type" | "config">): SmbConfig | { path: string } {
+  const c = JSON.parse(row.config) as Record<string, unknown>;
+  if (row.type === "smb") return { ...smbConfig.parse(c), password: secrets.decrypt(String(c.password ?? "")) };
+  return localConfig.parse(c);
+}
+
+/**
+ * Copies a local file into a media source at `relPath` (relative to the source root, forward slashes), creating the
+ * folders on the way. An existing file is replaced. Used for recordings that go into the library.
+ */
+export async function putIntoSource(cfg: SmbConfig | { path: string }, type: "smb" | "local", localFile: string, relPath: string) {
+  if (type === "local") {
+    const dst = join((cfg as { path: string }).path, ...relPath.split("/"));
+    mkdirSync(dirname(dst), { recursive: true });
+    const tmp = `${dst}.part`;
+    await copyFile(localFile, tmp);
+    renameSync(tmp, dst);
+    return;
+  }
+  const smb = cfg as SmbConfig;
+  const full = (smb.path ? `${smb.path.replace(/\/+$/, "")}/${relPath}` : relPath).replace(/^\/+/, "");
+  const dirs = full.split("/").slice(0, -1);
+  await withAuthFile(smb, async (args) => {
+    // mkdir of a folder that exists fails; that is fine, the put below tells whether it worked.
+    const mk = dirs.map((_, i) => `mkdir ${smbQuote(dirs.slice(0, i + 1).join("/"))}`).join("; ");
+    if (mk) await run("smbclient", [...args, "-c", mk], 60_000);
+    const r = await run("smbclient", [...args, "-c", `put "${localFile}" ${smbQuote(full)}`], 6 * 3600_000);
+    if (r.code !== 0 || /NT_STATUS_/.test(r.stdout + r.stderr)) throw new HttpError(502, "smb_failed", smbError(r.stderr, r.stdout));
+  });
+}
+
+export interface SourceRow {
   id: number;
   name: string;
   type: "smb" | "local";
@@ -257,11 +290,7 @@ interface SourceRow {
 export function registerMedia(app: FastifyInstance, platform: Platform, onChange: () => void) {
   const { db, secrets, log } = platform.ctx;
 
-  const readConfig = (row: SourceRow) => {
-    const c = JSON.parse(row.config) as Record<string, unknown>;
-    if (row.type === "smb") return { ...smbConfig.parse(c), password: secrets.decrypt(String(c.password ?? "")) };
-    return localConfig.parse(c);
-  };
+  const readConfig = (row: SourceRow) => readSourceConfig(secrets, row);
   const pub = (row: SourceRow) => {
     const cfg = readConfig(row) as Record<string, unknown>;
     if (row.type === "smb") cfg.password = cfg.password ? MASK : "";
