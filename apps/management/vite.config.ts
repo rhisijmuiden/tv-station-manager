@@ -10,7 +10,7 @@ export default defineConfig({
   build: { outDir: "../dist/web", emptyOutDir: true },
   server: {
     port: 5174,
-    proxy: { "/api": "http://127.0.0.1:8081" },
+    proxy: { "/api": "http://127.0.0.1:8081", "^/beeldkrant/(page\\.html|img/|\\d+/data\\.json)": "http://127.0.0.1:8081", "/graphics": "http://127.0.0.1:8081" },
     fs: { allow: ["../.."] },
   },
 });

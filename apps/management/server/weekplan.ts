@@ -276,15 +276,16 @@ export class WeekPlanner {
     return Number(r.lastInsertRowid);
   }
 
-  private writeItems(blockId: number, items: { type: "media" | "block" | "live"; mediaId?: number | null; childBlockId?: number | null; liveSourceId?: number | null; durationMs?: number | null; title?: string | null }[]) {
+  private writeItems(blockId: number, items: { type: "media" | "block" | "live" | "beeldkrant"; mediaId?: number | null; childBlockId?: number | null; liveSourceId?: number | null; beeldkrantId?: number | null; durationMs?: number | null; title?: string | null }[]) {
     const { db } = this;
     db.prepare("DELETE FROM block_items WHERE block_id = ?").run(blockId);
-    const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, duration_ms, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, duration_ms, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     items.forEach((it, i) => {
       if (it.type === "media" && !it.mediaId) throw new HttpError(400, "media_required");
       if (it.type === "block" && !it.childBlockId) throw new HttpError(400, "block_required");
       if (it.type === "live" && !it.liveSourceId) throw new HttpError(400, "live_source_required");
-      ins.run(blockId, i, it.type, it.type === "media" ? it.mediaId! : null, it.type === "block" ? it.childBlockId! : null, it.type === "live" ? it.liveSourceId! : null, it.durationMs ?? null, it.title || null);
+      if (it.type === "beeldkrant" && !it.beeldkrantId) throw new HttpError(400, "beeldkrant_required");
+      ins.run(blockId, i, it.type, it.type === "media" ? it.mediaId! : null, it.type === "block" ? it.childBlockId! : null, it.type === "live" ? it.liveSourceId! : null, it.type === "beeldkrant" ? it.beeldkrantId! : null, it.durationMs ?? null, it.title || null);
     });
     try {
       expandBlock(dbLoader(db), blockId);
@@ -314,7 +315,7 @@ export class WeekPlanner {
     const current =
       content.blockId != null
         ? (this.db
-            .prepare("SELECT type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, duration_ms AS durationMs, title FROM block_items WHERE block_id = ? ORDER BY position, id")
+            .prepare("SELECT type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, duration_ms AS durationMs, title FROM block_items WHERE block_id = ? ORDER BY position, id")
             .all(content.blockId) as unknown as Parameters<WeekPlanner["writeItems"]>[1])
         : [];
     const pos = at == null ? current.length : Math.max(0, Math.min(current.length, at));
@@ -475,10 +476,11 @@ const slotBase = z.object({
   inEpg: z.boolean().default(true),
 });
 const fillItemIn = z.object({
-  type: z.enum(["media", "block", "live"]),
+  type: z.enum(["media", "block", "live", "beeldkrant"]),
   mediaId: z.number().int().nullable().optional(),
   childBlockId: z.number().int().nullable().optional(),
   liveSourceId: z.number().int().nullable().optional(),
+  beeldkrantId: z.number().int().nullable().optional(),
   durationMs: z.number().int().min(0).max(24 * 3600_000).nullable().optional(),
   title: z.string().max(200).nullable().optional(),
 });
@@ -798,10 +800,10 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       p.content.blockId != null && p.content.state !== "block"
         ? (db
             .prepare(
-              `SELECT i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.duration_ms AS durationMs, i.title,
+              `SELECT i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.duration_ms AS durationMs, i.title,
                       m.name AS mediaName, m.title AS mediaTitle, m.path AS mediaPath, m.duration_ms AS mediaDurationMs, m.missing AS mediaMissing,
-                      cb.name AS childName, ls.name AS liveName
-                 FROM block_items i LEFT JOIN media m ON m.id = i.media_id LEFT JOIN blocks cb ON cb.id = i.child_block_id LEFT JOIN live_sources ls ON ls.id = i.live_source_id
+                      cb.name AS childName, ls.name AS liveName, bk.name AS beeldkrantName
+                 FROM block_items i LEFT JOIN media m ON m.id = i.media_id LEFT JOIN blocks cb ON cb.id = i.child_block_id LEFT JOIN live_sources ls ON ls.id = i.live_source_id LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id
                 WHERE i.block_id = ? ORDER BY i.position, i.id`,
             )
             .all(p.content.blockId) as Record<string, unknown>[])
@@ -815,7 +817,7 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       items: items.map((i) => ({
         ...i,
         mediaMissing: !!i.mediaMissing,
-        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : null)),
+        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : null)),
       })),
       windowsMs: p.windows.map((w) => w.end - w.start),
     };

@@ -1,6 +1,7 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Disc3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Satellite, Tags, Tv } from "lucide-react";
+import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Disc3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv } from "lucide-react";
+import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
 import { CategoriesPage } from "./pages/Categories";
 import { ClocksPage } from "./pages/Clocks";
@@ -43,6 +44,7 @@ mountPlatformApp({
         { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
         { to: "/ads", label: "mgmt.nav.ads", icon: Film },
         { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
+        { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
         { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
         { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
         { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
@@ -75,6 +77,8 @@ mountPlatformApp({
     { path: "/ads", element: <BlocksPage kind="commercial" /> },
     { path: "/ads/:id", element: <BlocksPage kind="commercial" /> },
     { path: "/media", element: <MediaPage /> },
+    { path: "/beeldkrant", element: <BeeldkrantPage /> },
+    { path: "/beeldkrant/:id", element: <BeeldkrantPage /> },
     { path: "/epg", element: <EpgPage /> },
     { path: "/graphics", element: <GraphicsPage /> },
     { path: "/channels", element: <ChannelsPage /> },

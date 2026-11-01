@@ -256,6 +256,15 @@ export class Director {
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "beeldkrant" && ev.leaf?.beeldkrantId) {
+        // Full-screen news pages: a web page on the playout layer (CasparCG HTML producer), the playout node on air.
+        const p = this.playout(ch);
+        if (!p) throw new Error("no studio node configured for this channel");
+        this.remote.forget(ch.studio_id, ch.caspar_channel);
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, beeldkrantUrl(this.platform, ev.leaf.beeldkrantId, ev.start - ev.offsetMs));
+        s.standby = null;
+        await this.stopRtmp(s);
+        await this.switchTo(ch, ch.playout_input);
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
         const live = this.live(ev.leaf.liveSourceId);
         if (!live) throw new Error("live source was removed");
@@ -314,7 +323,9 @@ export class Director {
   graphicsData(ch: ChannelRow, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {
     const g = channelOut(ch).graphics as Graphics;
     const inAd = current?.leaf?.blockKind === "commercial" || current?.leaf?.category === "commercial";
-    const hidden = !g.enabled || (g.hideInCommercials && inAd);
+    // A beeldkrant has its own header and clock; the overlay only stays when the beeldkrant asks for it.
+    const onBeeldkrant = current?.type === "beeldkrant" && !current.leaf?.showOverlay;
+    const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
     const nextProgram = upcoming.find((e) => e.scheduleId != null && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
     const untilNext = nextProgram ? nextProgram.start - now : Infinity;
@@ -515,5 +526,8 @@ export function publicUrl(platform: Platform) {
     .find((a) => a && a.family === "IPv4" && !a.internal)?.address;
   return `http://${ip ?? "127.0.0.1"}:${platform.ctx.config.port}`;
 }
+
+/** Page CasparCG plays for a beeldkrant: `start` is the wall-clock time of its first page, so a restart shows the right page. */
+export const beeldkrantUrl = (platform: Platform, id: number, start: number) => `${publicUrl(platform)}/beeldkrant/page.html?id=${id}&start=${Math.round(start)}`;
 
 const sameOutput = (a: Output, b: Output) => a.studioId === b.studioId && a.casparChannel === b.casparChannel;

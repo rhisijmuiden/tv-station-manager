@@ -9,6 +9,7 @@ import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { RemoteSources } from "./remote.js";
+import { RssFeeds, registerRss } from "./rss.js";
 import { VisualRadio, registerVisualRadio } from "./visualradio.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
@@ -19,6 +20,7 @@ export interface ManagementHandles {
   outputs: StreamOutputs;
   planner: WeekPlanner;
   visualRadio: VisualRadio;
+  rss: RssFeeds;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
@@ -41,6 +43,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         planner.requestPublish();
       };
       const outputs = new StreamOutputs(platform, hub, remote);
+      const rss = new RssFeeds(platform, changed);
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
@@ -49,6 +52,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       registerVisualRadio(server, platform, visualRadio, () => director.invalidate());
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
+      registerRss(server, platform, rss, changed);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -72,16 +76,18 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         remote.start();
         planner.start();
         visualRadio.start();
+        rss.start();
       }
       server.addHook("onClose", async () => {
         planner.stop();
+        rss.stop();
         visualRadio.stop();
         director.stop();
         remote.stop();
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio });
+      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio, rss });
     },
   };
 }

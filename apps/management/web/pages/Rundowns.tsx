@@ -51,10 +51,12 @@ interface Detail {
   items: RawItem[];
 }
 interface RawItem {
-  type: "media" | "block" | "live";
+  type: "media" | "block" | "live" | "beeldkrant";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
+  beeldkrantId?: number | null;
+  beeldkrantName?: string | null;
   durationMs: number | null;
   title: string | null;
   mediaName?: string | null;
@@ -66,10 +68,11 @@ interface RawItem {
   effectiveDurationMs: number | null;
 }
 interface Item {
-  type: "media" | "block" | "live";
+  type: "media" | "block" | "live" | "beeldkrant";
   mediaId?: number | null;
   childBlockId?: number | null;
   liveSourceId?: number | null;
+  beeldkrantId?: number | null;
   durationMs?: number | null;
   title?: string | null;
   label: string;
@@ -82,9 +85,10 @@ const toItem = (i: RawItem): Item => ({
   mediaId: i.mediaId,
   childBlockId: i.childBlockId,
   liveSourceId: i.liveSourceId,
+  beeldkrantId: i.beeldkrantId ?? null,
   durationMs: i.durationMs,
   title: i.title,
-  label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.liveName || "",
+  label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.liveName || "",
   sub: i.type === "media" ? i.mediaPath : null,
   effectiveDurationMs: i.effectiveDurationMs,
   warning: i.type === "media" ? (i.mediaMissing ? "missing" : i.effectiveDurationMs == null ? "no_duration" : null) : null,
@@ -267,7 +271,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
     }
   };
   const save = (ready: boolean) =>
-    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, durationMs, title })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
+    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
   const ownFromBlock = async (extra: Item[] = [], at?: number) => {
     const own = occ?.blockId ? (await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`)).items.map(toItem) : [];
     const pos = at ?? own.length;

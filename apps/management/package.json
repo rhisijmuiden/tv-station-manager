@@ -16,6 +16,7 @@
     "@tvsm/ui": "workspace:*",
     "atem-connection": "^3.10.3",
     "casparcg-connection": "^7.0.0",
+    "fast-xml-parser": "^5.11.2",
     "fastify": "^5.6.1",
     "lucide-react": "^0.548.0",
     "react": "^19.2.0",
