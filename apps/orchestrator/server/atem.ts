@@ -1,13 +1,17 @@
 /**
  * ATEM inventory: the orchestrator keeps track of every Blackmagic ATEM switcher in the facility.
  *
- * It connects read-only (it never switches sources: that is the management node's job) and keeps a snapshot of
- * model, firmware protocol, video mode, inputs with their names and the current program/preview per M/E.
- * The only thing it writes to a switcher is input names (long + short label), on request of a user.
+ * It keeps a snapshot of model, firmware protocol, video mode, inputs with their names and the current
+ * program/preview per M/E. It writes input names (long + short label) and, on request of an operator, switches
+ * (program/preview/cut/auto/aux).
+ *
+ * Control mode per switcher: "automation" (the management node's director may switch) or "locked" (only people
+ * switch; the director holds its switches until it is released). Management nodes read the modes from
+ * `GET /automation-api/v1/atem-control` with the automation token (`settings.automation.token`).
  */
 import type { Platform } from "@tvsm/platform";
-import { HttpError, requireRole } from "@tvsm/platform";
-import { randomUUID } from "node:crypto";
+import { HttpError, randomToken, requireRole } from "@tvsm/platform";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { Atem, Enums } from "atem-connection";
 import type { FastifyInstance } from "fastify";
@@ -42,6 +46,14 @@ export const ATEM_MIGRATIONS = [
    CREATE INDEX atem_events_switcher ON atem_events(switcher_id, at);`,
 ];
 
+/** Appended after ATEM_MIGRATIONS (and before the diagram's): control mode per switcher. */
+export const ATEM_CONTROL_MIGRATIONS = [
+  `ALTER TABLE atem_switchers ADD COLUMN control TEXT NOT NULL DEFAULT 'automation' CHECK (control IN ('automation','locked'));
+   ALTER TABLE atem_switchers ADD COLUMN control_by TEXT;
+   ALTER TABLE atem_switchers ADD COLUMN control_at TEXT;
+   ALTER TABLE atem_switchers ADD COLUMN control_reason TEXT NOT NULL DEFAULT '';`,
+];
+
 // ---- device snapshot ----------------------------------------------------------
 
 export interface AtemInput {
@@ -71,13 +83,19 @@ export interface AtemSnapshot {
   inputs: AtemInput[];
   program: (number | null)[];
   preview: (number | null)[];
+  /** Source per aux output (ATEM source id). Missing in snapshots stored before this was added. */
+  auxSources?: (number | null)[];
 }
+
+export type SwitchAction = "program" | "preview" | "cut" | "auto" | "aux";
 
 /** One connection to a switcher. Real implementation: atem-connection; tests use a fake. */
 export interface AtemLink extends EventEmitter {
   readonly connected: boolean;
   snapshot(): AtemSnapshot | null;
   rename(input: number, longName: string, shortName: string): Promise<void>;
+  /** program/preview: `input` on M/E `me`; cut/auto: M/E `me`; aux: `input` on aux bus `me` (0-based). */
+  switch(action: SwitchAction, me: number, input?: number): Promise<void>;
   close(): Promise<void>;
 }
 export type AtemConnector = (host: string) => AtemLink;
@@ -151,11 +169,20 @@ class RealAtemLink extends EventEmitter implements AtemLink {
       inputs,
       program: Array.from({ length: mes }, (_, i) => s.video.mixEffects[i]?.programInput ?? null),
       preview: Array.from({ length: mes }, (_, i) => s.video.mixEffects[i]?.previewInput ?? null),
+      auxSources: Array.from({ length: s.info.capabilities?.auxilliaries ?? 0 }, (_, i) => s.video.auxilliaries[i] ?? null),
     };
   }
   async rename(input: number, longName: string, shortName: string) {
     if (!this.connected) throw new Error("ATEM not connected");
     await this.atem.setInputSettings({ longName, shortName }, input);
+  }
+  async switch(action: SwitchAction, me: number, input?: number) {
+    if (!this.connected) throw new Error("ATEM not connected");
+    if (action === "program") await this.atem.changeProgramInput(input!, me);
+    else if (action === "preview") await this.atem.changePreviewInput(input!, me);
+    else if (action === "cut") await this.atem.cut(me);
+    else if (action === "auto") await this.atem.autoTransition(me);
+    else await this.atem.setAuxSource(input!, me);
   }
   async close() {
     this.atem.removeAllListeners();
@@ -175,6 +202,10 @@ interface SwitcherRow {
   snapshot: string | null;
   last_seen_at: string | null;
   created_at: string;
+  control: "automation" | "locked";
+  control_by: string | null;
+  control_at: string | null;
+  control_reason: string;
 }
 
 /** ATEM labels: long name max 20, short name max 4 characters, printable ASCII (what the switcher can display). */
@@ -203,6 +234,19 @@ const inputSchema = z.object({
   nodeId: z.string().max(64).nullable().optional(),
   note: z.string().max(200).optional(),
 });
+
+const controlSchema = z.object({ mode: z.enum(["automation", "locked"]), reason: z.string().trim().max(200).optional() });
+const switchSchema = z.object({
+  action: z.enum(["program", "preview", "cut", "auto", "aux"]),
+  /** M/E index for program/preview/cut/auto, aux bus index for aux (0-based). */
+  me: z.number().int().min(0).max(63).default(0),
+  input: z.number().int().min(0).max(65535).optional(),
+  /** Lock the switcher for the automation in the same step. */
+  lock: z.boolean().optional(),
+});
+
+export const AUTOMATION_API = "/automation-api/v1";
+const sameSecret = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 /** Grace period before a lost connection counts as "offline" (the ATEM protocol reconnects by itself). */
 const OFFLINE_AFTER_MS = 15_000;
@@ -301,6 +345,7 @@ export function registerAtem(app: FastifyInstance, platform: Platform, connect: 
       createdAt: r.created_at,
       snapshot: snap,
       inputs: inputMeta(r.id),
+      control: { mode: r.control, by: r.control_by, at: r.control_at, reason: r.control_reason },
     };
   };
   const find = (id: string) => {
@@ -314,7 +359,7 @@ export function registerAtem(app: FastifyInstance, platform: Platform, connect: 
     return { total: all.length, online: all.filter((a) => links.get(a.id)?.link.connected ?? a.online).length };
   };
 
-  app.get("/api/atem", async () => ({ switchers: (db.prepare("SELECT * FROM atem_switchers ORDER BY name COLLATE NOCASE").all() as unknown as SwitcherRow[]).map(toPublic) }));
+  app.get("/api/atem", async () => ({ switchers: list() }));
 
   app.get("/api/atem/:id", async (req) => {
     const r = find((req.params as { id: string }).id);
@@ -385,5 +430,82 @@ export function registerAtem(app: FastifyInstance, platform: Platform, connect: 
     return toPublic(get(r.id)!);
   });
 
-  return { counts };
+  // ---- control: manual switching + automation lock ----------------------------------------
+
+  app.put("/api/atem/:id/control", async (req) => {
+    requireRole(req, "operator");
+    const r = find((req.params as { id: string }).id);
+    const b = controlSchema.parse(req.body);
+    setControl(r, b.mode, req.user!.username, b.reason ?? "");
+    return toPublic(get(r.id)!);
+  });
+  const setControl = (r: SwitcherRow, mode: SwitcherRow["control"], by: string, reason: string) => {
+    if (r.control === mode && r.control_reason === reason) return;
+    db.prepare("UPDATE atem_switchers SET control = ?, control_by = ?, control_at = ?, control_reason = ? WHERE id = ?").run(mode, by, new Date().toISOString(), reason, r.id);
+    if (r.control !== mode) event(r.id, "control", mode === "locked" ? `Locked for manual control by ${by}${reason ? `: ${reason}` : ""}` : `Released to the automation by ${by}`);
+  };
+
+  app.post("/api/atem/:id/switch", async (req) => {
+    requireRole(req, "operator");
+    const r = find((req.params as { id: string }).id);
+    const b = switchSchema.parse(req.body);
+    const link = links.get(r.id)?.link;
+    const snap = link?.connected ? link.snapshot() : null;
+    if (!link || !snap) throw new HttpError(409, "atem_offline");
+    const needsInput = b.action === "program" || b.action === "preview" || b.action === "aux";
+    if (needsInput && b.input == null) throw new HttpError(400, "invalid_input");
+    if (b.action === "aux" ? b.me >= snap.auxes : b.me >= snap.mixEffects) throw new HttpError(400, "invalid_me");
+    if (b.action !== "aux" && needsInput && !snap.inputs.some((i) => i.id === b.input)) throw new HttpError(400, "unknown_input");
+    if (b.lock) setControl(r, "locked", req.user!.username, r.control === "locked" ? r.control_reason : "");
+    try {
+      await link.switch(b.action, b.me, b.input);
+    } catch (e) {
+      throw new HttpError(502, "atem_failed", (e as Error).message);
+    }
+    if (b.action !== "preview") {
+      const name = snap.inputs.find((i) => i.id === b.input)?.longName;
+      const what = b.action === "program" ? `Program → ${b.input}${name ? ` (${name})` : ""}` : b.action === "aux" ? `Aux ${b.me + 1} → ${b.input}${name ? ` (${name})` : ""}` : b.action === "cut" ? "Cut" : "Auto transition";
+      event(r.id, "switch", `${what}${b.action !== "aux" && snap.mixEffects > 1 ? ` on M/E ${b.me + 1}` : ""} by ${req.user!.username}`);
+    }
+    persist(r.id);
+    return toPublic(get(r.id)!);
+  });
+
+  // ---- automation link (management nodes read the control modes) ----------------------------
+
+  const automationToken = () => {
+    let t = platform.ctx.settings.get<string>("automation.token", "");
+    if (!t) {
+      t = randomToken(24);
+      platform.ctx.settings.set("automation.token", t);
+    }
+    return t;
+  };
+  app.get("/api/automation", async (req) => {
+    requireRole(req, "admin");
+    return { token: automationToken(), path: `${AUTOMATION_API}/atem-control`, lastPollAt: lastPoll };
+  });
+  app.post("/api/automation/token", async (req) => {
+    requireRole(req, "admin");
+    const t = randomToken(24);
+    platform.ctx.settings.set("automation.token", t);
+    log.info({ by: req.user!.username }, "automation token regenerated");
+    return { token: t, path: `${AUTOMATION_API}/atem-control`, lastPollAt: lastPoll };
+  });
+  let lastPoll: { at: string; ip: string } | null = null;
+  app.get(`${AUTOMATION_API}/atem-control`, async (req, reply) => {
+    const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? "");
+    if (!m || !sameSecret(m[1]!, automationToken())) return reply.status(401).send({ error: "unauthorized" });
+    lastPoll = { at: new Date().toISOString(), ip: req.ip };
+    const rows = db.prepare("SELECT * FROM atem_switchers ORDER BY name COLLATE NOCASE").all() as unknown as SwitcherRow[];
+    return {
+      serverTime: new Date().toISOString(),
+      switchers: rows.map((r) => ({ id: r.id, name: r.name, host: r.host, mode: r.control, by: r.control_by, at: r.control_at, reason: r.control_reason })),
+    };
+  });
+
+  const list = () => (db.prepare("SELECT * FROM atem_switchers ORDER BY name COLLATE NOCASE").all() as unknown as SwitcherRow[]).map(toPublic);
+  return { counts, list };
 }
+
+export type PublicSwitcher = ReturnType<ReturnType<typeof registerAtem>["list"]>[number];

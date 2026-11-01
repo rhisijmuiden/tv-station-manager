@@ -80,7 +80,9 @@
       "node_live": "Live-node {{studio}}",
       "node_fallback": "Reserve-ingang {{input}}",
       "node_other": "ATEM-ingang {{input}}",
-      "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt."
+      "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt.",
+      "atemLocked": "ATEM vastgezet in de orchestrator door {{by}}",
+      "atemLockedHint": "Het schema speelt door op de servers, maar de automatiek schakelt de ATEM niet tot hij in de orchestrator wordt vrijgegeven."
     },
     "media": {
       "title_page": "Mediabibliotheek",
@@ -343,7 +345,22 @@
       "role_both": "Playout + live",
       "roleHint_playout": "Speelt de programmering: clips, reclameblokken en graphics. Koppel hem bij Kanalen aan een kanaal.",
       "roleHint_live": "Ontvangt RTMP/SRT-streams van evenementen en speelt ze naar zijn DeckLink-uitgang. De regisseur schakelt de ATEM ernaar zodra er een live-item gepland staat.",
-      "roleHint_both": "Eén node doet zowel playout als live-streams (elk op een eigen DeckLink-uitgang)."
+      "roleHint_both": "Eén node doet zowel playout als live-streams (elk op een eigen DeckLink-uitgang).",
+      "orchestrator": "Koppeling orchestrator",
+      "orchestratorIntro": "In de orchestrator kun je een ATEM vastzetten voor handmatige bediening. Zolang hij vastgezet is, houdt de automatiek hier zijn schakelingen voor die ATEM vast; bij vrijgeven neemt hij wat het schema wil.",
+      "orchEnabled": "Vergrendelingen van de orchestrator volgen",
+      "orchEnabledHint": "Uit: de automatiek schakelt altijd (eventuele vergrendelingen vervallen hier).",
+      "orchUrl": "Adres orchestrator",
+      "orchToken": "Token",
+      "orchTokenHint": "In de orchestrator: ATEM-mengtafels → Koppeling automatiek.",
+      "orchTokenKept": "Opgeslagen. Leeg laten om hem te houden.",
+      "orchConnected": "Verbonden",
+      "orchUnreachable": "Niet bereikbaar",
+      "orchKeepLocks": "De laatst bekende vergrendelingen blijven gelden tot de orchestrator weer antwoordt.",
+      "orchLastOk": "Laatst gecontroleerd {{at}}",
+      "orchUnmatched": "Niet onder hetzelfde adres bekend in de orchestrator, dus van daaruit nooit vast te zetten: {{names}}",
+      "locked": "Vastgezet",
+      "lockedBy": "door {{by}}"
     },
     "errors": {
       "generic": "Er ging iets mis.",
@@ -382,7 +399,9 @@
       "wordpress_failed": "Geen WordPress-site gevonden: {{message}}",
       "beeldkrant_in_use": "Deze beeldkrant staat in blokken.",
       "beeldkrant_required": "Kies een beeldkrant.",
-      "image_failed": "De foto kon niet worden opgehaald."
+      "image_failed": "De foto kon niet worden opgehaald.",
+      "atem_locked": "Deze ATEM is vastgezet in de orchestrator: schakel daar, of geef hem eerst vrij.",
+      "url_required": "Vul het adres van de orchestrator in."
     },
     "remote": {
       "title": "Remote bronnen",

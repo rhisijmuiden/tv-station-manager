@@ -432,6 +432,7 @@ export class Director {
       atem: sw ? sw.info() : null,
       playout: p ? p.info() : null,
       onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
+      atemLock: this.hub.lock(ch.atem_id),
       standby: s.standby ? { liveSourceId: s.standby.liveSourceId, name: s.standby.name, since: s.standby.since } : null,
       lastError: s.lastError,
       graphics: this.graphicsData(ch, current, upcoming, now),
@@ -468,6 +469,7 @@ export class Director {
       const { liveSourceId } = z.object({ liveSourceId: z.number().int() }).parse(req.body);
       const live = this.live(liveSourceId);
       if (!live) throw new HttpError(404, "not_found");
+      if (this.hub.lock(c.atem_id)) throw new HttpError(409, "atem_locked");
       const s = this.state(c.id);
       try {
         await this.takeRemote(s, live);
@@ -500,6 +502,7 @@ export class Director {
       const b = z.object({ action: z.enum(["program", "preview", "cut", "auto"]), input: z.number().int().optional() }).parse(req.body);
       const sw = this.hub.switcher(c.atem_id);
       if (!sw) throw new HttpError(400, "no_atem");
+      if (sw.locked()) throw new HttpError(409, "atem_locked");
       try {
         if (b.action === "program" && b.input != null) await sw.program(b.input, c.atem_me, "cut");
         else if (b.action === "preview" && b.input != null) await sw.preview(b.input, c.atem_me);

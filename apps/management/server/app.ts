@@ -7,6 +7,7 @@ import { Director } from "./director.js";
 import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
+import { OrchestratorLink, registerOrchestratorLink } from "./orchestrator.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
@@ -21,10 +22,13 @@ export interface ManagementHandles {
   planner: WeekPlanner;
   visualRadio: VisualRadio;
   rss: RssFeeds;
+  orchestrator: OrchestratorLink;
 }
 
 /** Platform options for the management node. `drivers` can be replaced in tests. */
-export function managementOptions(opts: { webDir?: string; drivers?: DriverFactory; autostart?: boolean; onReady?: (h: ManagementHandles) => void } = {}): PlatformOptions {
+export function managementOptions(
+  opts: { webDir?: string; drivers?: DriverFactory; autostart?: boolean; fetch?: typeof fetch; onReady?: (h: ManagementHandles) => void } = {},
+): PlatformOptions {
   return {
     app: { id: "management", name: "TV Station Manager", defaultPort: 8080 },
     webDir: opts.webDir,
@@ -32,6 +36,9 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
     backupSources: (ctx) => ({ graphics: join(ctx.config.dataDir, "graphics") }),
     register: async (server, platform: Platform) => {
       const hub = new DeviceHub(platform, opts.drivers ?? realDrivers);
+      const orchestrator = new OrchestratorLink(platform, opts.fetch);
+      hub.lockFor = (host) => orchestrator.lockFor(host);
+      orchestrator.on("change", () => void hub.locksChanged());
       const remote = new RemoteSources(platform, hub);
       const director = new Director(platform, hub, remote);
       const planner = new WeekPlanner(platform, () => director.invalidate());
@@ -53,6 +60,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
+      registerOrchestratorLink(server, orchestrator);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -77,9 +85,11 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         planner.start();
         visualRadio.start();
         rss.start();
+        orchestrator.start();
       }
       server.addHook("onClose", async () => {
         planner.stop();
+        orchestrator.stop();
         rss.stop();
         visualRadio.stop();
         director.stop();
@@ -87,7 +97,7 @@ export function managementOptions(opts: { webDir?: string; drivers?: DriverFacto
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio, rss });
+      opts.onReady?.({ hub, director, remote, planner, outputs, visualRadio, rss, orchestrator });
     },
   };
 }
