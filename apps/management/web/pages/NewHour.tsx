@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Switch, cx, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CalendarRange, Check, CheckCircle2, Clapperboard, Clock3, Film, GripVertical, MousePointerClick, PartyPopper, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CalendarRange, Check, CheckCircle2, Clapperboard, Clock3, Film, GripVertical, MousePointerClick, PartyPopper, Plus, Repeat, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
@@ -59,7 +59,9 @@ export function NewHourPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [plan, setPlan] = useState(true);
   const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
-  const [startMin, setStartMin] = useState(18 * 60);
+  /** Start times (minutes) on every chosen day: one programme can run several times a day. */
+  const [starts, setStarts] = useState<number[]>([18 * 60]);
+  const startMin = starts[0] ?? 18 * 60;
   const [turnOn, setTurnOn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -86,8 +88,16 @@ export function NewHourPage() {
   const clashes = useMemo(() => {
     if (!plan) return [];
     const slots = week.data?.slots ?? [];
-    return weekdays.flatMap((wd) => slots.filter((o) => overlaps({ weekday: o.weekday, startMin: o.startMin, durationMin: o.durationMin }, { weekday: wd, startMin, durationMin: lengthMin })).map((o) => ({ day: wd, slot: o })));
-  }, [plan, weekdays, startMin, lengthMin, week.data]);
+    return weekdays.flatMap((wd) =>
+      starts.flatMap((st) => slots.filter((o) => overlaps({ weekday: o.weekday, startMin: o.startMin, durationMin: o.durationMin }, { weekday: wd, startMin: st, durationMin: lengthMin })).map((o) => ({ day: wd, at: st, slot: o }))),
+    );
+  }, [plan, weekdays, starts, lengthMin, week.data]);
+  /** Chosen times that run into each other (also past midnight into the next chosen day). */
+  const selfClash = useMemo(() => {
+    const all = weekdays.flatMap((wd) => starts.map((st) => ({ weekday: wd, startMin: st, durationMin: lengthMin })));
+    return all.some((a, i) => all.some((b, j) => j > i && overlaps(a, b)));
+  }, [weekdays, starts, lengthMin]);
+  const timesLabel = starts.map((m) => fmtMinutes(m)).join(", ");
 
   const add = (p: LibraryPayload, pos?: number) => {
     const add: Item[] = payloadItems(p).map((d) =>
@@ -120,7 +130,7 @@ export function NewHourPage() {
   const canNext: Record<Step, boolean> = {
     basics: !!name.trim() && !!channel,
     fill: items.length > 0,
-    plan: !plan || (weekdays.length > 0 && !clashes.length),
+    plan: !plan || (weekdays.length > 0 && starts.length > 0 && !clashes.length && !selfClash),
     check: true,
   };
   const idx = STEPS.indexOf(step);
@@ -144,6 +154,7 @@ export function NewHourPage() {
           channelId: channel.id,
           weekdays,
           startMin,
+          startMins: starts,
           durationMin: lengthMin,
           blockId: r.id,
           clockMode: clockChoice === "channel" ? "channel" : clockChoice === "none" ? "none" : "clock",
@@ -187,7 +198,7 @@ export function NewHourPage() {
               <PartyPopper className="size-7" />
             </span>
             <h2 className="text-xl font-semibold">{t("mgmt.newHour.doneTitle", { name })}</h2>
-            <p className="text-sm text-muted">{done.planned ? t("mgmt.newHour.donePlanned", { days: weekdays.map((d) => weekdayName(d)).join(", "), time: fmtMinutes(startMin) }) : t("mgmt.newHour.doneNotPlanned")}</p>
+            <p className="text-sm text-muted">{done.planned ? t("mgmt.newHour.donePlanned", { days: weekdays.map((d) => weekdayName(d)).join(", "), time: timesLabel, n: done.planned }) : t("mgmt.newHour.doneNotPlanned")}</p>
             <div className="flex flex-wrap justify-center gap-2 pt-2">
               <Link to="/week">
                 <Button icon={<CalendarRange className="size-4" />}>{t("mgmt.newHour.toWeek")}</Button>
@@ -334,7 +345,7 @@ export function NewHourPage() {
       </Card>
     ),
     fill: (
-      <div className="grid gap-6 @4xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-5 @3xl:grid-cols-2">
         <Card className="self-start">
           <CardHeader
             icon={<MousePointerClick className="size-4" />}
@@ -348,17 +359,17 @@ export function NewHourPage() {
               {items.map((it, i) => {
                 const out = i >= usedCount;
                 return (
-                  <li key={i} {...dnd.rowProps(i, it.label)} className={cx("flex cursor-grab items-center gap-3 bg-surface px-3 py-2 text-sm active:cursor-grabbing", out && "bg-danger/5", indicatorClass(dnd.indicator, i, items.length))}>
+                  <li key={i} {...dnd.rowProps(i, it.label)} className={cx("flex cursor-grab items-center gap-2 bg-surface px-2.5 py-1.5 text-sm active:cursor-grabbing", out && "bg-danger/5", indicatorClass(dnd.indicator, i, items.length))}>
                     <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
-                    <span className={cx("w-12 font-mono text-xs", out ? "text-danger" : "text-muted")}>{out ? "—" : at(startOf(preview, parts.windows, items, i))}</span>
-                    <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
+                    <span className={cx("w-10 font-mono text-xs", out ? "text-danger" : "text-muted")}>{out ? "—" : at(startOf(preview, parts.windows, items, i))}</span>
+                    <span className={cx("hidden size-7 @5xl:grid shrink-0 place-items-center rounded-md", it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{it.label}</span>
                       {it.sub && <span className="block truncate text-xs text-muted">{it.sub}</span>}
                     </span>
                     {!it.durationMs && <AlertTriangle className="size-4 shrink-0 text-warn" aria-label={t("mgmt.warnings.no_duration")} />}
                     {out && <Badge tone="danger">{t("mgmt.rundowns.doesNotFit")}</Badge>}
-                    <span className="w-16 text-right font-mono text-xs text-muted">{fmtDuration(it.durationMs)}</span>
+                    <span className="w-12 text-right font-mono text-xs text-muted">{fmtDuration(it.durationMs)}</span>
                     <span className="flex shrink-0">
                       <button className="rounded p-1 text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-30" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label={t("mgmt.newHour.up")}>
                         <ArrowUp className="size-3.5" />
@@ -390,9 +401,9 @@ export function NewHourPage() {
             {timeline.map((p, pi) => {
               if (p.type === "fixed")
                 return (
-                  <li key={pi} className="flex items-center gap-3 py-1.5 text-sm">
+                  <li key={pi} className="my-1 flex items-center gap-3 rounded-md bg-surface-2/70 px-2.5 py-2 text-sm">
                     <span className="w-11 font-mono text-xs text-muted">{at(p.start)}</span>
-                    <span className="size-2.5 shrink-0 rounded-full bg-muted/60" />
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: blocks.data?.blocks.find((b) => b.id === p.blockId)?.color ?? "var(--color-muted)" }} />
                     <span className="flex-1 truncate text-muted">{p.title || blocks.data?.blocks.find((b) => b.id === p.blockId)?.name || t("mgmt.newHour.fixedPart")}</span>
                     <span className="font-mono text-[11px] text-muted">{fmtDuration(p.end - p.start)}</span>
                   </li>
@@ -441,22 +452,13 @@ export function NewHourPage() {
           {plan && (
             <>
               <DayPicker value={weekdays} onChange={setWeekdays} label={t("mgmt.newHour.whichDays")} />
-              <Field label={t("mgmt.newHour.startTime")} hint={t("mgmt.newHour.startTimeHint", { end: fmtMinutes(startMin + lengthMin) })}>
-                {(id) => (
-                  <Select id={id} className="max-w-40" value={startMin} onChange={(e) => setStartMin(Number(e.target.value))}>
-                    {TIMES.map((m) => (
-                      <option key={m} value={m}>
-                        {fmtMinutes(m)}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              <WeekStrip slots={week.data?.slots ?? []} weekdays={weekdays} startMin={startMin} lengthMin={lengthMin} color={color} name={name} />
+              <TimesPicker value={starts} onChange={setStarts} lengthMin={lengthMin} />
+              {selfClash && <Alert tone="danger">{t("mgmt.newHour.selfClash")}</Alert>}
+              <WeekStrip slots={week.data?.slots ?? []} weekdays={weekdays} starts={starts} lengthMin={lengthMin} color={color} name={name} />
               {clashes.length > 0 && (
                 <Alert tone="danger">
                   {t("mgmt.newHour.clash")}{" "}
-                  {clashes.map((c) => `${weekdayName(c.day)} ${fmtMinutes(c.slot.startMin)}–${fmtMinutes(c.slot.startMin + c.slot.durationMin)}`).join(", ")}
+                  {[...new Set(clashes.map((c) => `${weekdayName(c.day)} ${fmtMinutes(c.slot.startMin)}–${fmtMinutes(c.slot.startMin + c.slot.durationMin)}${c.slot.title ? ` (${c.slot.title})` : ""}`))].join(", ")}
                 </Alert>
               )}
             </>
@@ -486,7 +488,7 @@ export function NewHourPage() {
               />
               <Row
                 label={t("mgmt.newHour.when")}
-                value={plan ? t("mgmt.newHour.whenSummary", { days: weekdays.map((d) => weekdayName(d, "short")).join(", "), from: fmtMinutes(startMin), to: fmtMinutes(startMin + lengthMin) }) : t("mgmt.newHour.notPlanned")}
+                value={plan ? t("mgmt.newHour.whenSummary", { days: weekdays.map((d) => weekdayName(d, "short")).join(", "), times: timesLabel, n: weekdays.length * starts.length }) : t("mgmt.newHour.notPlanned")}
                 edit={() => setStep("plan")}
               />
             </dl>
@@ -513,7 +515,7 @@ export function NewHourPage() {
       {channels && !channels.length ? (
         <Alert tone="warn">{t("mgmt.control.noChannelsIntro")}</Alert>
       ) : step === "fill" ? (
-        <WithMediaBin onAdd={(p) => add(p)} categoryId={categoryId || null} hint={t("mgmt.newHour.binHint")}>
+        <WithMediaBin wide onAdd={(p) => add(p)} categoryId={categoryId || null} hint={t("mgmt.newHour.binHint")}>
           {stepper}
           {body.fill}
           {nav}
@@ -577,11 +579,14 @@ function Row({ label, value, edit }: { label: string; value: ReactNode; edit: ()
 }
 
 /** The chosen days and time against what already runs on the channel, around the new block. */
-function WeekStrip({ slots, weekdays, startMin, lengthMin, color, name }: { slots: Slot[]; weekdays: number[]; startMin: number; lengthMin: number; color: string; name: string }) {
+function WeekStrip({ slots, weekdays, starts, lengthMin, color, name }: { slots: Slot[]; weekdays: number[]; starts: number[]; lengthMin: number; color: string; name: string }) {
   const { t } = useTranslation();
-  const from = Math.max(0, Math.floor(startMin / 60) - 2) * 60;
-  const to = Math.min(1440, from + 6 * 60);
-  const px = 0.6; // per minute
+  // From two hours before the first chosen time to two hours after the last one (at least six hours).
+  const first = Math.min(...(starts.length ? starts : [18 * 60]));
+  const last = Math.max(...(starts.length ? starts : [18 * 60])) + lengthMin;
+  const from = Math.max(0, Math.floor(first / 60) - 2) * 60;
+  const to = Math.min(1440, Math.max(from + 6 * 60, Math.ceil(last / 60) * 60 + 120));
+  const px = Math.min(0.6, 300 / (to - from)); // per minute
   const y = (m: number) => (Math.max(from, Math.min(to, m)) - from) * px;
   return (
     <div>
@@ -610,15 +615,128 @@ function WeekStrip({ slots, weekdays, startMin, lengthMin, color, name }: { slot
                     {s.title || fmtMinutes(s.startMin)}
                   </div>
                 ))}
-              {weekdays.includes(d) && (
-                <div className="absolute inset-x-0.5 overflow-hidden rounded border-l-[3px] px-1 text-[10px] font-semibold" style={{ top: y(startMin), height: Math.max(8, y(startMin + lengthMin) - y(startMin)), borderColor: color, background: `color-mix(in srgb, ${color} 22%, var(--color-surface))` }}>
-                  {name}
-                </div>
-              )}
+              {weekdays.includes(d) &&
+                starts.map((st) => (
+                  <div key={st} className="absolute inset-x-0.5 overflow-hidden rounded border-l-[3px] px-1 text-[10px] leading-tight font-semibold" style={{ top: y(st), height: Math.max(8, y(st + lengthMin) - y(st)), borderColor: color, background: `color-mix(in srgb, ${color} 22%, var(--color-surface))` }}>
+                    {name}
+                  </div>
+                ))}
             </div>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Start times on a day: a grid of hours (half hours for a half-hour programme) to click, a "repeat back to back"
+ * helper (from 12:00, 4 times -> 12:00, 13:00, 14:00, 15:00) and an exact time for anything else.
+ */
+function TimesPicker({ value, onChange, lengthMin }: { value: number[]; onChange: (v: number[]) => void; lengthMin: number }) {
+  const { t } = useTranslation();
+  const step = lengthMin <= 30 ? 30 : 60;
+  const grid = Array.from({ length: 1440 / step }, (_, i) => i * step);
+  const [from, setFrom] = useState(12 * 60);
+  const [times, setTimes] = useState(4);
+  const [exact, setExact] = useState("");
+  const set = (v: number[]) => onChange([...new Set(v)].sort((a, b) => a - b));
+  const busy = (m: number) => value.some((v) => v !== m && m < v + lengthMin && v < m + lengthMin);
+  const maxTimes = Math.max(1, Math.floor((1440 - from) / lengthMin));
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="mb-1 text-[13px] font-medium">{t("mgmt.newHour.whichTimes")}</p>
+        <p className="mb-2 text-xs text-muted">{t("mgmt.newHour.whichTimesHint", { len: t(`mgmt.newHour.len_${lengthMin}`) })}</p>
+        <div className={cx("grid gap-1.5", step === 30 ? "grid-cols-6 sm:grid-cols-8 md:grid-cols-12" : "grid-cols-6 sm:grid-cols-8 md:grid-cols-12")}>
+          {grid.map((m) => {
+            const on = value.includes(m);
+            const blocked = !on && busy(m);
+            return (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={on}
+                disabled={blocked}
+                title={blocked ? t("mgmt.newHour.timeTaken") : undefined}
+                onClick={() => set(on ? value.filter((x) => x !== m) : [...value, m])}
+                className={cx(
+                  "rounded-md border py-1.5 font-mono text-[12.5px] transition",
+                  on ? "border-brand bg-brand text-white shadow-sm shadow-brand/30" : blocked ? "cursor-not-allowed border-dashed border-line text-muted/50" : "border-line hover:border-brand/50",
+                )}
+              >
+                {fmtMinutes(m)}
+              </button>
+            );
+          })}
+        </div>
+        {value.some((m) => m % step) && (
+          <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+            {t("mgmt.newHour.otherTimes")}
+            {value
+              .filter((m) => m % step)
+              .map((m) => (
+                <button key={m} type="button" onClick={() => set(value.filter((x) => x !== m))} className="flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 font-mono text-white">
+                  {fmtMinutes(m)} <X className="size-3" />
+                </button>
+              ))}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-line bg-surface-2/40 p-3">
+        <span className="w-full text-[13px] font-medium">
+          <Repeat className="mr-1.5 inline size-4 text-brand" />
+          {t("mgmt.newHour.repeat")}
+        </span>
+        <label className="text-xs text-muted">
+          <span className="block">{t("mgmt.newHour.repeatFrom")}</span>
+          <Select className="mt-1 h-9 w-28!" value={from} onChange={(e) => setFrom(Number(e.target.value))}>
+            {TIMES.map((m) => (
+              <option key={m} value={m}>
+                {fmtMinutes(m)}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="text-xs text-muted">
+          <span className="block">{t("mgmt.newHour.repeatTimes")}</span>
+          <Select className="mt-1 h-9 w-24!" value={Math.min(times, maxTimes)} onChange={(e) => setTimes(Number(e.target.value))}>
+            {Array.from({ length: Math.min(24, maxTimes) }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n}×
+              </option>
+            ))}
+          </Select>
+        </label>
+        <Button variant="secondary" onClick={() => onChange(Array.from({ length: Math.min(times, maxTimes) }, (_, i) => from + i * lengthMin))}>
+          {t("mgmt.newHour.repeatApply", { from: fmtMinutes(from), to: fmtMinutes(from + Math.min(times, maxTimes) * lengthMin) })}
+        </Button>
+        <span className="flex-1" />
+        <label className="text-xs text-muted">
+          <span className="block">{t("mgmt.newHour.exactTime")}</span>
+          <span className="mt-1 flex gap-1.5">
+            <Select className="h-9 w-28!" value={exact} onChange={(e) => setExact(e.target.value)}>
+              <option value="">–</option>
+              {TIMES.map((m) => (
+                <option key={m} value={m} disabled={value.includes(m) || busy(m)}>
+                  {fmtMinutes(m)}
+                </option>
+              ))}
+            </Select>
+            <Button variant="secondary" disabled={exact === ""} onClick={() => (set([...value, Number(exact)]), setExact(""))}>
+              {t("common.add")}
+            </Button>
+          </span>
+        </label>
+      </div>
+      {value.length > 0 && (
+        <p className="text-sm">
+          <span className="font-medium">{t("mgmt.newHour.chosen", { n: value.length })}</span> <span className="font-mono text-muted">{value.map((m) => `${fmtMinutes(m)}–${fmtMinutes(m + lengthMin)}`).join(" · ")}</span>{" "}
+          <button type="button" className="ml-1 text-xs text-brand hover:underline" onClick={() => onChange([])}>
+            {t("mgmt.newHour.clearTimes")}
+          </button>
+        </p>
+      )}
     </div>
   );
 }

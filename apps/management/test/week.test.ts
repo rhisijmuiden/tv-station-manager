@@ -345,3 +345,17 @@ test("series: the same slot on several weekdays is edited as one", async () => {
   assert.equal((await api("DELETE", `/api/week/slots/${first}/series`)).body.removed, 4);
   assert.equal((await api("GET", `/api/week?channel=${ch}`)).body.slots.length, 1);
 });
+
+test("one programme at several times of the day, all or nothing", async () => {
+  const ch = (await api("POST", "/api/channels", { name: "Repeat", atemId: null, studioId: null, playoutInput: null })).body.id;
+  const block = (await api("POST", "/api/blocks", { name: "Hour template", items: [] })).body.id;
+  const r = await api("POST", "/api/week/slots", { channelId: ch, weekdays: [5, 6], startMin: 0, startMins: [14 * 60, 12 * 60, 13 * 60], durationMin: 60, blockId: block });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ids.length, 6);
+  const slots = (await api("GET", `/api/week?channel=${ch}`)).body.slots as { weekday: number; startMin: number }[];
+  assert.deepEqual(slots.filter((s) => s.weekday === 5).map((s) => s.startMin).sort(), [720, 780, 840]);
+  // Times that run into each other: nothing is made.
+  const bad = await api("POST", "/api/week/slots", { channelId: ch, weekdays: [0], startMin: 0, startMins: [600, 630], durationMin: 60, blockId: block });
+  assert.equal(bad.body.error, "slot_overlap");
+  assert.equal((await api("GET", `/api/week?channel=${ch}`)).body.slots.length, 6);
+});

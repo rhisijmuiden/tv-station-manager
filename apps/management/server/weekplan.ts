@@ -663,18 +663,25 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
   ];
   app.post("/api/week/slots", async (req) => {
     requireRole(req, "editor");
-    const b = slotBase.extend({ channelId: z.number().int(), weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7) }).parse(req.body);
+    // `startMins`: the same programme at several times of each day (e.g. 12:00, 13:00, 14:00); all or nothing.
+    const b = slotBase
+      .extend({ channelId: z.number().int(), weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7), startMins: z.array(z.number().int().min(0).max(DAY_MIN - 1)).min(1).max(96).optional() })
+      .parse(req.body);
     if (b.clockMode === "clock" && !b.clockId) throw new HttpError(400, "clock_required");
     planner.channel(b.channelId);
     const weekdays = [...new Set(b.weekdays)];
+    const starts = [...new Set(b.startMins ?? [b.startMin])].sort((x, y) => x - y);
     const ids = tx(db, () =>
-      weekdays.map((weekday) => {
-        checkSlot(b.channelId, { weekday, startMin: b.startMin, durationMin: b.durationMin });
-        const r = db
-          .prepare("INSERT INTO week_slots (channel_id, weekday, start_min, duration_min, clock_mode, clock_id, block_id, category_id, title, description, in_epg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .run(b.channelId, weekday, ...slotValues(b));
-        return Number(r.lastInsertRowid);
-      }),
+      weekdays.flatMap((weekday) =>
+        starts.map((startMin) => {
+          // Checked against what is already there, including the slots made a moment ago in this request.
+          checkSlot(b.channelId, { weekday, startMin, durationMin: b.durationMin });
+          const r = db
+            .prepare("INSERT INTO week_slots (channel_id, weekday, start_min, duration_min, clock_mode, clock_id, block_id, category_id, title, description, in_epg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .run(b.channelId, weekday, ...slotValues({ ...b, startMin }));
+          return Number(r.lastInsertRowid);
+        }),
+      ),
     );
     republish(b.channelId);
     return { ids };
