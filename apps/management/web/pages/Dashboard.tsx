@@ -1,5 +1,5 @@
-import { Badge, Card, CardBody, CardHeader, PageHeader, cx } from "@tvsm/ui";
-import { CheckCircle2, Circle, FolderOpen, Radio, Tv } from "lucide-react";
+import { Badge, Card, CardBody, CardHeader, PageHeader, cx, roleAtLeast, useSession } from "@tvsm/ui";
+import { CalendarRange, CheckCircle2, Circle, ClipboardList, FolderOpen, Radio, Tv, WandSparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -40,7 +40,13 @@ export function Dashboard() {
   const { t } = useTranslation();
   const { data: o } = useGet<Overview>("/api/management/overview", 5000);
   const { data: live } = useGet<ControlStatus>("/api/control", 3000);
+  const { user } = useSession();
   if (!o) return null;
+  const editorial = [
+    { to: "/new-hour", icon: WandSparkles, label: t("mgmt.dashboard.ed1"), hint: t("mgmt.dashboard.ed1Hint") },
+    { to: "/week", icon: CalendarRange, label: t("mgmt.dashboard.ed2"), hint: t("mgmt.dashboard.ed2Hint") },
+    { to: "/rundowns", icon: ClipboardList, label: t("mgmt.dashboard.ed3"), hint: t("mgmt.dashboard.ed3Hint") },
+  ];
   const steps = [
     { done: o.atems.length > 0, label: t("mgmt.dashboard.stepAtem"), to: "/devices" },
     { done: o.studios.length > 0, label: t("mgmt.dashboard.stepStudio"), to: "/devices" },
@@ -60,6 +66,29 @@ export function Dashboard() {
         <Stat label={t("mgmt.dashboard.media")} value={o.mediaFiles} icon={<FolderOpen className="size-5" />} tone="bg-brand/10 text-brand" />
         <Stat label={t("mgmt.dashboard.upcoming")} value={o.upcomingEntries} icon={<Radio className="size-5" />} tone="bg-ok/12 text-ok" />
       </div>
+
+      {roleAtLeast(user?.role, "editor") && (
+        <Card className="mb-6">
+          <CardHeader title={t("mgmt.dashboard.editorialTitle")} description={t("mgmt.dashboard.editorialIntro")} />
+          <ol className="grid gap-3 p-5 pt-0 md:grid-cols-3">
+            {editorial.map((e, i) => (
+              <li key={e.to}>
+                <Link to={e.to} className="group flex h-full items-center gap-3 rounded-xl border border-line p-4 transition hover:border-brand/60 hover:bg-brand/5">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand group-hover:bg-brand group-hover:text-white">
+                    <e.icon className="size-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      {i + 1}. {e.label}
+                    </span>
+                    <span className="block text-xs text-muted">{e.hint}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
 
       {!!live?.channels.length && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">

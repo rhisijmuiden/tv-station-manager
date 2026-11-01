@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
 import { managementOptions, type ManagementHandles } from "../server/app.ts";
 import type { DriverFactory } from "../server/drivers.ts";
-import { addDaysIso, autoPick, distribute, layoutClock, occurrenceParts, overlaps, stationDay, stationTime, weekdayOf } from "../server/hourclock.ts";
+import { addDaysIso, autoPick, distribute, layoutClock, occurrenceParts, overlaps, seriesChanges, seriesKey, stationDay, stationTime, weekdayOf } from "../server/hourclock.ts";
 
 const MIN = 60_000;
 
@@ -299,4 +299,49 @@ test("week schedule: hour clock, category slot, editor rundown, publish to sched
   await api("PUT", `/api/week/channels/${ch}`, { weekEnabled: false, clockId: clock.body.id });
   assert.deepEqual((await sched()).map((e) => e.programTitle), ["Live match"]);
   assert.ok(h.planner);
+});
+
+test("series: the same slot on several weekdays is edited as one", async () => {
+  // Pure: what is added, kept and removed.
+  const cur = [
+    { id: 1, weekday: 0 },
+    { id: 2, weekday: 2 },
+    { id: 3, weekday: 4 },
+  ];
+  const c = seriesChanges(cur, [4, 0, 5, 5]);
+  assert.deepEqual(c.keep.map((k) => k.id), [1, 3]);
+  assert.deepEqual(c.remove.map((k) => k.id), [2]);
+  assert.deepEqual(c.add, [5]);
+  const base = { startMin: 600, durationMin: 60, clockMode: "channel", clockId: 9, blockId: null, categoryId: 1, title: "" };
+  assert.equal(seriesKey(base), seriesKey({ ...base, clockId: null, title: null }));
+  assert.notEqual(seriesKey(base), seriesKey({ ...base, startMin: 660 }));
+
+  const ch = (await api("POST", "/api/channels", { name: "Series", atemId: null, studioId: null, playoutInput: null })).body.id;
+  const block = (await api("POST", "/api/blocks", { name: "Morning hour", items: [] })).body.id;
+  const made = await api("POST", "/api/week/slots", { channelId: ch, weekdays: [0, 2, 4], startMin: 9 * 60, durationMin: 60, blockId: block });
+  assert.equal(made.status, 200);
+  const other = (await api("POST", "/api/week/slots", { channelId: ch, weekdays: [0], startMin: 10 * 60, durationMin: 60, blockId: block })).body.ids[0];
+  const first = made.body.ids[0];
+  assert.deepEqual((await api("GET", `/api/week/slots/${first}/series`)).body.slots.map((s: { weekday: number }) => s.weekday), [0, 2, 4]);
+  // The 10:00 slot is its own series.
+  assert.equal((await api("GET", `/api/week/slots/${other}/series`)).body.slots.length, 1);
+
+  // Mon, Tue, Thu, Sat and one hour later... clashes with the 10:00 slot on Monday.
+  const clash = await api("PUT", `/api/week/slots/${first}/series`, { weekdays: [0, 1, 3, 5], startMin: 10 * 60, durationMin: 60, blockId: block });
+  assert.equal(clash.body.error, "slot_overlap");
+  assert.equal((await api("GET", `/api/week?channel=${ch}`)).body.slots.length, 4, "nothing changed");
+
+  const moved = await api("PUT", `/api/week/slots/${first}/series`, { weekdays: [0, 1, 3, 5], startMin: 8 * 60, durationMin: 60, blockId: block, title: "Ochtend" });
+  assert.equal(moved.status, 200);
+  assert.equal(moved.body.added, 3);
+  assert.equal(moved.body.removed, 2);
+  assert.ok(moved.body.ids.includes(first), "Monday keeps its slot (and its rundowns)");
+  const slots = (await api("GET", `/api/week?channel=${ch}`)).body.slots as { weekday: number; startMin: number; title: string | null }[];
+  assert.deepEqual(slots.filter((s) => s.title === "Ochtend").map((s) => [s.weekday, s.startMin]).sort(), [[0, 480], [1, 480], [3, 480], [5, 480]]);
+
+  // A 24-hour series cannot run on two days in a row.
+  assert.equal((await api("PUT", `/api/week/slots/${other}/series`, { weekdays: [2, 3], startMin: 12 * 60, durationMin: 1440, blockId: block })).body.error, "slot_overlap");
+
+  assert.equal((await api("DELETE", `/api/week/slots/${first}/series`)).body.removed, 4);
+  assert.equal((await api("GET", `/api/week?channel=${ch}`)).body.slots.length, 1);
 });
