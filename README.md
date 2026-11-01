@@ -87,4 +87,4 @@ Work goes into a feature branch, then a PR into `test`, then `test` is merged in
 
 ## House style
 
-See [branding/BRAND.md](branding/BRAND.md).
+See [branding/README.md](branding/README.md): every house style lives in its own folder, `branding/active-brand` selects the one the apps are built with.

@@ -2,7 +2,7 @@
 
 Monorepo (pnpm workspaces, TypeScript, Node 24).
 
-- `branding/`: house style (logo, tokens, BRAND.md). UI colours/fonts come only from `tokens.css`.
+- `branding/`: house styles, one folder per brand (logo, tokens, BRAND.md); `branding/active-brand` picks the one apps are built with, imported as `@brand/...`. UI colours/fonts come only from the brand `tokens.css` (`--tvsm-*`); use `brandColor()` when code needs a hex.
 - `packages/platform`: shared server (Fastify + node:sqlite): auth, mail (SMTP), backup/restore (FTP/FTPS/SCP, full + incremental), self-update from GitHub releases, system info.
 - `packages/ui`: shared React UI (Tailwind 4, i18next EN/NL, left sidebar, Info dialog, system pages). Apps call `mountPlatformApp`.
 - `apps/orchestrator`: enrolls and manages nodes (Debian 13 .deb).
