@@ -71,18 +71,15 @@ const hideSecrets = (text: string, secrets: string[]) => secrets.filter((s) => s
 /** Options for CasparCG's FFmpeg (STREAM) consumer. */
 export function encoderArgs(o: Pick<OutputRow, "encoder" | "video_kbps" | "audio_kbps" | "resolution" | "deinterlace" | "extra_args">) {
   // yuv420p: players and platforms do not accept the 4:4:4 that CasparCG's BGRA frames would otherwise give.
-  // On a 1080i50 channel CasparCG 2.4 renders every field as a full frame and hands the consumer 50 frames/s; keeping
-  // every second one gives clean 25p (yadif cost too much CPU on the studio node).
-  // CasparCG numbers frames and audio samples by count. When the studio node is busy the consumer misses ticks and the
-  // stream then runs slower than real time, so players stall. Stamp video and audio with the wall clock instead:
-  // fps=25 repeats a frame where one was missed (and sets the 1/25 time base the encoder uses), aresample fills
-  // missed audio with silence. The stream stays real time; it may stutter slightly while the node is overloaded.
-  const wallClock = "setpts=(RTCTIME-RTCSTART)/(TB*1000000)";
-  const filters = [o.deinterlace ? `framestep=2,${wallClock},fps=25` : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
+  // On a 1080i50 channel CasparCG 2.4 renders every field as a full frame and hands the consumer 50 frames/s. Keeping
+  // every second one gives clean 25p without yadif, which cost so much CPU on the studio node that the encoder only
+  // got ~60% of the frames and the stream ran slower than real time. framestep keeps the 1/50 time base while the
+  // encoder uses 1/frame rate (1/25) without rescaling, so settb=intb*2 sets it to 1/25.
+  const filters = [o.deinterlace ? "framestep=2,settb=intb*2" : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
   const v = o.video_kbps;
   // CasparCG mixes 8 or 16 audio channels. AAC with that many channels and no standard layout gets channel configuration 0,
   // which browsers (Owncast/hls.js, YouTube) cannot decode: the player keeps spinning. Send stereo (the first pair).
-  const audio = `-filter:a pan=stereo|c0=c0|c1=c1${o.deinterlace ? ",a" + wallClock + ",aresample=async=1000:first_pts=0" : ""} -codec:a aac -b:a ${o.audio_kbps}k`;
+  const audio = `-filter:a pan=stereo|c0=c0|c1=c1 -codec:a aac -b:a ${o.audio_kbps}k`;
   const codec = o.encoder === "nvenc" ? "-codec:v h264_nvenc -preset:v p4 -tune:v ll -rc:v cbr" : "-codec:v libx264 -preset:v veryfast -tune:v zerolatency";
   return [`-format flv -filter:v ${filters}`, codec, `-b:v ${v}k -maxrate:v ${v}k -bufsize:v ${v * 2}k -g:v 50`, audio, o.extra_args.trim()].filter(Boolean).join(" ");
 }

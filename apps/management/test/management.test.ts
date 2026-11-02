@@ -398,7 +398,7 @@ test("subtitles: parse srt/vtt, match sidecar files, decode windows-1252", async
 
 test("stream output: encoder args and destination urls", () => {
   const a = encoderArgs({ encoder: "x264", video_kbps: 4500, audio_kbps: 160, resolution: "720p", deinterlace: 1, extra_args: "" });
-  assert.equal(a, "-format flv -filter:v framestep=2,setpts=(RTCTIME-RTCSTART)/(TB*1000000),fps=25,scale=1280:720,format=yuv420p -codec:v libx264 -preset:v veryfast -tune:v zerolatency -b:v 4500k -maxrate:v 4500k -bufsize:v 9000k -g:v 50 -filter:a pan=stereo|c0=c0|c1=c1,asetpts=(RTCTIME-RTCSTART)/(TB*1000000),aresample=async=1000:first_pts=0 -codec:a aac -b:a 160k");
+  assert.equal(a, "-format flv -filter:v framestep=2,settb=intb*2,scale=1280:720,format=yuv420p -codec:v libx264 -preset:v veryfast -tune:v zerolatency -b:v 4500k -maxrate:v 4500k -bufsize:v 9000k -g:v 50 -filter:a pan=stereo|c0=c0|c1=c1 -codec:a aac -b:a 160k");
   assert.match(encoderArgs({ encoder: "nvenc", video_kbps: 6000, audio_kbps: 128, resolution: "source", deinterlace: 0, extra_args: "-profile:v high" }), /^-format flv -filter:v format=yuv420p -codec:v h264_nvenc .* -profile:v high$/);
   assert.equal(destinationUrl({ platform: "youtube", url: "", stream_key: "abcd-1234" }), "rtmp://a.rtmp.youtube.com/live2/abcd-1234");
   assert.equal(destinationUrl({ platform: "custom", url: "rtmp://stream.example.org/live/", stream_key: "" }), "rtmp://stream.example.org/live");
