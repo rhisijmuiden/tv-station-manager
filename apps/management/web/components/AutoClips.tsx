@@ -1,5 +1,5 @@
-import { Alert, Button, Dialog, Field, Input, Select, cx, post } from "@tvsm/ui";
-import { CalendarClock, Dices, FolderOpen, FolderTree, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
+import { Alert, ApiError, Button, Dialog, Field, Input, Select, cx, post } from "@tvsm/ui";
+import { CalendarClock, Dices, Loader2, FolderOpen, FolderTree, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fmtDuration, useCategories, useGet } from "../lib";
@@ -76,15 +76,44 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
   }, [folders.data, r.folder]);
   const hasSub = allFolders.some((f) => f.startsWith(`${r.folder}/`));
   const [preview, setPreview] = useState<AutoInfo | null>(null);
+  const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
+  const [previewError, setPreviewError] = useState("");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (open) setR(rule ?? defaultRule());
   }, [open, rule]);
   const ready = r.source === "category" ? r.categoryId != null : r.folder !== "";
   useEffect(() => {
-    if (!open || !ready) return setPreview(null);
-    const h = setTimeout(() => void post<AutoInfo>("/api/blocks/auto-preview", { autoRule: r }).then(setPreview, () => setPreview(null)), 200);
-    return () => clearTimeout(h);
-  }, [open, ready, r]);
+    setPreview(null);
+    if (!open || !ready) return setPreviewState("idle");
+    setPreviewState("loading");
+    let gone = false;
+    const h = setTimeout(
+      () =>
+        void post<AutoInfo>("/api/blocks/auto-preview", { autoRule: r }).then(
+          (p) => {
+            if (gone) return;
+            setPreview(p);
+            setPreviewState("idle");
+          },
+          (e: unknown) => {
+            if (gone) return;
+            setPreviewError(e instanceof ApiError ? `${e.status} ${e.code || e.message}` : String((e as Error)?.message ?? e));
+            setPreviewState("error");
+          },
+        ),
+      200,
+    );
+    return () => {
+      gone = true;
+      clearTimeout(h);
+    };
+  }, [open, ready, r, retry]);
+  // Saving never waits for the preview: it only shows what would play now; the server checks the rule itself.
+  const save = () => {
+    const sourceName = r.source === "category" ? (categories?.find((c) => c.id === r.categoryId)?.name ?? null) : r.folder;
+    onSave(preview ?? { autoRule: r, autoSourceName: sourceName, autoFolders: null, autoClips: [], effectiveDurationMs: 0 });
+  };
 
   return (
     <Dialog
@@ -102,7 +131,7 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
           <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button disabled={!ready || !preview} onClick={() => preview && onSave(preview)}>
+          <Button disabled={!ready} onClick={save}>
             {t(rule ? "common.save" : "mgmt.auto.add")}
           </Button>
         </>
@@ -236,7 +265,20 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
           )}
           {!ready ? (
             <p className="text-sm text-muted">{t("mgmt.auto.pickSource")}</p>
-          ) : !preview ? null : preview.autoClips.length === 0 ? (
+          ) : previewState === "error" ? (
+            <Alert tone="warn">
+              <p>{t("mgmt.auto.previewFailed")}</p>
+              <p className="mt-1 font-mono text-xs opacity-80">{previewError}</p>
+              <button className="mt-2 text-xs font-medium underline" onClick={() => setRetry((n) => n + 1)}>
+                {t("mgmt.auto.retry")}
+              </button>
+            </Alert>
+          ) : !preview ? (
+            <p className="flex items-center gap-2 text-sm text-muted">
+              <Loader2 className="size-4 animate-spin" />
+              {t("mgmt.auto.loading")}
+            </p>
+          ) : preview.autoClips.length === 0 ? (
             <Alert tone="warn">{t("mgmt.auto.noneYet")}</Alert>
           ) : (
             <>
