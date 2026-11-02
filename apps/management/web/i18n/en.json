@@ -1479,6 +1479,15 @@
       "chooseCategory": "Choose a category…",
       "folder": "Folder",
       "folderHint": "Clips in subfolders count too.",
+      "subfolders": {
+        "label": "Which clips from this folder?",
+        "all": "Everything in this folder",
+        "allHint": "All clips, subfolders included.",
+        "newest": "Only the newest subfolder",
+        "newestHint": "One folder per week (wk 44, wk 45 …)? Picks this week's folder by itself, also after New Year.",
+        "now": "This week from: {{folder}}",
+        "none": "No subfolder with clips yet."
+      },
       "chooseFolder": "Choose a folder…",
       "count": "How many clips",
       "countHint": "The newest ones.",

@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
 import { managementOptions } from "../server/app.ts";
-import { parseAutoRule, pickClips } from "../server/autofill.ts";
-import { dbLoader } from "../server/content.ts";
+import { isoWeek, newestFolders, parseAutoRule, pickClips, weekOfName, yearOfPath } from "../server/autofill.ts";
+import { autoCandidates, dbLoader } from "../server/content.ts";
 import type { DriverFactory } from "../server/drivers.ts";
 import { entryLeaves, expandBlock } from "../server/timeline.ts";
 
@@ -56,6 +56,46 @@ test("dynamic slots: in turn, random and no repeats within a broadcast", () => {
   const a = pickClips(played, random, now, { seed: "occ:x|b1/0" });
   assert.deepEqual(pickClips(played, random, now, { seed: "occ:x|b1/0" }), a);
   for (let i = 0; i < 20; i++) assert.notDeepEqual(pickClips(played, random, now, { seed: `s${i}` }), [4]);
+});
+
+test("newest subfolder: week names, ISO weeks and the year rollover", () => {
+  assert.equal(weekOfName("wk 45"), 45);
+  assert.equal(weekOfName("Wk45"), 45);
+  assert.equal(weekOfName("week 07"), 7);
+  assert.equal(weekOfName("Week_3 extra"), 3);
+  assert.equal(weekOfName("Reportages"), null);
+  assert.equal(weekOfName("new 2"), null);
+  assert.equal(weekOfName("wk 60"), null);
+  assert.equal(yearOfPath("PROGRAMMA/2026 Reportages/wk 45"), 2026);
+  assert.equal(yearOfPath("PROGRAMMA/Reportages/wk 45"), null);
+  assert.deepEqual(isoWeek("2026-11-02"), { year: 2026, week: 45 });
+  assert.deepEqual(isoWeek("2026-11-01"), { year: 2026, week: 44 });
+  assert.deepEqual(isoWeek("2027-01-01"), { year: 2026, week: 53 });
+  assert.deepEqual(isoWeek("2027-01-04"), { year: 2027, week: 1 });
+  assert.deepEqual(isoWeek("2025-12-29"), { year: 2026, week: 1 });
+
+  const P = "PROGRAMMA/2026 Reportages";
+  const c = (folder: string, newestAt = 0) => ({ folder, newestAt });
+  const w45 = { year: 2026, week: 45 };
+  // This week's folder, also when an older week got a late clip.
+  assert.deepEqual(newestFolders([c(`${P}/wk 44`, 9), c(`${P}/wk 45`, 1)], P, w45), [`${P}/wk 45`]);
+  // Next week's folder filled in advance waits until its week starts (year in the path).
+  assert.deepEqual(newestFolders([c(`${P}/wk 45`), c(`${P}/wk 46`)], P, w45), [`${P}/wk 45`]);
+  assert.deepEqual(newestFolders([c(`${P}/wk 45`), c(`${P}/wk 46`)], P, { year: 2026, week: 46 }), [`${P}/wk 46`]);
+  // Monday morning, this week's folder still empty (so not a candidate): last week keeps playing.
+  assert.deepEqual(newestFolders([c(`${P}/wk 44`), c(`${P}/wk 45`)], P, { year: 2026, week: 46 }), [`${P}/wk 45`]);
+  // No year in the path: after New Year "wk 1" is newer than "wk 52".
+  const R = "PROGRAMMA/Reportages";
+  assert.deepEqual(newestFolders([c(`${R}/wk 52`), c(`${R}/wk 1`)], R, { year: 2027, week: 1 }), [`${R}/wk 1`]);
+  assert.deepEqual(newestFolders([c(`${R}/wk 52`), c(`${R}/wk 51`)], R, { year: 2027, week: 1 }), [`${R}/wk 52`]);
+  // A year folder per year: parent PROGRAMMA moves on to "2027 Reportages" by itself.
+  assert.deepEqual(newestFolders([c("PROGRAMMA/2026 Reportages/wk 52"), c("PROGRAMMA/2027 Reportages/wk 1")], "PROGRAMMA", { year: 2027, week: 1 }), ["PROGRAMMA/2027 Reportages/wk 1"]);
+  // Two series with a week folder: both of this week play.
+  assert.deepEqual(newestFolders([c("PROGRAMMA/2026 Sport/wk 45"), c(`${P}/wk 45`), c(`${P}/wk 44`)], "PROGRAMMA", w45), [`${P}/wk 45`, "PROGRAMMA/2026 Sport/wk 45"]);
+  // Folders without week names: the one with the most recent clip.
+  assert.deepEqual(newestFolders([c("Shows/Aflevering A", 5), c("Shows/Aflevering B", 7)], "Shows", w45), ["Shows/Aflevering B"]);
+  // Only folders below the parent count.
+  assert.deepEqual(newestFolders([c("Other/wk 45")], P, w45), []);
 });
 
 // ---- API end to end ---------------------------------------------------------------
@@ -189,4 +229,53 @@ test("hour block from dynamic folders: ad, bumper, news, bumper", async () => {
   // The blocks page shows the slots without repeating a bumper.
   const d = (await api("GET", `/api/blocks/${block}`)).body;
   assert.notEqual(d.items[1].autoClips[0].id, d.items[3].autoClips[0].id);
+});
+
+test("only the newest subfolder: a folder per week plays this week's items", async () => {
+  const dir = join(root, "weeks");
+  const now = Date.now();
+  // Week folders relative to today (station time zone Europe/Amsterdam, close enough to UTC for these offsets).
+  const wk = (offsetDays: number) => {
+    const d = new Date(now + offsetDays * DAY).toISOString().slice(0, 10);
+    const w = isoWeek(d);
+    return { name: `wk ${w.week}`, year: w.year };
+  };
+  const last = wk(-7);
+  const cur = wk(0);
+  const next = wk(7);
+  const files: [string, number][] = [
+    [`${last.year} Reportages/${last.name}/oud1.mp4`, 8],
+    [`${last.year} Reportages/${last.name}/oud2.mp4`, 0.01], // a late addition to last week
+    [`${cur.year} Reportages/${cur.name}/deze1.mp4`, 0.5],
+    [`${cur.year} Reportages/${cur.name}/deze2.mp4`, 0.4],
+    [`${next.year} Reportages/${next.name}/straks.mp4`, 0.2], // prepared in advance
+    ["los.mp4", 0.1], // loose in the parent: never counts in this mode
+  ];
+  for (const [f, daysAgo] of files) {
+    mkdirSync(join(dir, "PROGRAMMA", f, ".."), { recursive: true });
+    writeFileSync(join(dir, "PROGRAMMA", f), "x");
+    const t = new Date(now - daysAgo * DAY);
+    utimesSync(join(dir, "PROGRAMMA", f), t, t);
+  }
+  await api("POST", "/api/media/sources", { name: "Weeks", type: "local", config: { path: dir } });
+  await new Promise((r) => setTimeout(r, 300));
+  const media = (await api("GET", "/api/media?limit=500")).body.items as { id: number; name: string; folder: string }[];
+  for (const m of media.filter((m) => m.folder.startsWith("PROGRAMMA"))) await api("PUT", `/api/media/${m.id}`, { category: "program", durationMs: 3 * MIN });
+
+  // The parent of the week folders (it holds no clips itself) is offered in the dialog as a folder.
+  const parent = cur.year === next.year && cur.year === last.year ? `PROGRAMMA/${cur.year} Reportages` : "PROGRAMMA";
+  const rule = { source: "folder", folder: parent, subfolders: "newest", count: 5, pick: "newest" };
+  const r = await api("POST", "/api/blocks/auto-preview", { autoRule: rule });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.autoFolders, [`PROGRAMMA/${cur.year} Reportages/${cur.name}`]);
+  assert.deepEqual(r.body.autoClips.map((c: { name: string }) => c.name), ["deze2", "deze1"]);
+  assert.match(r.body.autoSourceName, new RegExp(`› .*${cur.name}$`));
+  // "Everything in this folder" still plays all of it, newest first.
+  const all = await api("POST", "/api/blocks/auto-preview", { autoRule: { ...rule, subfolders: "all" } });
+  assert.equal(all.body.autoFolders, null);
+  assert.ok(all.body.autoClips.some((c: { name: string }) => c.name === "oud2"));
+  // Two weeks ago (before this week's clips existed) it was last week's folder.
+  const before = autoCandidates(p.ctx.db, parseAutoRule(rule), now - 7 * DAY);
+  assert.deepEqual(before.folders, [`PROGRAMMA/${last.year} Reportages/${last.name}`]);
+  assert.deepEqual(before.rows.map((m) => m.name).sort(), ["oud1", "oud2"]); // oud2 did not exist yet; the pick skips it
 });

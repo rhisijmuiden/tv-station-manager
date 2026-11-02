@@ -33,3 +33,22 @@ Rotate/random picks are remembered in `auto_picks` (key, item path in the block 
 starts within `PICK_MEMO_AHEAD_MS` (3 h), and `media.last_pick_at` is updated; until then they are a forecast. So the
 director, the EPG and the week planner see the same clips, and a block on air never changes. Changing the rule picks
 again. The blocks page and the wizard "New hour programme" preview all parts together (`POST /api/blocks/auto-previews`).
+
+## A folder per week: only the newest subfolder
+
+When programme items arrive in a folder per week (e.g. `PROGRAMMA/2026 Reportages/wk 44`, `wk 45` …), pick the parent
+folder in the dialog (`PROGRAMMA/2026 Reportages`, or even `PROGRAMMA`) and set *Which clips from this folder?* to
+**Only the newest subfolder** (rule field `subfolders: "newest"`, default `"all"`). The part then moves on to the new
+week's folder by itself; the dialog shows which folder it plays from now.
+
+How the newest folder is chosen (`newestFolders` in `server/autofill.ts`, folder lookup in `autoCandidates` in
+`server/content.ts`):
+- Folders with a week number in the name (`wk 45`, `Wk45`, `week 7`) are ordered by ISO week in the station time zone.
+  The year comes from the path (`2026 Reportages`); without one, a week number above the current week counts as last
+  year, so after New Year `wk 1` is newer than `wk 52`.
+- A week that has not started yet is skipped, so next week's folder can be filled in advance.
+- Only folders with playable clips count: if this week's folder is still empty on Monday morning, last week plays on.
+- Several folders of the same newest week (`2026 Reportages/wk 45` and `2026 Sport/wk 45` under `PROGRAMMA`) play
+  together.
+- Folders without a week number: the one with the most recently added clip.
+- Loose clips in the parent folder itself do not count in this mode.

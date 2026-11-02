@@ -1479,6 +1479,15 @@
       "chooseCategory": "Kies een categorie…",
       "folder": "Map",
       "folderHint": "Clips in submappen tellen ook mee.",
+      "subfolders": {
+        "label": "Welke clips uit deze map?",
+        "all": "Alles in deze map",
+        "allHint": "Alle clips, ook uit submappen.",
+        "newest": "Alleen de nieuwste submap",
+        "newestHint": "Een map per week (wk 44, wk 45 …)? Pakt vanzelf de map van deze week, ook na de jaarwisseling.",
+        "now": "Deze week uit: {{folder}}",
+        "none": "Nog geen submap met clips."
+      },
       "chooseFolder": "Kies een map…",
       "count": "Hoeveel clips",
       "countHint": "De nieuwste.",
