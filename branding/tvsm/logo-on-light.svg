@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" role="img" aria-label="TV Station Manager">
+  <defs>
+    <linearGradient id="tvsm-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5B8CFF"/>
+      <stop offset="1" stop-color="#2F4FE0"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="10" width="56" height="40" rx="11" fill="url(#tvsm-g)"/>
+  <path d="M27 21.5v17l14-8.5z" fill="#FFFFFF"/>
+  <circle cx="49" cy="20" r="4.5" fill="#FF3D57" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="22" y="54" width="20" height="4" rx="2" fill="#2F4FE0"/>
+  <text x="76" y="31" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="700" fill="#0E1424" letter-spacing="-0.4">TV Station</text>
+  <text x="76" y="53" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="500" fill="#0E1424" opacity="0.62" letter-spacing="2.4">MANAGER</text>
+</svg>

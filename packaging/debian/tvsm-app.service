@@ -1,0 +1,25 @@
+[Unit]
+Description=TV Station Manager - @APP@
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tvsm
+Group=tvsm
+Environment=TVSM_PACKAGED=1
+Environment=NODE_ENV=production
+EnvironmentFile=-/etc/tvsm/@APP@/env
+ExecStart=/usr/lib/tvsm/@APP@/node --disable-warning=ExperimentalWarning /usr/lib/tvsm/@APP@/server.mjs
+Restart=always
+RestartSec=2
+# Hardening (sudo for self-update needs privilege escalation, so NoNewPrivileges stays off).
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/tvsm/@APP@ /etc/tvsm/@APP@
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

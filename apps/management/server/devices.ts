@@ -1,0 +1,400 @@
+import type { Platform } from "@tvsm/platform";
+import { HttpError, requireRole } from "@tvsm/platform";
+import { EventEmitter } from "node:events";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import type { DriverFactory, PlayoutDriver, SwitcherDriver } from "./drivers.js";
+import { publicUrl } from "./director.js";
+import { IDENTIFY_LAYER, IDENTIFY_SECONDS, identifyPage } from "./identify.js";
+import type { AtemLock } from "./orchestrator.js";
+import { newStreamKey, type IngestAuthRequest, type LiveRow, type RemoteSources } from "./remote.js";
+
+export const STUDIO_ROLES = ["playout", "live", "both"] as const;
+export type StudioRole = (typeof STUDIO_ROLES)[number];
+
+/**
+ * Wraps an ATEM driver so the automation keeps its hands off while the switcher is locked in the orchestrator.
+ * While locked, program/preview/cut/auto calls are held (not sent) and the last held program per M/E is remembered;
+ * when the lock is released that program is taken, so the station follows the schedule again. Without a held
+ * switch the picture stays as the operator left it until the next item.
+ */
+export class GuardedSwitcher extends EventEmitter implements SwitcherDriver {
+  private held = new Map<number, { input: number; transition: "cut" | "mix" }>();
+  constructor(
+    readonly inner: SwitcherDriver,
+    private lock: () => AtemLock | null,
+  ) {
+    super();
+    inner.on("change", () => this.emit("change"));
+    inner.on("log", (m) => this.emit("log", m));
+  }
+  locked() {
+    return this.lock();
+  }
+  info() {
+    return this.inner.info();
+  }
+  async program(input: number, me: number, transition: "cut" | "mix") {
+    if (this.lock()) {
+      this.held.set(me, { input, transition });
+      return;
+    }
+    this.held.delete(me);
+    await this.inner.program(input, me, transition);
+  }
+  async preview(input: number, me: number) {
+    if (!this.lock()) await this.inner.preview(input, me);
+  }
+  async cut(me: number) {
+    if (!this.lock()) await this.inner.cut(me);
+  }
+  async auto(me: number) {
+    if (!this.lock()) await this.inner.auto(me);
+  }
+  /** Held switches, for the UI. */
+  pending() {
+    return [...this.held].map(([me, h]) => ({ me, input: h.input }));
+  }
+  /** Lock released: take what the automation wanted in the meantime. */
+  async release() {
+    if (this.lock()) return;
+    const held = [...this.held];
+    this.held.clear();
+    for (const [me, h] of held) if (this.inner.info().program[me] !== h.input) await this.inner.program(h.input, me, h.transition).catch((e) => this.emit("log", `release: ${(e as Error).message}`));
+  }
+  close() {
+    return this.inner.close();
+  }
+}
+
+/** Keeps one live connection per ATEM switcher and per studio node (CasparCG), and their CRUD API. */
+export class DeviceHub {
+  switchers = new Map<number, { name: string; host: string; driver: GuardedSwitcher }>();
+  /** Orchestrator lock lookup by ATEM host; set once the orchestrator link exists. */
+  lockFor: (host: string) => AtemLock | null = () => null;
+  playouts = new Map<number, { name: string; host: string; port: number; driver: PlayoutDriver }>();
+  private listeners = new Set<() => void>();
+  constructor(
+    private platform: Platform,
+    private factory: DriverFactory,
+  ) {}
+
+  onChange(fn: () => void) {
+    this.listeners.add(fn);
+  }
+  private changed = () => this.listeners.forEach((f) => f());
+
+  async reload() {
+    const { db, log } = this.platform.ctx;
+    const atems = db.prepare("SELECT id, name, host FROM atem_devices WHERE enabled = 1").all() as { id: number; name: string; host: string }[];
+    for (const [id, s] of this.switchers)
+      if (!atems.some((a) => a.id === id && a.host === s.host)) {
+        await s.driver.close();
+        this.switchers.delete(id);
+      }
+    for (const a of atems) {
+      const cur = this.switchers.get(a.id);
+      if (cur) cur.name = a.name;
+      else {
+        const driver = new GuardedSwitcher(this.factory.switcher(a.host), () => this.lockFor(a.host));
+        driver.on("change", this.changed);
+        driver.on("log", (m) => log.debug({ atem: a.name, m }, "atem"));
+        this.switchers.set(a.id, { name: a.name, host: a.host, driver });
+      }
+    }
+    const nodes = db.prepare("SELECT id, name, host, port FROM studio_nodes WHERE enabled = 1").all() as { id: number; name: string; host: string; port: number }[];
+    for (const [id, p] of this.playouts)
+      if (!nodes.some((n) => n.id === id && n.host === p.host && n.port === p.port)) {
+        await p.driver.close();
+        this.playouts.delete(id);
+      }
+    for (const n of nodes) {
+      const cur = this.playouts.get(n.id);
+      if (cur) cur.name = n.name;
+      else {
+        const driver = this.factory.playout(n.host, n.port);
+        driver.on("change", this.changed);
+        driver.on("log", (m) => log.debug({ studio: n.name, m }, "casparcg"));
+        this.playouts.set(n.id, { name: n.name, host: n.host, port: n.port, driver });
+      }
+    }
+    this.changed();
+  }
+
+  async close() {
+    for (const s of this.switchers.values()) await s.driver.close();
+    for (const p of this.playouts.values()) await p.driver.close();
+    this.switchers.clear();
+    this.playouts.clear();
+  }
+
+  switcher(id: number | null | undefined) {
+    return id == null ? undefined : this.switchers.get(id)?.driver;
+  }
+  /** Orchestrator lock of an ATEM (by local id), or null. */
+  lock(id: number | null | undefined) {
+    return this.switcher(id)?.locked() ?? null;
+  }
+  /** Locks changed in the orchestrator: released switchers take what the automation held. */
+  async locksChanged() {
+    for (const s of this.switchers.values()) await s.driver.release();
+    this.changed();
+  }
+  playout(id: number | null | undefined) {
+    return id == null ? undefined : this.playouts.get(id)?.driver;
+  }
+}
+
+const host = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[\w.:-]+$/, "invalid host");
+
+export function registerDevices(app: FastifyInstance, platform: Platform, hub: DeviceHub, remote: RemoteSources) {
+  const { db } = platform.ctx;
+  const id = (req: { params: unknown }) => Number((req.params as { id: string }).id);
+
+  // ---- ATEM switchers --------------------------------------------------------
+  const atemIn = z.object({ name: z.string().trim().min(1).max(80), host, enabled: z.boolean().default(true) });
+  const atemOut = (r: { id: number; name: string; host: string; enabled: number }) => ({
+    id: r.id,
+    name: r.name,
+    host: r.host,
+    enabled: !!r.enabled,
+    status: hub.switcher(r.id)?.info() ?? { connected: false, model: null, productName: null, mixEffects: 0, inputs: [], program: [], preview: [] },
+    lock: hub.lock(r.id),
+  });
+  app.get("/api/atems", async () => ({ atems: (db.prepare("SELECT * FROM atem_devices ORDER BY name").all() as Parameters<typeof atemOut>[0][]).map(atemOut) }));
+  app.post("/api/atems", async (req) => {
+    requireRole(req, "admin");
+    const b = atemIn.parse(req.body);
+    db.prepare("INSERT INTO atem_devices (name, host, enabled) VALUES (?, ?, ?)").run(b.name, b.host, b.enabled ? 1 : 0);
+    await hub.reload();
+    return { ok: true };
+  });
+  app.put("/api/atems/:id", async (req) => {
+    requireRole(req, "admin");
+    const b = atemIn.parse(req.body);
+    db.prepare("UPDATE atem_devices SET name = ?, host = ?, enabled = ? WHERE id = ?").run(b.name, b.host, b.enabled ? 1 : 0, id(req));
+    await hub.reload();
+    return { ok: true };
+  });
+  app.delete("/api/atems/:id", async (req) => {
+    requireRole(req, "admin");
+    db.prepare("DELETE FROM atem_devices WHERE id = ?").run(id(req));
+    await hub.reload();
+    return { ok: true };
+  });
+
+  // ---- Studio nodes (CasparCG) -----------------------------------------------
+  const studioIn = z.object({
+    name: z.string().trim().min(1).max(80),
+    host,
+    port: z.number().int().min(1).max(65535).default(5250),
+    publicHost: host.nullable().optional(),
+    ingestApiPort: z.number().int().min(1).max(65535).default(9997),
+    /** playout: runs the schedule; live: takes remote streams (events); both: one node does everything. */
+    role: z.enum(STUDIO_ROLES).default("both"),
+    enabled: z.boolean().default(true),
+  });
+  type StudioDb = { id: number; name: string; host: string; port: number; public_host: string | null; ingest_api_port: number; role: StudioRole; enabled: number };
+  const studioOut = (r: StudioDb) => ({
+    id: r.id,
+    name: r.name,
+    host: r.host,
+    port: r.port,
+    publicHost: r.public_host,
+    ingestApiPort: r.ingest_api_port,
+    role: r.role,
+    enabled: !!r.enabled,
+    status: hub.playout(r.id)?.info() ?? { connected: false, version: null },
+    ingest: remote.ingest(r.id),
+    identifyUntil: identifying.get(r.id)?.until ?? null,
+  });
+  // ---- Identify outputs: a numbered test card on every DeckLink output of a studio node --------
+  const identifying = new Map<number, { until: string; timer: NodeJS.Timeout; channels: number[] }>();
+  const stopIdentify = async (studioId: number) => {
+    const cur = identifying.get(studioId);
+    if (!cur) return;
+    clearTimeout(cur.timer);
+    identifying.delete(studioId);
+    const p = hub.playout(studioId);
+    for (const ch of cur.channels) await p?.clear(ch, IDENTIFY_LAYER).catch(() => undefined);
+  };
+  app.post("/api/studios/:id/identify", async (req) => {
+    requireRole(req, "admin");
+    const sid = id(req);
+    const { on } = z.object({ on: z.boolean() }).parse(req.body);
+    await stopIdentify(sid);
+    if (!on) return { ok: true };
+    const row = db.prepare("SELECT name FROM studio_nodes WHERE id = ?").get(sid) as { name: string } | undefined;
+    if (!row) throw new HttpError(404, "not_found");
+    const p = hub.playout(sid);
+    if (!p?.info().connected) throw new HttpError(409, "studio_offline");
+    const channels = p.info().channels?.length ? p.info().channels! : [1];
+    const until = new Date(Date.now() + IDENTIFY_SECONDS * 1000).toISOString();
+    const base = publicUrl(platform);
+    try {
+      for (const ch of channels) await p.playHtml(ch, IDENTIFY_LAYER, `${base}/graphics/identify?n=${ch}&of=${channels.length}&node=${encodeURIComponent(row.name)}`);
+    } catch (e) {
+      for (const ch of channels) await p.clear(ch, IDENTIFY_LAYER).catch(() => undefined);
+      throw new HttpError(502, "identify_failed", (e as Error).message);
+    }
+    const timer = setTimeout(() => void stopIdentify(sid), IDENTIFY_SECONDS * 1000);
+    timer.unref();
+    identifying.set(sid, { until, timer, channels });
+    platform.ctx.log.info({ studio: row.name, channels, by: req.user!.username }, "identify outputs");
+    return { ok: true, until, channels };
+  });
+  /** Public: the test card CasparCG shows (HTML producer). */
+  app.get("/graphics/identify", async (req, reply) => {
+    const q = z.object({ n: z.coerce.number().int().min(1).max(64), of: z.coerce.number().int().min(1).max(64).default(1), node: z.string().max(80).default("") }).parse(req.query);
+    reply.header("Content-Type", "text/html; charset=utf-8").header("Cache-Control", "no-store");
+    return identifyPage(q.n, q.of, q.node);
+  });
+
+  app.get("/api/studios", async () => ({ studios: (db.prepare("SELECT * FROM studio_nodes ORDER BY name").all() as unknown as StudioDb[]).map(studioOut) }));
+  app.post("/api/studios", async (req) => {
+    requireRole(req, "admin");
+    const b = studioIn.parse(req.body);
+    db.prepare("INSERT INTO studio_nodes (name, host, port, public_host, ingest_api_port, role, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.name, b.host, b.port, b.publicHost || null, b.ingestApiPort, b.role, b.enabled ? 1 : 0);
+    await hub.reload();
+    return { ok: true };
+  });
+  app.put("/api/studios/:id", async (req) => {
+    requireRole(req, "admin");
+    const b = studioIn.parse(req.body);
+    db.prepare("UPDATE studio_nodes SET name = ?, host = ?, port = ?, public_host = ?, ingest_api_port = ?, role = ?, enabled = ? WHERE id = ?").run(b.name, b.host, b.port, b.publicHost || null, b.ingestApiPort, b.role, b.enabled ? 1 : 0, id(req));
+    await hub.reload();
+    return { ok: true };
+  });
+  app.delete("/api/studios/:id", async (req) => {
+    requireRole(req, "admin");
+    db.prepare("DELETE FROM studio_nodes WHERE id = ?").run(id(req));
+    await hub.reload();
+    return { ok: true };
+  });
+
+  // ---- Live sources ------------------------------------------------------------
+  // "atem": a camera or studio on an ATEM input. "rtmp": a remote source, i.e. a stream pushed to the ingest server
+  // on a studio node (url empty, own stream key) or pulled by CasparCG from a URL, played to a DeckLink output.
+  const liveIn = z
+    .object({
+      name: z.string().trim().min(1).max(80),
+      kind: z.enum(["atem", "rtmp"]),
+      atemInput: z.number().int().min(0).max(65535),
+      studioId: z.number().int().nullable().optional(),
+      casparChannel: z.number().int().min(1).max(16).nullable().optional(),
+      url: z.string().trim().max(1000).nullable().optional(),
+    })
+    .refine((v) => v.kind === "atem" || (v.studioId && v.casparChannel && (!v.url || /^(rtmps?|srt|udp|rtsp|https?):\/\//.test(v.url))), { message: "rtmp_needs_studio_channel_url" });
+  const liveRow = (lid: number) => {
+    const r = remote.live(lid);
+    if (!r) throw new HttpError(404, "not_found");
+    return r;
+  };
+  const liveOut = (r: LiveRow) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.kind,
+    atemInput: r.atem_input,
+    studioId: r.studio_id,
+    casparChannel: r.caspar_channel,
+    url: r.url,
+    ...(r.kind === "rtmp"
+      ? {
+          mode: r.url ? "pull" : "push",
+          push: remote.pushInfo(r),
+          status: remote.status(r),
+          onOutput: remote.isRouted(r),
+          outputError: remote.outputError(r),
+        }
+      : {}),
+  });
+  // Editors-in-chief manage remote sources (they invite the contributors); ATEM inputs are part of the setup (admin).
+  /** A studio node that reported its CasparCG channels must have the chosen output. */
+  const checkOutput = (studioId: number | null | undefined, ch: number | null | undefined) => {
+    const channels = studioId != null && ch != null ? hub.playout(studioId)?.info().channels : null;
+    if (channels?.length && !channels.includes(ch!)) throw new HttpError(400, "no_such_output", channels.join(", "));
+  };
+  const canEdit = (req: Parameters<typeof requireRole>[0], kind: string) => requireRole(req, kind === "rtmp" ? "editor" : "admin");
+  app.get("/api/live-sources", async () => ({ sources: (db.prepare("SELECT * FROM live_sources ORDER BY name").all() as unknown as LiveRow[]).map(liveOut) }));
+  app.post("/api/live-sources", async (req) => {
+    const b = liveIn.parse(req.body);
+    canEdit(req, b.kind);
+    if (b.kind === "rtmp") checkOutput(b.studioId, b.casparChannel);
+    const key = b.kind === "rtmp" ? newStreamKey(b.name) : null;
+    const r = db.prepare("INSERT INTO live_sources (name, kind, atem_input, studio_id, caspar_channel, url, stream_key) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.name, b.kind, b.atemInput, b.studioId ?? null, b.casparChannel ?? null, b.url || null, key);
+    return { ok: true, id: Number(r.lastInsertRowid) };
+  });
+  app.put("/api/live-sources/:id", async (req) => {
+    const b = liveIn.parse(req.body);
+    const cur = liveRow(id(req));
+    canEdit(req, cur.kind);
+    canEdit(req, b.kind);
+    if (b.kind === "rtmp") checkOutput(b.studioId, b.casparChannel);
+    const key = b.kind === "rtmp" ? (cur.stream_key ?? newStreamKey(b.name)) : null;
+    if (cur.studio_id && cur.caspar_channel && (cur.studio_id !== b.studioId || cur.caspar_channel !== b.casparChannel) && remote.isRouted(cur)) await remote.unroute(cur.studio_id, cur.caspar_channel);
+    db.prepare("UPDATE live_sources SET name = ?, kind = ?, atem_input = ?, studio_id = ?, caspar_channel = ?, url = ?, stream_key = ? WHERE id = ?").run(
+      b.name,
+      b.kind,
+      b.atemInput,
+      b.studioId ?? null,
+      b.casparChannel ?? null,
+      b.url || null,
+      key,
+      cur.id,
+    );
+    return { ok: true };
+  });
+  app.delete("/api/live-sources/:id", async (req) => {
+    const cur = liveRow(id(req));
+    canEdit(req, cur.kind);
+    if (remote.isRouted(cur)) await remote.unroute(cur.studio_id!, cur.caspar_channel!);
+    db.prepare("DELETE FROM live_sources WHERE id = ?").run(cur.id);
+    return { ok: true };
+  });
+  /** New stream key: the old one stops working for new connections right away. */
+  app.post("/api/live-sources/:id/new-key", async (req) => {
+    const cur = liveRow(id(req));
+    if (cur.kind !== "rtmp") throw new HttpError(400, "not_remote");
+    canEdit(req, cur.kind);
+    db.prepare("UPDATE live_sources SET stream_key = ? WHERE id = ?").run(newStreamKey(cur.name), cur.id);
+    return { ok: true };
+  });
+  /** Puts a remote source on its DeckLink output (or takes it off) without switching the ATEM. */
+  app.post("/api/live-sources/:id/output", async (req) => {
+    requireRole(req, "operator");
+    const cur = liveRow(id(req));
+    if (cur.kind !== "rtmp" || !cur.studio_id || !cur.caspar_channel) throw new HttpError(400, "not_remote");
+    const { on } = z.object({ on: z.boolean() }).parse(req.body);
+    try {
+      if (on) await remote.route(cur);
+      else if (remote.isRouted(cur)) await remote.unroute(cur.studio_id, cur.caspar_channel);
+    } catch (e) {
+      throw new HttpError(502, "output_failed", (e as Error).message);
+    }
+    return { ok: true };
+  });
+
+  /** For the explanation in the UI: where the studio node's ingest server checks stream keys. */
+  app.get("/api/remote-sources/info", async () => ({ authUrl: `${publicUrl(platform)}/ingest/auth` }));
+
+  // ---- Ingest auth (called by MediaMTX on the studio nodes, no session) -----------
+  app.post("/ingest/auth", async (req, reply) => {
+    const ok = remote.auth((req.body ?? {}) as IngestAuthRequest);
+    if (!ok) {
+      const b = (req.body ?? {}) as IngestAuthRequest;
+      if (b.action === "publish") platform.ctx.log.info({ path: b.path, ip: b.ip, protocol: b.protocol }, "rejected remote stream: unknown stream key");
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    return { ok: true };
+  });
+
+  const notFound = () => {
+    throw new HttpError(404, "not_found");
+  };
+  return { notFound };
+}
