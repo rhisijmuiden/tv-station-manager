@@ -35,6 +35,8 @@ import {
   trimArgs,
   trimKey,
   type RecordingSettings,
+  type RepeatRule,
+  type SourceRecording,
 } from "./recordlogic.js";
 import { INGEST_API_USER, streamPath, type LiveRow, type RemoteSources } from "./remote.js";
 import { compile, type TimelineEvent } from "./timeline.js";
@@ -75,6 +77,8 @@ export interface RecordingRow {
   published_at: string | null;
   block_id: number | null;
   pending_repeats: string;
+  /** Choices made when the source was taken live by hand (JSON `RecordingPlan`), overriding the source's settings. */
+  plan: string | null;
   error: string | null;
   created_at: string;
 }
@@ -96,6 +100,29 @@ interface Session {
   error: string | null;
 }
 
+/** What an editor chose when taking a remote source live by hand (switch buttons). */
+export interface LiveIntent {
+  record: boolean;
+  /** Repeats once the recording is finished; empty = no repeat. */
+  repeats: RepeatRule[];
+  channelId: number;
+  title: string;
+}
+/** Stored on the recording: overrides the remote source's "to library" and repeat settings. */
+interface RecordingPlan {
+  toLibrary: boolean;
+  repeats: RepeatRule[];
+}
+const parsePlan = (json: string | null | undefined): RecordingPlan | null => {
+  if (!json) return null;
+  try {
+    const p = JSON.parse(json) as RecordingPlan;
+    return { toLibrary: !!p.toLibrary, repeats: Array.isArray(p.repeats) ? p.repeats : [] };
+  } catch {
+    return null;
+  }
+};
+
 export type Spawner = (cmd: string, args: string[]) => ChildProcess;
 const hideSecrets = (text: string, secrets: string[]) => secrets.filter((s) => s.length >= 4).reduce((t, s) => t.split(s).join("••••"), text);
 
@@ -106,6 +133,8 @@ export class Recorder {
   private held = new Map<number, string | null>();
   /** Why a source that is coming in is not recorded (disk full, …). */
   private blocked = new Map<number, string>();
+  /** Remote sources taken live by hand: what the editor chose (record or not, repeat). */
+  private intents = new Map<number, LiveIntent>();
   private timelines: { at: number; list: { channelId: number; events: TimelineEvent[] }[] } | null = null;
   private queue: Promise<void> = Promise.resolve();
   private thumbQueue: Promise<unknown> = Promise.resolve();
@@ -237,11 +266,11 @@ export class Recorder {
       // Sources that were removed or no longer record.
       for (const s of [...this.sessions.values()]) {
         const src = sources.find((x) => x.live.id === s.liveId);
-        if (!src || !src.cfg.enabled) this.finish(s, "manual");
+        if (!src || !this.wanted(src.live.id, src.cfg)) this.finish(s, "manual");
       }
       const timelines = sources.length ? this.timelineList() : [];
       for (const { live, cfg } of sources) {
-        if (!cfg.enabled) {
+        if (!this.wanted(live.id, cfg)) {
           this.blocked.delete(live.id);
           continue;
         }
@@ -253,7 +282,7 @@ export class Recorder {
         if (s && online) s.offlineSince = null;
         if (s && !online) s.offlineSince ??= now;
         const d = decide({ online, now, session: s ?? null, program, heldAfter: this.held.has(live.id) ? this.held.get(live.id) : undefined, graceMs: st.graceSeconds * 1000, postRollMs: st.postRollSeconds * 1000 });
-        if (d === "start") this.begin(live, cfg.categoryId, onAir, st);
+        if (d === "start") this.begin(live, cfg, onAir, st);
         else if (d === "stop_programme_end") {
           this.finish(s!, "programme_end");
           if (online) this.held.set(live.id, s!.programKey);
@@ -271,6 +300,53 @@ export class Recorder {
     }
   }
 
+  /** Is this source recorded? The editor's choice when it was taken live by hand wins over its settings. */
+  private wanted(liveId: number, cfg: SourceRecording) {
+    return this.intents.get(liveId)?.record ?? cfg.enabled;
+  }
+
+  private planJson(liveId: number, cfg: SourceRecording) {
+    const i = this.intents.get(liveId);
+    return i ? JSON.stringify({ toLibrary: cfg.toLibrary || i.repeats.length > 0, repeats: i.repeats } satisfies RecordingPlan) : null;
+  }
+
+  /**
+   * A remote source is taken live by hand (switch button): record it or not, and plan repeats when it is finished.
+   * A recording that already runs (the stream came in before the button was pressed) is kept and gets the choices,
+   * or is thrown away when the editor chose not to record.
+   */
+  goLive(live: LiveRow, intent: LiveIntent) {
+    this.intents.set(live.id, intent);
+    this.held.delete(live.id);
+    const s = this.sessions.get(live.id);
+    if (!s) return;
+    if (!intent.record) {
+      this.finish(s, "manual", true);
+      return;
+    }
+    const cfg = parseSourceRecording((this.db.prepare("SELECT recording FROM live_sources WHERE id = ?").get(live.id) as { recording: string } | undefined)?.recording);
+    this.db.prepare("UPDATE recordings SET plan = ?, channel_id = ? WHERE id = ?").run(this.planJson(live.id, cfg), intent.channelId, s.recId);
+    this.db.prepare("UPDATE recordings SET title = ? WHERE id = ? AND title = source_name").run(intent.title.slice(0, 200), s.recId);
+  }
+
+  /** The source taken live by hand went off air: its recording is finished (and goes on to the library / repeats). */
+  liveEnded(liveId: number) {
+    const intent = this.intents.get(liveId);
+    if (!intent) return;
+    this.intents.delete(liveId);
+    const s = this.sessions.get(liveId);
+    const live = this.db.prepare("SELECT * FROM live_sources WHERE id = ?").get(liveId) as LiveRow | undefined;
+    const online = !!live && this.online(live, s);
+    if (s) this.finish(s, "live_end");
+    // The contributor may keep sending: not recorded again until the stream stops (or a programme with it starts).
+    if (online) this.held.set(liveId, s?.programKey ?? null);
+  }
+
+  /** What the editor chose for a source that is live by hand, for the UI. */
+  intent(liveId: number) {
+    return this.intents.get(liveId) ?? null;
+  }
+
   private freeBytes() {
     try {
       const f = statfsSync(this.dir);
@@ -285,7 +361,7 @@ export class Recorder {
     return { title: onAir.event.programTitle || onAir.event.title, scheduleId: onAir.event.scheduleId, channelId: onAir.channelId, key: onAir.event.key, end: onAir.event.end };
   }
 
-  private begin(live: LiveRow, categoryId: number | null, onAir: ReturnType<typeof liveEventAt>, st: RecordingSettings) {
+  private begin(live: LiveRow, cfg: SourceRecording, onAir: ReturnType<typeof liveEventAt>, st: RecordingSettings) {
     const input = this.input(live);
     if (!input) return;
     const disk = this.freeBytes();
@@ -301,10 +377,11 @@ export class Recorder {
     this.blocked.delete(live.id);
     this.held.delete(live.id);
     const p = this.programInfo(onAir);
+    const intent = this.intents.get(live.id);
     const now = this.now();
     const r = this.db
-      .prepare("INSERT INTO recordings (live_source_id, source_name, title, status, started_at, schedule_id, channel_id, category_id) VALUES (?, ?, ?, 'recording', ?, ?, ?, ?)")
-      .run(live.id, live.name, (p?.title || live.name).slice(0, 200), new Date(now).toISOString(), p?.scheduleId ?? null, p?.channelId ?? null, categoryId);
+      .prepare("INSERT INTO recordings (live_source_id, source_name, title, status, started_at, schedule_id, channel_id, category_id, plan) VALUES (?, ?, ?, 'recording', ?, ?, ?, ?, ?)")
+      .run(live.id, live.name, (intent?.title || p?.title || live.name).slice(0, 200), new Date(now).toISOString(), p?.scheduleId ?? null, intent?.channelId ?? p?.channelId ?? null, cfg.categoryId, this.planJson(live.id, cfg));
     const s: Session = {
       recId: Number(r.lastInsertRowid),
       liveId: live.id,
@@ -384,7 +461,7 @@ export class Recorder {
   }
 
   /** Stops a running recording and queues the joining of its pieces. */
-  private finish(s: Session, reason: "stream_end" | "programme_end" | "manual") {
+  private finish(s: Session, reason: "stream_end" | "programme_end" | "manual" | "live_end", discard = false) {
     this.sessions.delete(s.liveId);
     const proc = s.proc;
     s.proc = null;
@@ -393,7 +470,11 @@ export class Recorder {
     const stopped = this.stopProc(proc);
     this.enqueue(async () => {
       await stopped;
-      await this.process(s.recId);
+      if (!discard) return this.process(s.recId);
+      // Not wanted after all (the editor chose not to record when taking the source live).
+      this.removeFiles(s.parts);
+      this.db.prepare("DELETE FROM recordings WHERE id = ?").run(s.recId);
+      this.log.info({ recording: s.recId }, "recording thrown away: not wanted");
     });
   }
 
@@ -487,8 +568,8 @@ export class Recorder {
     for (const [i, part] of parts.entries()) {
       const id = Number(
         this.db
-          .prepare("INSERT INTO recordings (live_source_id, source_name, title, status, stop_reason, started_at, ended_at, schedule_id, channel_id, category_id, parts) VALUES (?, ?, ?, 'processing', ?, ?, ?, ?, ?, ?, ?)")
-          .run(rec.live_source_id, rec.source_name, `${rec.title} (${i + 1})`.slice(0, 200), rec.stop_reason, rec.started_at, rec.ended_at, rec.schedule_id, rec.channel_id, rec.category_id, JSON.stringify([part])).lastInsertRowid,
+          .prepare("INSERT INTO recordings (live_source_id, source_name, title, status, stop_reason, started_at, ended_at, schedule_id, channel_id, category_id, parts, plan) VALUES (?, ?, ?, 'processing', ?, ?, ?, ?, ?, ?, ?, ?)")
+          .run(rec.live_source_id, rec.source_name, `${rec.title} (${i + 1})`.slice(0, 200), rec.stop_reason, rec.started_at, rec.ended_at, rec.schedule_id, rec.channel_id, rec.category_id, JSON.stringify([part]), rec.plan).lastInsertRowid,
       );
       await this.process(id);
     }
@@ -502,7 +583,8 @@ export class Recorder {
     this.log.info({ recording: rec.id, title: rec.title, ms: pr.durationMs }, "recording ready");
     // Automatic steps of the remote source.
     const live = rec.live_source_id == null ? undefined : (this.db.prepare("SELECT recording FROM live_sources WHERE id = ?").get(rec.live_source_id) as { recording: string } | undefined);
-    const cfg = parseSourceRecording(live?.recording);
+    const plan = parsePlan(rec.plan);
+    const cfg = { ...parseSourceRecording(live?.recording), ...(plan ?? {}) };
     const repeats = repeatTimes(cfg.repeats, Date.parse(rec.started_at), this.timezone(), this.now()).map((r) => ({ channelId: r.channelId ?? rec.channel_id ?? this.firstChannel(), at: new Date(r.at).toISOString() }));
     if (repeats.length) this.db.prepare("UPDATE recordings SET pending_repeats = ? WHERE id = ?").run(JSON.stringify(repeats.filter((r) => r.channelId != null)), rec.id);
     this.onChange();

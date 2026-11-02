@@ -352,6 +352,19 @@ export const MANAGEMENT_MIGRATIONS = [
      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
    );
    CREATE INDEX recordings_started ON recordings(started_at);`,
+  // Switch buttons: simple named buttons for editors that take a live source on air by hand (unplanned live feeds).
+  // recordings.plan holds what the editor chose when going live (record, repeat), overriding the source's settings.
+  `CREATE TABLE switch_buttons (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+     name TEXT NOT NULL,
+     color TEXT NOT NULL DEFAULT '#3B6CFF',
+     live_source_id INTEGER NOT NULL REFERENCES live_sources(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE INDEX switch_buttons_channel ON switch_buttons(channel_id, position);
+   ALTER TABLE recordings ADD COLUMN plan TEXT;`,
   // Audio under the broadcast ("geluid onder"): a radio stream or a physical input on the studio node, mixed under
   // what CasparCG plays (e.g. behind the beeldkrant). Chosen per block or per item; NULL = follow the parent,
   // 'none' = no audio, '<id>' = that audio source.
