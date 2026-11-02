@@ -1,6 +1,6 @@
 import { Alert, Button, Dialog, Field, Input, Select, cx, post } from "@tvsm/ui";
-import { Dices, FolderOpen, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CalendarClock, Dices, FolderOpen, FolderTree, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fmtDuration, useCategories, useGet } from "../lib";
 
@@ -9,6 +9,8 @@ export interface AutoRule {
   source: "category" | "folder";
   categoryId: number | null;
   folder: string;
+  /** Folder source: everything below the folder, or only its newest subfolder (a folder per week). */
+  subfolders: "all" | "newest";
   count: number;
   maxAgeDays: number | null;
   maxMinutes: number | null;
@@ -18,11 +20,13 @@ export interface AutoRule {
 export interface AutoInfo {
   autoRule: AutoRule;
   autoSourceName: string | null;
+  /** "Only the newest subfolder": the folder(s) it plays from right now. */
+  autoFolders?: string[] | null;
   autoClips: { id: number; name: string; durationMs: number }[];
   effectiveDurationMs: number;
 }
 /** A new dynamic slot: one clip from a folder, in turn (the usual hour build-up: ad, bumper, item, bumper). */
-export const defaultRule = (): AutoRule => ({ source: "folder", categoryId: null, folder: "", count: 1, maxAgeDays: null, maxMinutes: null, pick: "rotate", order: "newest_first" });
+export const defaultRule = (): AutoRule => ({ source: "folder", categoryId: null, folder: "", subfolders: "all", count: 1, maxAgeDays: null, maxMinutes: null, pick: "rotate", order: "newest_first" });
 
 /** One line for the rundown: "Newest 5 clips from News", "In turn from Bumpers". */
 export function autoLabel(t: (k: string, o?: Record<string, unknown>) => string, info: Pick<AutoInfo, "autoRule" | "autoSourceName">) {
@@ -60,6 +64,17 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
   const { categories } = useCategories();
   const folders = useGet<{ folders: string[] }>(open ? "/api/media?limit=1" : null);
   const [r, setR] = useState<AutoRule>(rule ?? defaultRule());
+  // Every folder plus the folders above it ("Programma/2026 Reportages" holds no clips itself but its week folders do).
+  const allFolders = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of folders.data?.folders ?? []) {
+      const parts = f.split("/");
+      for (let i = 1; i <= parts.length; i++) set.add(parts.slice(0, i).join("/"));
+    }
+    if (r.folder) set.add(r.folder);
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+  }, [folders.data, r.folder]);
+  const hasSub = allFolders.some((f) => f.startsWith(`${r.folder}/`));
   const [preview, setPreview] = useState<AutoInfo | null>(null);
   useEffect(() => {
     if (open) setR(rule ?? defaultRule());
@@ -125,18 +140,43 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
               )}
             </Field>
           ) : (
-            <Field label={t("mgmt.auto.folder")} hint={t("mgmt.auto.folderHint")}>
-              {(id) => (
-                <Select id={id} value={r.folder} onChange={(e) => setR({ ...r, folder: e.target.value })}>
-                  <option value="">{t("mgmt.auto.chooseFolder")}</option>
-                  {folders.data?.folders.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </Select>
+            <>
+              <Field label={t("mgmt.auto.folder")} hint={hasSub ? undefined : t("mgmt.auto.folderHint")}>
+                {(id) => (
+                  <Select id={id} value={r.folder} onChange={(e) => setR({ ...r, folder: e.target.value })}>
+                    <option value="">{t("mgmt.auto.chooseFolder")}</option>
+                    {allFolders.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              {r.folder !== "" && (hasSub || r.subfolders === "newest") && (
+                <div>
+                  <p className="mb-1.5 text-[13px] font-medium">{t("mgmt.auto.subfolders.label")}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(["all", "newest"] as const).map((k) => {
+                      const Icon = k === "all" ? FolderTree : CalendarClock;
+                      return (
+                        <button
+                          key={k}
+                          onClick={() => setR({ ...r, subfolders: k })}
+                          className={cx("rounded-md border px-3 py-2.5 text-left transition", r.subfolders === k ? "border-brand bg-brand/8" : "border-line hover:bg-surface-2")}
+                        >
+                          <span className={cx("flex items-center gap-2 text-sm", r.subfolders === k && "font-medium text-brand")}>
+                            <Icon className="size-4" />
+                            {t(`mgmt.auto.subfolders.${k}`)}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted">{t(`mgmt.auto.subfolders.${k}Hint`)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-            </Field>
+            </>
           )}
           <div>
             <p className="mb-1.5 text-[13px] font-medium">{t("mgmt.auto.how")}</p>
@@ -184,6 +224,16 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
         <div className="rounded-lg border border-line bg-surface-2/50 p-4">
           <p className="text-[13px] font-semibold">{t("mgmt.auto.nowPlays")}</p>
           <p className="mb-3 text-xs text-muted">{t("mgmt.auto.nowPlaysHint")}</p>
+          {ready && r.source === "folder" && r.subfolders === "newest" && preview && (
+            <p className="mb-3 flex items-start gap-1.5 rounded-md bg-brand/8 px-2.5 py-2 text-xs text-brand">
+              <CalendarClock className="mt-px size-3.5 shrink-0" />
+              <span>
+                {preview.autoFolders?.length
+                  ? t("mgmt.auto.subfolders.now", { folder: preview.autoFolders.map((f) => f.slice(r.folder.length + 1)).join(", ") })
+                  : t("mgmt.auto.subfolders.none")}
+              </span>
+            </p>
+          )}
           {!ready ? (
             <p className="text-sm text-muted">{t("mgmt.auto.pickSource")}</p>
           ) : !preview ? null : preview.autoClips.length === 0 ? (

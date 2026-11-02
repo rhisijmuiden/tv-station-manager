@@ -14,6 +14,12 @@ export const autoRuleSchema = z.object({
   categoryId: z.number().int().positive().nullable().default(null),
   /** Folder path as shown in the library ("News/Daily"); subfolders count too. */
   folder: z.string().max(500).default(""),
+  /**
+   * Folder source only. "all": every clip in the folder and its subfolders. "newest": only the newest subfolder, so a
+   * parent like "Programma/2026 Reportages" with a folder per week ("wk 44", "wk 45") always plays this week's items
+   * without editing the block every week (see `newestFolders`).
+   */
+  subfolders: z.enum(["all", "newest"]).default("all"),
   /** How many clips at most: the newest N, older ones drop out by themselves. */
   count: z.number().int().min(1).max(50).default(5),
   /** Skip clips older than this many days (null = no limit). */
@@ -110,4 +116,66 @@ export function pickClips(candidates: AutoCandidate[], rule: AutoRule, asOf: num
   }
   if (rule.pick === "newest" && rule.order === "oldest_first") out.reverse();
   return out.map((c) => c.id);
+}
+
+// ---- newest subfolder ("a folder per week") ------------------------------------
+
+/** The week number in a folder name: "wk 45", "Wk45", "week 7", "Week_03", "w 2" → 45, 45, 7, 3, 2; null when none. */
+export function weekOfName(name: string): number | null {
+  const m = /(?:^|[^a-z])(?:wk|week|w)[\s._-]*0*(\d{1,2})(?!\d)/i.exec(name);
+  const n = m ? Number(m[1]) : NaN;
+  return n >= 1 && n <= 53 ? n : null;
+}
+
+/** A year (2000-2099) in a folder path, the one nearest to the end: "Programma/2026 Reportages/wk 45" → 2026. */
+export function yearOfPath(path: string): number | null {
+  const all = [...path.matchAll(/(?<!\d)(20\d\d)(?!\d)/g)];
+  return all.length ? Number(all[all.length - 1]![1]) : null;
+}
+
+/** ISO 8601 week of a calendar date ("2026-11-02" → { year: 2026, week: 45 }); the week of 1 January may belong to the year before. */
+export function isoWeek(date: string): { year: number; week: number } {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = new Date(Date.UTC(y!, m! - 1, d!));
+  const dow = (t.getUTCDay() + 6) % 7; // 0 = Monday
+  t.setUTCDate(t.getUTCDate() - dow + 3); // the Thursday of this week decides the year
+  const year = t.getUTCFullYear();
+  const week = 1 + Math.floor((t.getTime() - Date.UTC(year, 0, 1)) / (7 * DAY));
+  return { year, week };
+}
+
+export interface FolderCandidate {
+  /** Full folder path in the library ("Programma/2026 Reportages/wk 45"). */
+  folder: string;
+  /** When the newest playable clip in this folder (not its subfolders) came in (ms). */
+  newestAt: number;
+}
+
+/**
+ * Which subfolders of `parent` an "only the newest subfolder" rule plays from, given the folders below it that hold
+ * playable clips. Folders named after a week ("wk 45") are ordered by week: the year comes from the path ("2026
+ * Reportages"), else a week number above the current one is last year's (so "wk 52" sorts before "wk 1" after New
+ * Year). A week that has not started yet is skipped, so next week's folder can be filled in advance. All folders of
+ * the newest week count (with parent "Programma": "2026 Reportages/wk 45" and "2026 Sport/wk 45" together). Without
+ * week names the folder with the most recently added clip wins. The parent's own clips never count here.
+ */
+export function newestFolders(candidates: FolderCandidate[], parent: string, today: { year: number; week: number }): string[] {
+  const below = candidates.filter((c) => c.folder.startsWith(`${parent}/`));
+  const now = today.year * 100 + today.week;
+  const dated = below.flatMap((c) => {
+    const rest = c.folder.slice(parent.length + 1);
+    const week = weekOfName(rest.split("/").pop()!);
+    if (week == null) return [];
+    const year = yearOfPath(c.folder) ?? (week > today.week ? today.year - 1 : today.year);
+    const key = year * 100 + week;
+    return key <= now ? [{ ...c, key }] : [];
+  });
+  if (dated.length) {
+    const best = Math.max(...dated.map((c) => c.key));
+    return dated.filter((c) => c.key === best).map((c) => c.folder).sort();
+  }
+  const undated = below.filter((c) => weekOfName(c.folder.slice(parent.length + 1).split("/").pop()!) == null);
+  if (!undated.length) return [];
+  const top = undated.reduce((a, b) => (b.newestAt > a.newestAt || (b.newestAt === a.newestAt && b.folder > a.folder) ? b : a));
+  return [top.folder];
 }

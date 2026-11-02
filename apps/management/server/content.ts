@@ -7,7 +7,8 @@ import { audioIn, BlockCycleError, compile, DEFAULT_LINEUP_MS, expandBlock, type
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
 import { webcamRef } from "./webcamdb.js";
-import { autoRuleSchema, parseAutoRule, pickClips, ruleReady } from "./autofill.js";
+import { autoRuleSchema, isoWeek, newestFolders, parseAutoRule, pickClips, ruleReady, type AutoRule } from "./autofill.js";
+import { stationDay } from "./hourclock.js";
 
 // ---- graphics settings (per channel) ------------------------------------------
 
@@ -125,6 +126,43 @@ export interface PickMemory {
 }
 export const newPickMemory = (): PickMemory => ({ picked: new Map(), lastPick: new Map() });
 
+type AutoRow = Omit<MediaRef, "missing"> & { missing: number; folder: string; mtime: string | null; createdAt: string; lastPickAt: string | null };
+const addedAt = (r: Pick<AutoRow, "mtime" | "createdAt">) => Date.parse(r.mtime ?? "") || Date.parse(r.createdAt) || 0;
+
+/**
+ * The clips a rule chooses from at `asOf`. For "only the newest subfolder" also which folders that is now (`folders`),
+ * decided by week name in the station's week, or by the newest clip (see `newestFolders`).
+ */
+export function autoCandidates(db: Db, rule: AutoRule, asOf: number): { rows: AutoRow[]; folders: string[] | null } {
+  const folder = rule.folder.trim().replace(/^\/+|\/+$/g, "");
+  const where = rule.source === "category" ? "category_id = ?" : "(folder = ? OR folder LIKE ?)";
+  const args = rule.source === "category" ? [rule.categoryId!] : [folder, `${folder}/%`];
+  const rows = db
+    .prepare(
+      `SELECT id, name, title, path, duration_ms AS durationMs, fps, category, missing, folder, mtime, created_at AS createdAt, last_pick_at AS lastPickAt FROM media
+        WHERE missing = 0 AND probe_status != 'failed' AND ${where} ORDER BY COALESCE(mtime, created_at) DESC, id DESC LIMIT 2000`,
+    )
+    .all(...args) as unknown as AutoRow[];
+  if (rule.source !== "folder" || rule.subfolders !== "newest") return { rows, folders: null };
+  const newest = new Map<string, number>();
+  for (const r of rows) {
+    const at = addedAt(r);
+    // Only folders that have something playable at that time; an empty "wk 46" made on Monday morning is skipped.
+    if (r.folder === folder || !r.durationMs || at > asOf) continue;
+    newest.set(r.folder, Math.max(newest.get(r.folder) ?? 0, at));
+  }
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'station.timezone'").get() as { value: string } | undefined;
+  let tz = "Europe/Amsterdam";
+  try {
+    if (row) tz = String(JSON.parse(row.value)) || tz;
+  } catch {
+    /* keep the default */
+  }
+  const folders = newestFolders([...newest].map(([f, at]) => ({ folder: f, newestAt: at })), folder, isoWeek(stationDay(asOf, tz).date));
+  const keep = new Set(folders);
+  return { rows: rows.filter((r) => keep.has(r.folder)), folders };
+}
+
 /**
  * The clips a dynamic item's rule picks at `asOf`. With a `slot` (a broadcast and the item's place in it) a rotate or
  * random pick is remembered in `auto_picks` once the broadcast is near, so it stays the same until it has aired, and
@@ -133,19 +171,11 @@ export const newPickMemory = (): PickMemory => ({ picked: new Map(), lastPick: n
 export function autoMedia(db: Db, stored: unknown, asOf: number, slot?: { key: string; path: string; preview?: boolean }, mem: PickMemory = newPickMemory()): MediaRef[] {
   const rule = parseAutoRule(stored);
   if (!ruleReady(rule)) return [];
-  const folder = rule.folder.trim().replace(/^\/+|\/+$/g, "");
-  const where = rule.source === "category" ? "category_id = ?" : "(folder = ? OR folder LIKE ?)";
-  const args = rule.source === "category" ? [rule.categoryId!] : [folder, `${folder}/%`];
-  const rows = db
-    .prepare(
-      `SELECT id, name, title, path, duration_ms AS durationMs, fps, category, missing, mtime, created_at AS createdAt, last_pick_at AS lastPickAt FROM media
-        WHERE missing = 0 AND probe_status != 'failed' AND ${where} ORDER BY COALESCE(mtime, created_at) DESC, id DESC LIMIT 1000`,
-    )
-    .all(...args) as unknown as (Omit<MediaRef, "missing"> & { missing: number; mtime: string | null; createdAt: string; lastPickAt: string | null })[];
+  const { rows } = autoCandidates(db, rule, asOf);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const out = (ids: number[]) =>
     ids.map((id) => {
-      const { mtime: _m, createdAt: _c, lastPickAt: _l, ...m } = byId.get(id)!;
+      const { folder: _f, mtime: _m, createdAt: _c, lastPickAt: _l, ...m } = byId.get(id)!;
       return { ...m, missing: !!m.missing };
     });
   const used = slot ? (mem.picked.get(slot.key) ?? new Set<number>()) : new Set<number>();
@@ -164,7 +194,7 @@ export function autoMedia(db: Db, stored: unknown, asOf: number, slot?: { key: s
     for (const r of db.prepare("SELECT media_ids AS ids FROM auto_picks WHERE key = ? AND path != ?").all(slot.key, slot.path) as { ids: string }[]) for (const id of JSON.parse(r.ids) as number[]) used.add(id);
   }
   const ids = pickClips(
-    rows.map((r) => ({ id: r.id, durationMs: r.durationMs, addedAt: Date.parse(r.mtime ?? "") || Date.parse(r.createdAt) || 0, lastPickAt: mem.lastPick.get(r.id) ?? (r.lastPickAt ? Date.parse(r.lastPickAt) : null) })),
+    rows.map((r) => ({ id: r.id, durationMs: r.durationMs, addedAt: addedAt(r), lastPickAt: mem.lastPick.get(r.id) ?? (r.lastPickAt ? Date.parse(r.lastPickAt) : null) })),
     rule,
     asOf,
     { exclude: used, seed: slot ? `${slot.key}|${slot.path}` : String(asOf) },
@@ -259,8 +289,12 @@ export function autoItemInfo(db: Db, stored: unknown, asOf = Date.now(), slot?: 
         ? ((db.prepare("SELECT name FROM categories WHERE id = ?").get(rule.categoryId) as { name: string } | undefined)?.name ?? null)
         : null
       : rule.folder || null;
+  // "Only the newest subfolder": which week folder that is right now ("Programma/2026 Reportages › wk 45").
+  const autoFolders = ruleReady(rule) ? autoCandidates(db, rule, asOf).folders : null;
+  const parent = rule.folder.trim().replace(/^\/+|\/+$/g, "");
+  const shown = autoFolders?.length ? `${parent} › ${autoFolders.map((f) => f.slice(parent.length + 1)).join(", ")}` : sourceName;
   const clips = autoMedia(db, rule, asOf, slot, mem).map((m) => ({ id: m.id, name: m.title || m.name, durationMs: m.durationMs ?? 0 }));
-  return { autoRule: rule, autoSourceName: sourceName, autoClips: clips, effectiveDurationMs: clips.reduce((s, c) => s + c.durationMs, 0) };
+  return { autoRule: rule, autoSourceName: shown, autoFolders, autoClips: clips, effectiveDurationMs: clips.reduce((s, c) => s + c.durationMs, 0) };
 }
 
 export function registerContent(app: FastifyInstance, platform: Platform, onChange: () => void) {
