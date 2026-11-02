@@ -1,6 +1,6 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv, Video, WandSparkles } from "lucide-react";
+import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, ToggleRight, Tv, Video, WandSparkles } from "lucide-react";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
 import { CategoriesPage } from "./pages/Categories";
@@ -18,6 +18,7 @@ import { RecordingsPage } from "./pages/Recordings";
 import { RemoteSourcesPage } from "./pages/RemoteSources";
 import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
+import { SwitchButtonsPage, SwitchPage } from "./pages/Switch";
 import { WeekPage } from "./pages/Week";
 import en from "./i18n/en.json";
 import nl from "./i18n/nl.json";
@@ -34,6 +35,7 @@ mountPlatformApp({
       label: "mgmt.nav.editorial",
       items: [
         { to: "/new-hour", label: "mgmt.nav.newHour", icon: WandSparkles, minRole: "editor" },
+        { to: "/switch", label: "mgmt.nav.switch", icon: ToggleRight, minRole: "operator" },
         { to: "/week", label: "mgmt.nav.week", icon: CalendarRange },
         { to: "/rundowns", label: "mgmt.nav.rundowns", icon: ClipboardList },
         { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
@@ -62,12 +64,15 @@ mountPlatformApp({
         { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
         { to: "/channels", label: "mgmt.nav.channels", icon: Tv, minRole: "admin" },
         { to: "/devices", label: "mgmt.nav.devices", icon: Cable, minRole: "admin" },
+        { to: "/switch-buttons", label: "mgmt.nav.switchButtons", icon: ToggleRight, minRole: "admin" },
       ],
     },
   ],
   routes: [
     { path: "/", element: <Dashboard /> },
     { path: "/control", element: <ControlPage /> },
+    { path: "/switch", element: <SwitchPage /> },
+    { path: "/switch-buttons", element: <SwitchButtonsPage /> },
     { path: "/remote", element: <RemoteSourcesPage /> },
     { path: "/recordings", element: <RecordingsPage /> },
     { path: "/outputs", element: <OutputsPage /> },
