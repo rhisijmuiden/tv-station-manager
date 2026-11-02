@@ -27,7 +27,8 @@
       "switch": "Schakelen",
       "switchButtons": "Schakelknoppen",
       "audio": "Geluid",
-      "webcams": "Webcams & streams"
+      "webcams": "Webcams & streams",
+      "mediaSources": "Mediabronnen"
     },
     "categories": {
       "program": "Programma",
@@ -181,12 +182,21 @@
       "types": {
         "live": "Live",
         "beeldkrant": "Beeldkrant",
-        "webcam": "Webcam"
+        "webcam": "Webcam",
+        "auto": "Nieuwste clips"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duur (u:mm:ss); leeg = volgens de beeldkrant",
       "addWebcam": "+ Webcam",
-      "webcamDuration": "Duur (u:mm:ss); leeg = van de webcam"
+      "webcamDuration": "Duur (u:mm:ss); leeg = van de webcam",
+      "addMore": "Meer: blok, live, beeldkrant…",
+      "groups": {
+        "blocks": "Reclameblokken en blokken",
+        "ads": "Andere reclameblokken",
+        "live": "Live bronnen",
+        "beeldkrant": "Beeldkrant",
+        "webcam": "Webcams & streams"
+      }
     },
     "ads": {
       "title": "Reclameblokken",
@@ -431,7 +441,8 @@
       "invalid_address": "Het adres bevat tekens die niet mogen (\").",
       "webcam_in_use": "Deze webcam wordt in programma's gebruikt.",
       "webcam_required": "Kies een webcam.",
-      "inspect_failed": "Deze link kon niet geopend worden: {{message}}"
+      "inspect_failed": "Deze link kon niet geopend worden: {{message}}",
+      "auto_source_required": "Kies een categorie of map voor de nieuwste clips."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -1452,6 +1463,40 @@
       "emptyText": "Plak de link van een webcam of stream uit de omgeving; we testen hem en laten een voorbeeld zien. Daarna sleep je hem in je programma's.",
       "confirmDelete": "Webcam “{{name}}” verwijderen?",
       "confirmDeleteUsed": "“{{name}}” wordt in programma's gebruikt. Daar ook verwijderen?"
+    },
+    "auto": {
+      "button": "Nieuwste clips",
+      "buttonHint": "Vult zichzelf met de nieuwste clips uit een categorie of map",
+      "title": "Nieuwste clips (automatisch)",
+      "intro": "Dit deel van het blok vult zichzelf elke keer dat het wordt uitgezonden: het pakt de nieuwste clips uit een categorie of map. Komt er een nieuwe clip bij, dan valt de oudste er vanzelf uit.",
+      "from": "Waar komen de clips vandaan?",
+      "source": {
+        "category": "Een categorie",
+        "folder": "Een map"
+      },
+      "chooseCategory": "Kies een categorie…",
+      "folder": "Map",
+      "folderHint": "Clips in submappen tellen ook mee.",
+      "chooseFolder": "Kies een map…",
+      "count": "Hoeveel clips",
+      "countHint": "De nieuwste.",
+      "maxAge": "Niet ouder dan (dagen)",
+      "maxMinutes": "Maximaal (minuten)",
+      "optional": "Niet verplicht, leeg = geen grens.",
+      "order": "Volgorde van afspelen",
+      "orders": {
+        "newest_first": "Nieuwste eerst",
+        "oldest_first": "Op volgorde van binnenkomst (oudste eerst)"
+      },
+      "nowPlays": "Dit speelt nu",
+      "nowPlaysHint": "Verandert vanzelf als er nieuwe clips binnenkomen.",
+      "pickSource": "Kies eerst een categorie of map.",
+      "noneYet": "Nog geen clips: hier speelt niets tot er clips met een bekende lengte zijn.",
+      "add": "Toevoegen aan blok",
+      "change": "Wijzigen",
+      "now": "Nu",
+      "label_one": "Nieuwste clip uit {{source}}",
+      "label_other": "Nieuwste {{count}} clips uit {{source}}"
     }
   }
 }

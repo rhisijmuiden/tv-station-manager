@@ -27,7 +27,8 @@
       "switch": "Switch",
       "switchButtons": "Switch buttons",
       "audio": "Audio",
-      "webcams": "Webcams & streams"
+      "webcams": "Webcams & streams",
+      "mediaSources": "Media sources"
     },
     "categories": {
       "program": "Programme",
@@ -181,12 +182,21 @@
       "types": {
         "live": "Live",
         "beeldkrant": "Beeldkrant",
-        "webcam": "Webcam"
+        "webcam": "Webcam",
+        "auto": "Newest clips"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duration (h:mm:ss); empty = from the beeldkrant",
       "addWebcam": "+ Webcam",
-      "webcamDuration": "Duration (h:mm:ss); empty = from the webcam"
+      "webcamDuration": "Duration (h:mm:ss); empty = from the webcam",
+      "addMore": "More: block, live, beeldkrant…",
+      "groups": {
+        "blocks": "Ad breaks and blocks",
+        "ads": "Other ad breaks",
+        "live": "Live sources",
+        "beeldkrant": "Beeldkrant",
+        "webcam": "Webcams & streams"
+      }
     },
     "ads": {
       "title": "Ad breaks",
@@ -431,7 +441,8 @@
       "invalid_address": "The address contains characters that are not allowed (\").",
       "webcam_in_use": "This webcam is used in programmes.",
       "webcam_required": "Choose a webcam.",
-      "inspect_failed": "Could not open this link: {{message}}"
+      "inspect_failed": "Could not open this link: {{message}}",
+      "auto_source_required": "Choose a category or folder for the newest clips."
     },
     "remote": {
       "title": "Remote sources",
@@ -1452,6 +1463,40 @@
       "emptyText": "Paste the link of a local webcam or stream; we test it and show a preview. Then drag it into your programmes.",
       "confirmDelete": "Delete webcam “{{name}}”?",
       "confirmDeleteUsed": "“{{name}}” is used in programmes. Delete it there too?"
+    },
+    "auto": {
+      "button": "Newest clips",
+      "buttonHint": "Fills itself with the newest clips of a category or folder",
+      "title": "Newest clips (automatic)",
+      "intro": "This part of the block fills itself every time it is played: it takes the newest clips from a category or folder. When a new clip arrives, the oldest one drops out by itself.",
+      "from": "Where do the clips come from?",
+      "source": {
+        "category": "A category",
+        "folder": "A folder"
+      },
+      "chooseCategory": "Choose a category…",
+      "folder": "Folder",
+      "folderHint": "Clips in subfolders count too.",
+      "chooseFolder": "Choose a folder…",
+      "count": "How many clips",
+      "countHint": "The newest ones.",
+      "maxAge": "Not older than (days)",
+      "maxMinutes": "At most (minutes)",
+      "optional": "Optional, empty = no limit.",
+      "order": "Play order",
+      "orders": {
+        "newest_first": "Newest first",
+        "oldest_first": "In the order they came in (oldest first)"
+      },
+      "nowPlays": "This plays now",
+      "nowPlaysHint": "Changes by itself when new clips come in.",
+      "pickSource": "Choose a category or folder first.",
+      "noneYet": "No clips yet: nothing plays here until clips with a known length arrive.",
+      "add": "Add to block",
+      "change": "Change",
+      "now": "Now",
+      "label_one": "Newest clip from {{source}}",
+      "label_other": "Newest {{count}} clips from {{source}}"
     }
   }
 }

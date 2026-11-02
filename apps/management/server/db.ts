@@ -421,4 +421,25 @@ export const MANAGEMENT_MIGRATIONS = [
    DROP TABLE block_items;
    ALTER TABLE block_items_new RENAME TO block_items;
    CREATE INDEX block_items_block ON block_items(block_id, position);`,
+  // "Newest clips" items (e.g. a news block): the item holds a rule (category or folder, how many), the clips follow by themselves.
+  `CREATE TABLE block_items_new (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL,
+     type TEXT NOT NULL CHECK (type IN ('media','block','live','beeldkrant','webcam','auto')),
+     media_id INTEGER REFERENCES media(id) ON DELETE CASCADE,
+     child_block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+     live_source_id INTEGER REFERENCES live_sources(id) ON DELETE CASCADE,
+     beeldkrant_id INTEGER REFERENCES beeldkranten(id) ON DELETE CASCADE,
+     webcam_id INTEGER REFERENCES webcams(id) ON DELETE CASCADE,
+     auto_rule TEXT,
+     duration_ms INTEGER,
+     title TEXT,
+     audio TEXT
+   );
+   INSERT INTO block_items_new (id, block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio)
+     SELECT id, block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio FROM block_items;
+   DROP TABLE block_items;
+   ALTER TABLE block_items_new RENAME TO block_items;
+   CREATE INDEX block_items_block ON block_items(block_id, position);`,
 ];

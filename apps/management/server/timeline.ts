@@ -20,12 +20,14 @@ export interface LiveRef {
   kind: "atem" | "rtmp";
 }
 export interface BlockItemRow {
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
   beeldkrantId?: number | null;
   webcamId?: number | null;
+  /** "Newest clips" rule (type auto), stored as JSON. */
+  autoRule?: string | null;
   durationMs: number | null;
   title: string | null;
   /** Audio under this item: null = follow the block, "none" = no audio, "<id>" = that audio source. */
@@ -49,6 +51,8 @@ export interface Loader {
   beeldkrant?(id: number): BeeldkrantRef | undefined;
   /** Webcams and external streams; `durationMs` is the default length set on the webcam. */
   webcam?(id: number): WebcamRef | undefined;
+  /** "Newest clips" item: the clips its rule picks at `asOf` (ms), in play order. */
+  autoMedia?(rule: string | null | undefined, asOf: number | undefined): MediaRef[];
 }
 export interface WebcamRef {
   id: number;
@@ -86,6 +90,8 @@ export interface Leaf {
   warning?: "missing" | "no_duration";
   /** Audio source mixed under this item (radio stream, line input), null = none. */
   audioSourceId?: number | null;
+  /** Picked by a "newest clips" rule (changes by itself when new clips arrive). */
+  auto?: boolean;
 }
 
 export const DEFAULT_LIVE_MS = 30 * 60_000;
@@ -104,8 +110,25 @@ export const audioSourceOf = (a: AudioSetting | undefined): number | null => (a 
 /** Normalises what the API accepts: null/"" = follow, "none", or a source id. */
 export const audioIn = (a: string | number | null | undefined): AudioSetting => (a == null || a === "" ? null : a === "none" ? "none" : Number.isInteger(Number(a)) && Number(a) > 0 ? String(Number(a)) : null);
 
-/** Flattens a block. Throws BlockCycleError when blocks contain each other. */
-export function expandBlock(loader: Loader, blockId: number, stack: number[] = [], inheritedAudio: AudioSetting = null, forcedAudio = false): Leaf[] {
+const mediaLeaf = (m: MediaRef, dur: number | null | undefined, title: string | null, block: BlockRef, audioSourceId: number | null): Leaf => ({
+  type: "media",
+  durationMs: dur ?? 0,
+  title: title || m.title || m.name,
+  mediaId: m.id,
+  path: m.path,
+  fps: m.fps,
+  category: m.category,
+  blockKind: block.kind,
+  blockName: block.name,
+  warning: m.missing ? "missing" : dur == null ? "no_duration" : undefined,
+  audioSourceId,
+});
+
+/**
+ * Flattens a block. Throws BlockCycleError when blocks contain each other.
+ * `asOf` is when the block plays: "newest clips" items take the clips that existed then (default: now).
+ */
+export function expandBlock(loader: Loader, blockId: number, stack: number[] = [], inheritedAudio: AudioSetting = null, forcedAudio = false, asOf?: number): Leaf[] {
   if (stack.includes(blockId) || stack.length > MAX_DEPTH) throw new BlockCycleError(blockId);
   const block = loader.block(blockId);
   if (!block) return [];
@@ -116,24 +139,13 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
     const audio = pickAudio(it.audio, blockAudio);
     const audioSourceId = audioSourceOf(audio);
     if (it.type === "block" && it.childBlockId != null) {
-      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId], audio, forcedAudio || (it.audio != null && it.audio !== "")));
+      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId], audio, forcedAudio || (it.audio != null && it.audio !== ""), asOf));
     } else if (it.type === "media" && it.mediaId != null) {
       const m = loader.media(it.mediaId);
       if (!m) continue;
-      const dur = it.durationMs ?? m.durationMs;
-      out.push({
-        type: "media",
-        durationMs: dur ?? 0,
-        title: it.title || m.title || m.name,
-        mediaId: m.id,
-        path: m.path,
-        fps: m.fps,
-        category: m.category,
-        blockKind: block.kind,
-        blockName: block.name,
-        warning: m.missing ? "missing" : dur == null ? "no_duration" : undefined,
-        audioSourceId,
-      });
+      out.push(mediaLeaf(m, it.durationMs ?? m.durationMs, it.title, block, audioSourceId));
+    } else if (it.type === "auto") {
+      for (const m of loader.autoMedia?.(it.autoRule, asOf) ?? []) out.push({ ...mediaLeaf(m, m.durationMs, null, block, audioSourceId), auto: true });
     } else if (it.type === "live" && it.liveSourceId != null) {
       const l = loader.live(it.liveSourceId);
       if (!l) continue;
@@ -172,8 +184,8 @@ export interface ScheduleEntry {
 }
 
 /** The leaves an entry plays (the whole block, or the part given by skip/take). */
-export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take">): Leaf[] {
-  const all = expandBlock(loader, entry.blockId);
+export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take"> & { start?: number }): Leaf[] {
+  const all = expandBlock(loader, entry.blockId, [], null, false, entry.start);
   const skip = entry.skip ?? 0;
   return entry.take == null ? all.slice(skip) : all.slice(skip, skip + entry.take);
 }
