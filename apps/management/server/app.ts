@@ -9,6 +9,7 @@ import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
 import { OrchestratorLink, registerOrchestratorLink } from "./orchestrator.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
+import { registerPreview } from "./preview.js";
 import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
@@ -61,6 +62,7 @@ export function managementOptions(
       registerRss(server, platform, rss, changed);
       registerRecordings(server, platform, recorder);
       registerOrchestratorLink(server, orchestrator);
+      registerPreview(server, platform);
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;

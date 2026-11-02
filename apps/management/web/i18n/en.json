@@ -415,7 +415,8 @@
       "not_recording": "This recording has already stopped.",
       "thumb_failed": "Could not make a still from the recording.",
       "atem_locked": "This ATEM is locked in the orchestrator: switch it there, or release it first.",
-      "url_required": "Enter the address of the orchestrator."
+      "url_required": "Enter the address of the orchestrator.",
+      "preview_url": "Use an address that starts with http:// or https://."
     },
     "remote": {
       "title": "Remote sources",
@@ -1213,6 +1214,31 @@
         "manualLibrary": "to library after checking",
         "autoRepeats": "repeats: {{list}}"
       }
+    },
+    "now": {
+      "title": "Now on TV",
+      "playing": "Now playing",
+      "remaining": "remaining",
+      "block": "Hour block",
+      "itemOf": "Item {{n}} of {{total}}",
+      "nextInBlock": "Next in this block",
+      "lastInBlock": "This is the last item of the block.",
+      "more_one": "+ {{count}} more item",
+      "more_other": "+ {{count}} more items",
+      "after": "Then",
+      "standby": "Live item {{name}}: waiting for the stream, the playout node stays on air.",
+      "liveSince": "Live since {{time}}",
+      "watch": "Watch",
+      "close": "Close",
+      "noPreview": "No stream preview yet",
+      "noPreviewHint": "Paste the address of the player, e.g. your Owncast page.",
+      "noPreviewAsk": "Ask an editor-in-chief to set the preview address.",
+      "setPreview": "Set preview address",
+      "changePreview": "Change address",
+      "removePreview": "Remove",
+      "previewUrl": "Preview address (Owncast player or HLS .m3u8)",
+      "previewUrlHint": "Owncast: http://<server>:8080/embed/video. An .m3u8 or .mp4 address plays in a video player.",
+      "suggested": "Suggested from the stream output of this channel (Owncast default port 8080). Check it and save."
     }
   }
 }

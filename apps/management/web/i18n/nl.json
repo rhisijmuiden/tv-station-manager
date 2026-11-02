@@ -415,7 +415,8 @@
       "not_recording": "Deze opname is al gestopt.",
       "thumb_failed": "Kon geen beeld uit de opname halen.",
       "atem_locked": "Deze ATEM is vastgezet in de orchestrator: schakel daar, of geef hem eerst vrij.",
-      "url_required": "Vul het adres van de orchestrator in."
+      "url_required": "Vul het adres van de orchestrator in.",
+      "preview_url": "Gebruik een adres dat begint met http:// of https://."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -1213,6 +1214,31 @@
         "manualLibrary": "naar bibliotheek na nakijken",
         "autoRepeats": "herhalingen: {{list}}"
       }
+    },
+    "now": {
+      "title": "Nu op tv",
+      "playing": "Speelt nu",
+      "remaining": "resterend",
+      "block": "Uurblok",
+      "itemOf": "Item {{n}} van {{total}}",
+      "nextInBlock": "Straks in dit uurblok",
+      "lastInBlock": "Dit is het laatste item van het uurblok.",
+      "more_one": "+ nog {{count}} item",
+      "more_other": "+ nog {{count}} items",
+      "after": "Daarna",
+      "standby": "Live-item {{name}}: wacht op de stream, de playout-node blijft in beeld.",
+      "liveSince": "Live sinds {{time}}",
+      "watch": "Meekijken",
+      "close": "Sluiten",
+      "noPreview": "Nog geen stream-preview",
+      "noPreviewHint": "Plak het adres van de speler, bijvoorbeeld je Owncast-pagina.",
+      "noPreviewAsk": "Vraag een hoofdredacteur om het preview-adres in te stellen.",
+      "setPreview": "Preview-adres instellen",
+      "changePreview": "Adres wijzigen",
+      "removePreview": "Verwijderen",
+      "previewUrl": "Preview-adres (Owncast-speler of HLS .m3u8)",
+      "previewUrlHint": "Owncast: http://<server>:8080/embed/video. Een .m3u8- of .mp4-adres speelt in een videospeler.",
+      "suggested": "Voorgesteld op basis van de stream-output van dit kanaal (Owncast standaardpoort 8080). Controleer het en sla op."
     }
   }
 }

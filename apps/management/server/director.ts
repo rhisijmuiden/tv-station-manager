@@ -6,7 +6,7 @@ import { z } from "zod";
 import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics } from "./content.js";
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
-import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
+import { at, casparClip, compile, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
 
 /**
  * The director ("regisseur"). For every channel with automation on it follows the compiled schedule:
@@ -36,6 +36,8 @@ type Output = { studioId: number; casparChannel: number };
 
 interface ChannelState {
   events: TimelineEvent[];
+  /** Occurrence (hour block) and EPG flag per schedule entry, for the "now on TV" overview. */
+  entries: Map<number, EntryInfo>;
   compiledAt: number;
   currentKey: string | null;
   executedAt: number;
@@ -86,7 +88,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0 };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0 };
       this.states.set(id, s);
     }
     return s;
@@ -97,7 +99,9 @@ export class Director {
     const s = this.state(ch.id);
     const from = now - WINDOW_BACK;
     const to = now + WINDOW_AHEAD;
-    s.events = compile(dbLoader(this.platform.ctx.db), scheduleEntries(this.platform.ctx.db, ch.id, from, to), from, to).events;
+    const entries = scheduleEntries(this.platform.ctx.db, ch.id, from, to);
+    s.events = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
+    s.entries = new Map(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
     s.compiledAt = now;
   }
 
@@ -427,6 +431,7 @@ export class Director {
       override: s.override,
       current: current ? ev(current) : null,
       upcoming: upcoming.slice(0, 8).map(ev),
+      program: this.programNow(s, now, ev),
       atem: sw ? sw.info() : null,
       playout: p ? p.info() : null,
       onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
@@ -435,6 +440,21 @@ export class Director {
       lastError: s.lastError,
       graphics: this.graphicsData(ch, current, upcoming, now),
       asrun: this.platform.ctx.db.prepare("SELECT at, kind, title, detail, ok FROM asrun WHERE channel_id = ? ORDER BY id DESC LIMIT 12").all(ch.id),
+    };
+  }
+
+  /** The hour block on air: its items, which one plays now, and the next programme after it. */
+  private programNow<T>(s: ChannelState, now: number, ev: (e: TimelineEvent) => T) {
+    const p = programAt(s.events, now, (id) => s.entries.get(id));
+    if (!p) return null;
+    const next = s.events.find((e) => e.start >= p.end && e.scheduleId != null && e.offsetMs === 0);
+    return {
+      title: p.title,
+      startAt: new Date(p.start).toISOString(),
+      endAt: new Date(p.end).toISOString(),
+      index: p.index,
+      items: p.items.map(ev),
+      next: next ? { title: next.programTitle || next.title, startAt: new Date(next.start).toISOString() } : null,
     };
   }
 

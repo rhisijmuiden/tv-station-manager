@@ -224,3 +224,34 @@ export function at(events: TimelineEvent[], t: number) {
 
 /** CasparCG clip name: path relative to the media folder, forward slashes, without extension. */
 export const casparClip = (path: string) => path.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\.[^./]+$/, "");
+
+export interface EntryInfo {
+  /** Week-schedule occurrence the entry belongs to (all parts of one hour block share it). */
+  group: string | null;
+  inEpg: boolean;
+}
+
+/**
+ * The programme on air at `t` (the "hour block"): every event of the current schedule entry, or of all entries of the
+ * same week-schedule occurrence (programme windows plus the fixed parts of the hour clock), with the filler gaps between
+ * them. `index` is the position of the current event. Null while filler plays outside any programme.
+ */
+export function programAt(events: TimelineEvent[], t: number, info: (scheduleId: number) => EntryInfo | undefined, maxItems = 60) {
+  const current = events.find((e) => e.start <= t && t < e.end);
+  if (!current || current.scheduleId == null) return null;
+  const group = info(current.scheduleId)?.group ?? null;
+  const same = (e: TimelineEvent) => e.scheduleId != null && (e.scheduleId === current.scheduleId || (group != null && info(e.scheduleId)?.group === group));
+  const own = events.filter(same);
+  const start = own[0]!.start;
+  const end = own[own.length - 1]!.end;
+  let items = events.filter((e) => same(e) || (e.type === "filler" && e.start >= start && e.end <= end));
+  let index = items.indexOf(current);
+  if (items.length > maxItems) {
+    // Long programmes: keep a few items before the current one and the rest after it.
+    const from = Math.max(0, Math.min(index - 3, items.length - maxItems));
+    items = items.slice(from, from + maxItems);
+    index -= from;
+  }
+  const titled = own.find((e) => info(e.scheduleId!)?.inEpg && e.programTitle) ?? own.find((e) => e.programTitle);
+  return { title: titled?.programTitle || current.programTitle || current.title, start, end, items, index };
+}

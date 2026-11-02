@@ -3,7 +3,8 @@ import { CalendarRange, CheckCircle2, Circle, ClipboardList, FolderOpen, Radio, 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { fmtTime, useGet } from "../lib";
+import { NowOnTv, useNow, type NowChannel, type Preview } from "../components/NowOnTv";
+import { useGet } from "../lib";
 
 interface Overview {
   channels: number;
@@ -17,7 +18,8 @@ interface Overview {
   backupTargets: number;
 }
 interface ControlStatus {
-  channels: { channel: { id: number; name: string; color: string }; automation: boolean; current: { title: string; programTitle: string; endAt: string; type: string } | null; lastError: string | null }[];
+  serverTime: string;
+  channels: NowChannel[];
 }
 
 function Stat({ label, value, icon, tone }: { label: string; value: ReactNode; icon: ReactNode; tone: string }) {
@@ -40,6 +42,8 @@ export function Dashboard() {
   const { t } = useTranslation();
   const { data: o } = useGet<Overview>("/api/management/overview", 5000);
   const { data: live } = useGet<ControlStatus>("/api/control", 3000);
+  const previews = useGet<{ previews: Preview[] }>("/api/dashboard/previews", 30000);
+  const now = useNow(live?.serverTime);
   const { user } = useSession();
   if (!o) return null;
   const editorial = [
@@ -67,6 +71,17 @@ export function Dashboard() {
         <Stat label={t("mgmt.dashboard.upcoming")} value={o.upcomingEntries} icon={<Radio className="size-5" />} tone="bg-ok/12 text-ok" />
       </div>
 
+      {!!live?.channels.length && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-muted">{t("mgmt.now.title")}</h2>
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            {live.channels.map((c) => (
+              <NowOnTv key={c.channel.id} c={c} now={now} preview={previews.data?.previews.find((p) => p.channelId === c.channel.id)} onPreviewSaved={() => void previews.reload()} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {roleAtLeast(user?.role, "editor") && (
         <Card className="mb-6">
           <CardHeader title={t("mgmt.dashboard.editorialTitle")} description={t("mgmt.dashboard.editorialIntro")} />
@@ -88,30 +103,6 @@ export function Dashboard() {
             ))}
           </ol>
         </Card>
-      )}
-
-      {!!live?.channels.length && (
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
-          {live.channels.map((c) => (
-            <Link key={c.channel.id} to="/control">
-              <Card className="transition hover:border-brand/50">
-                <CardBody className="flex items-center gap-4">
-                  <div className="h-12 w-1.5 rounded-full" style={{ background: c.channel.color }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{c.channel.name}</span>
-                      {c.automation ? <Badge tone="danger">● {t("mgmt.control.onAir")}</Badge> : <Badge>{t("mgmt.control.manual")}</Badge>}
-                    </div>
-                    <p className="truncate text-sm text-muted">
-                      {c.current ? `${c.current.programTitle || c.current.title || t("mgmt.control.filler")} · ${t("mgmt.control.until")} ${fmtTime(c.current.endAt)}` : t("mgmt.control.nothing")}
-                    </p>
-                    {c.lastError && <p className="truncate text-xs text-danger">{c.lastError}</p>}
-                  </div>
-                </CardBody>
-              </Card>
-            </Link>
-          ))}
-        </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
