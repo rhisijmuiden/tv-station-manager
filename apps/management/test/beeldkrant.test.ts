@@ -135,8 +135,9 @@ class FakeSwitcher extends EventEmitter implements SwitcherDriver {
 class FakePlayout extends EventEmitter implements PlayoutDriver {
   calls: string[] = [];
   graphics: unknown[] = [];
+  session = 1;
   info() {
-    return { connected: true, version: "2.4.3", channels: [1], session: 1 };
+    return { connected: true, version: "2.4.3", channels: [1], session: this.session };
   }
   async play(ch: number, layer: number, clip?: string) {
     this.calls.push(`play ${ch}-${layer}${clip ? ` ${clip}` : ""}`);
@@ -290,6 +291,17 @@ test("beeldkrant: WordPress and RSS feeds, pages, planning and playout on Caspar
   assert.equal((playout.graphics.at(-1) as { hidden: boolean }).hidden, true);
   const ctl = (await api("GET", "/api/control")).body.channels[0];
   assert.equal(ctl.current.type, "beeldkrant");
+
+  // CasparCG restarted (faster than a tick, so never seen disconnected): the page and overlay come back.
+  await h.director.tick();
+  const before = playout.calls.filter((c) => c.startsWith("html 1-10 ")).length;
+  const gfxBefore = playout.graphics.length;
+  playout.session = 2;
+  await h.director.tick();
+  assert.equal(playout.calls.filter((c) => c.startsWith("html 1-10 ")).length, before + 1, playout.calls.join("\n"));
+  assert.ok(playout.graphics.length > gfxBefore);
+  await h.director.tick();
+  assert.equal(playout.calls.filter((c) => c.startsWith("html 1-10 ")).length, before + 1);
 
   // Deleting a feed takes its pages out; deleting a used beeldkrant needs force.
   await api("DELETE", `/api/rss/feeds/${atom.id}`);
