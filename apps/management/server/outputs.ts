@@ -71,13 +71,13 @@ const hideSecrets = (text: string, secrets: string[]) => secrets.filter((s) => s
 /** Options for CasparCG's FFmpeg (STREAM) consumer. */
 export function encoderArgs(o: Pick<OutputRow, "encoder" | "video_kbps" | "audio_kbps" | "resolution" | "deinterlace" | "extra_args">) {
   // yuv420p: players and platforms do not accept the 4:4:4 that CasparCG's BGRA frames would otherwise give.
-  // yadif halves the time base (pts x2), but CasparCG gives the encoder 1/frame rate as time base without rescaling,
-  // so the video ran at double speed against the audio and players stalled. settb=intb*2 restores the time base.
-  // CasparCG hands the consumer 50 frames/s on a 1080i50 channel; keep every second one (25p, like the broadcast),
-  // otherwise Owncast has to transcode 1080p50 and falls behind. The second settb makes the time base 1/25 again.
-  const filters = [o.deinterlace ? "yadif=0:-1:0,settb=intb*2,framestep=2,settb=intb*2" : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
+  // On a 1080i50 channel CasparCG 2.4 renders every field as a full frame and hands the consumer 50 frames/s. Keeping
+  // every second one gives clean 25p without yadif, which cost so much CPU on the studio node that the encoder only
+  // got ~60% of the frames and the stream ran slower than real time. framestep keeps the 1/50 time base while the
+  // encoder uses 1/frame rate (1/25) without rescaling, so settb=intb*2 sets it to 1/25.
+  const filters = [o.deinterlace ? "framestep=2,settb=intb*2" : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
   const v = o.video_kbps;
-  // CasparCG mixes 8 audio channels. AAC with 8 channels and no standard layout gets channel configuration 0,
+  // CasparCG mixes 8 or 16 audio channels. AAC with that many channels and no standard layout gets channel configuration 0,
   // which browsers (Owncast/hls.js, YouTube) cannot decode: the player keeps spinning. Send stereo (the first pair).
   const audio = `-filter:a pan=stereo|c0=c0|c1=c1 -codec:a aac -b:a ${o.audio_kbps}k`;
   const codec = o.encoder === "nvenc" ? "-codec:v h264_nvenc -preset:v p4 -tune:v ll -rc:v cbr" : "-codec:v libx264 -preset:v veryfast -tune:v zerolatency";
