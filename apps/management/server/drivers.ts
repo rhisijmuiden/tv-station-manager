@@ -60,6 +60,13 @@ export interface PlayoutDriver extends EventEmitter {
   /** Adds a consumer with a fixed index, e.g. `ADD 1-701 STREAM rtmp://... -format flv ...` (stream encoder). */
   addConsumer(channel: number, index: number, consumer: string, params: string): Promise<void>;
   removeConsumer(channel: number, index: number): Promise<void>;
+  /**
+   * Audio under the programme: plays `producer` (an AMCP producer, e.g. a quoted stream URL or `DECKLINK 2`) on its own
+   * layer, picture hidden (opacity 0), at `volume` (1 = unchanged). Stop it with `clear(channel, layer)`.
+   */
+  playAudio?(channel: number, layer: number, producer: string, volume: number, loop: boolean): Promise<void>;
+  /** Changes the volume of a layer (MIXER VOLUME). */
+  volume?(channel: number, layer: number, volume: number): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -211,6 +218,16 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
   }
   removeConsumer(channel: number, index: number) {
     return this.send(this.c.sendCustom({ command: `REMOVE ${channel}-${index}` }));
+  }
+  async playAudio(channel: number, layer: number, producer: string, volume: number, loop: boolean) {
+    if (/[\r\n]/.test(producer)) throw new Error("invalid audio producer");
+    // Mixer settings stay on the layer, so the picture of a line/DeckLink input never shows up.
+    await this.send(this.c.sendCustom({ command: `MIXER ${channel}-${layer} OPACITY 0` }));
+    await this.volume(channel, layer, volume);
+    await this.send(this.c.sendCustom({ command: `PLAY ${channel}-${layer} ${producer}${loop ? " LOOP" : ""}` }));
+  }
+  volume(channel: number, layer: number, volume: number) {
+    return this.send(this.c.sendCustom({ command: `MIXER ${channel}-${layer} VOLUME ${Math.max(0, Math.min(2, volume)).toFixed(3)}` }));
   }
   async close() {
     this.c.removeAllListeners();

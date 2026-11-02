@@ -3,6 +3,7 @@ import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
 import { networkInterfaces } from "node:os";
 import { z } from "zod";
+import { AUDIO_LAYER, audioGain, audioProducer, audioSource } from "./audio.js";
 import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics } from "./content.js";
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
@@ -55,6 +56,9 @@ interface ChannelState {
   liveGfx: (Output & { session: number | undefined; json: string }) | null;
   lastError: string | null;
   lastAlertAt: number;
+  /** Audio source playing under the programme on AUDIO_LAYER (radio stream, line input). */
+  audio: (Output & { sourceId: number; name: string; volume: number; session: number | undefined }) | null;
+  audioError: { sourceId: number; message: string; at: number } | null;
 }
 
 export class Director {
@@ -88,7 +92,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0 };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null };
       this.states.set(id, s);
     }
     return s;
@@ -143,6 +147,7 @@ export class Director {
       }
       await this.preroll(ch, s, current, upcoming, now).catch((e) => this.fail(ch, s, `preroll: ${(e as Error).message}`));
     }
+    await this.syncAudio(ch, s, current, now).catch(() => undefined);
     await this.updateGraphics(ch, s, current, upcoming, now).catch(() => undefined);
   }
 
@@ -320,6 +325,61 @@ export class Director {
     this.platform.ctx.db.prepare("INSERT INTO asrun (channel_id, kind, title, detail, ok) VALUES (?, ?, ?, ?, ?)").run(channelId, kind, title, detail, ok ? 1 : 0);
   }
 
+  // ---- audio under the programme ---------------------------------------------------
+
+  /** The audio source that should sound now: only while the playout node itself is on air (clip or beeldkrant). */
+  private wantedAudio(s: ChannelState, current: TimelineEvent | null) {
+    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant")) return null;
+    return current.leaf?.audioSourceId ?? null;
+  }
+
+  /**
+   * Keeps AUDIO_LAYER in line with the current item. The same source on consecutive items keeps playing
+   * (no gap between two beeldkrant pages or clips); a CasparCG restart starts it again.
+   */
+  private async syncAudio(ch: ChannelRow, s: ChannelState, current: TimelineEvent | null, now: number) {
+    const wantId = this.wantedAudio(s, current);
+    const src = wantId != null ? audioSource(this.platform.ctx.db, wantId) : undefined;
+    const p = this.playout(ch);
+    const info = p?.info();
+    const cur = s.audio;
+    // A physical input only exists on its own studio node.
+    const wrongNode = src && src.kind !== "stream" && src.studio_id !== ch.studio_id;
+    const want = src && !wrongNode && p && info?.connected ? src : undefined;
+    if (wrongNode && s.audioError?.sourceId !== src.id) this.audioFailed(ch, s, src.id, "input is on another studio node than this channel");
+    if (cur && (!want || cur.sourceId !== want.id || cur.studioId !== ch.studio_id || cur.casparChannel !== ch.caspar_channel || cur.session !== info?.session)) {
+      s.audio = null;
+      // After a CasparCG restart the layer is gone already.
+      if (cur.session === this.hub.playout(cur.studioId)?.info().session) await this.hub.playout(cur.studioId)?.clear(cur.casparChannel, AUDIO_LAYER).catch(() => undefined);
+    }
+    if (!want || !p?.playAudio) return;
+    if (s.audio) {
+      if (s.audio.volume !== want.volume) {
+        s.audio.volume = want.volume;
+        await p.volume?.(ch.caspar_channel, AUDIO_LAYER, audioGain(want.volume));
+      }
+      return;
+    }
+    if (s.audioError?.sourceId === want.id && now - s.audioError.at < RETRY_MS) return;
+    try {
+      const { producer, loop } = audioProducer(want);
+      await p.playAudio(ch.caspar_channel, AUDIO_LAYER, producer, audioGain(want.volume), loop);
+      s.audio = { studioId: ch.studio_id!, casparChannel: ch.caspar_channel, sourceId: want.id, name: want.name, volume: want.volume, session: info?.session };
+      if (s.audioError) this.asrun(ch.id, "audio", want.name, "Audio under the programme plays again", true);
+      s.audioError = null;
+    } catch (e) {
+      this.audioFailed(ch, s, want.id, (e as Error).message, want.name);
+    }
+  }
+
+  private audioFailed(ch: ChannelRow, s: ChannelState, sourceId: number, message: string, name?: string) {
+    const first = s.audioError?.sourceId !== sourceId || s.audioError.message !== message;
+    s.audioError = { sourceId, message, at: this.now() };
+    if (!first) return;
+    this.platform.ctx.log.warn({ channel: ch.name, err: message }, "audio under the programme failed");
+    this.asrun(ch.id, "audio", name ?? `Audio ${sourceId}`, message, false);
+  }
+
   // ---- graphics overlay -------------------------------------------------------
 
   graphicsData(ch: ChannelRow, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {
@@ -437,6 +497,7 @@ export class Director {
       onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
       atemLock: this.hub.lock(ch.atem_id),
       standby: s.standby ? { liveSourceId: s.standby.liveSourceId, name: s.standby.name, since: s.standby.since } : null,
+      audio: this.audioStatus(s, current),
       lastError: s.lastError,
       graphics: this.graphicsData(ch, current, upcoming, now),
       asrun: this.platform.ctx.db.prepare("SELECT at, kind, title, detail, ok FROM asrun WHERE channel_id = ? ORDER BY id DESC LIMIT 12").all(ch.id),
@@ -458,6 +519,16 @@ export class Director {
     };
   }
 
+  /** What sounds under the programme now (for the control room and the dashboard). */
+  private audioStatus(s: ChannelState, current: TimelineEvent | null) {
+    const wantId = this.wantedAudio(s, current);
+    if (wantId == null) return null;
+    const src = audioSource(this.platform.ctx.db, wantId);
+    if (!src) return null;
+    const err = s.audioError?.sourceId === wantId ? s.audioError.message : null;
+    return { sourceId: src.id, name: src.name, kind: src.kind, playing: s.audio?.sourceId === wantId, error: err };
+  }
+
   register(app: FastifyInstance) {
     const { db } = this.platform.ctx;
     const channel = (id: number) => {
@@ -477,6 +548,12 @@ export class Director {
       const s = this.state(c.id);
       s.currentKey = null; // re-cue the current item when switching back on
       s.preloadedKey = null;
+      // Manual control: the audio under the programme stops too.
+      if (!on && s.audio) {
+        const a = s.audio;
+        s.audio = null;
+        await this.hub.playout(a.studioId)?.clear(a.casparChannel, AUDIO_LAYER).catch(() => undefined);
+      }
       this.asrun(c.id, "control", on ? "Automation on" : "Automation off", req.user!.username, true);
       return { ok: true };
     });

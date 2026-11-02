@@ -59,6 +59,7 @@ interface RawItem {
   beeldkrantName?: string | null;
   durationMs: number | null;
   title: string | null;
+  audio?: string | null;
   mediaName?: string | null;
   mediaTitle?: string | null;
   mediaPath?: string | null;
@@ -75,6 +76,8 @@ interface Item {
   beeldkrantId?: number | null;
   durationMs?: number | null;
   title?: string | null;
+  /** Audio under the item, kept as set in the block editor. */
+  audio?: string | null;
   label: string;
   sub?: string | null;
   effectiveDurationMs: number | null;
@@ -88,6 +91,7 @@ const toItem = (i: RawItem): Item => ({
   beeldkrantId: i.beeldkrantId ?? null,
   durationMs: i.durationMs,
   title: i.title,
+  audio: i.audio ?? null,
   label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.liveName || "",
   sub: i.type === "media" ? i.mediaPath : null,
   effectiveDurationMs: i.effectiveDurationMs,
@@ -271,7 +275,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
     }
   };
   const save = (ready: boolean) =>
-    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
+    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title, audio }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title, audio: audio ?? null })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
   const ownFromBlock = async (extra: Item[] = [], at?: number) => {
     const own = occ?.blockId ? (await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`)).items.map(toItem) : [];
     const pos = at ?? own.length;

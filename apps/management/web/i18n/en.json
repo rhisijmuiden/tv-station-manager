@@ -23,7 +23,8 @@
       "editorial": "Editorial",
       "newHour": "New hour programme",
       "broadcast": "On air",
-      "recordings": "Recordings"
+      "recordings": "Recordings",
+      "audio": "Audio"
     },
     "categories": {
       "program": "Programme",
@@ -416,7 +417,11 @@
       "thumb_failed": "Could not make a still from the recording.",
       "atem_locked": "This ATEM is locked in the orchestrator: switch it there, or release it first.",
       "url_required": "Enter the address of the orchestrator.",
-      "preview_url": "Use an address that starts with http:// or https://."
+      "preview_url": "Use an address that starts with http:// or https://.",
+      "invalid_url": "That is not a stream address (it must start with http://, https://, rtmp://, rtsp:// or srt://).",
+      "studio_required": "Choose the studio node that has this input.",
+      "invalid_device": "Choose a DeckLink device number.",
+      "invalid_address": "The address contains characters that are not allowed (\")."
     },
     "remote": {
       "title": "Remote sources",
@@ -1239,6 +1244,59 @@
       "previewUrl": "Preview address (Owncast player or HLS .m3u8)",
       "previewUrlHint": "Owncast: http://<server>:8080/embed/video. An .m3u8 or .mp4 address plays in a video player.",
       "suggested": "Suggested from the stream output of this channel (Owncast default port 8080). Check it and save."
+    },
+    "audio": {
+      "title": "Audio under the broadcast",
+      "intro": "Sound that plays under what goes on air, for example the station's live radio behind the beeldkrant. Add a source here once, then pick it in a block, an item or a beeldkrant.",
+      "new": "New audio source",
+      "edit": "Edit audio source",
+      "none": "🔇 No audio under it",
+      "noneIntro": "Add the radio stream of the station or a physical input (jack / line in, DeckLink input) of the studio node. Editors can then pick it under a beeldkrant or a block.",
+      "tip": "Tip: in Blocks you choose the audio for a whole block or per item; in Beeldkrant you set the audio that plays under a beeldkrant by default.",
+      "namePlaceholder": "e.g. Radio IJmond live",
+      "kind": "Type of source",
+      "kinds": {
+        "stream": "Internet stream",
+        "soundcard": "Sound card input",
+        "decklink": "DeckLink input"
+      },
+      "kindHints": {
+        "stream": "Radio stream (Icecast, MP3/AAC, HLS)",
+        "soundcard": "Jack / line in of the studio node",
+        "decklink": "Audio of a DeckLink input (SDI / analogue)"
+      },
+      "address_stream": "Stream address",
+      "address_soundcard": "Name of the recording device",
+      "address_decklink": "DeckLink device",
+      "addressHint_stream": "The address of the stream itself (often ends in .mp3, .aac or .m3u8), not the web page of the player. The studio node needs to reach this address.",
+      "addressHint_soundcard": "Exactly as Windows shows it on the studio node, e.g. \"Line In (Realtek(R) Audio)\". You find it in Sound settings → Recording, or with PowerShell: Get-PnpDevice -Class AudioEndpoint.",
+      "addressHint_decklink": "Number of the DeckLink input as CasparCG counts it (1 = first card/connector). Its picture is never shown, only the sound is used.",
+      "addressPlaceholder_stream": "https://stream.example.nl/radio.mp3",
+      "addressPlaceholder_soundcard": "Line In (Realtek(R) Audio)",
+      "addressPlaceholder_decklink": "1",
+      "decklinkN": "DeckLink input {{n}}",
+      "studio": "Studio node with this input",
+      "studioHint": "A physical input only works on channels that play on this studio node.",
+      "volume": "Volume: {{v}}%",
+      "volumeShort": "{{v}}%",
+      "volumeHint": "100% = unchanged. Lower it when the source plays under clips that have their own sound.",
+      "listen": "Listen",
+      "stopListen": "Stop",
+      "listenFailed": "Your browser cannot play this stream (HLS only plays in Safari). On air it can still work.",
+      "usage": "Used in {{blocks}} block(s)/item(s), {{beeldkranten}} beeldkrant(en)",
+      "confirmDelete": "Delete audio source \"{{name}}\"?",
+      "confirmDeleteUsed": "\"{{name}}\" is used {{n}} time(s). Those blocks and beeldkranten will then be silent. Delete anyway?",
+      "pickTitle": "Audio under this item",
+      "follow_block": "Default (beeldkrant audio / only the item's own sound)",
+      "follow_item": "🔊 Like the block",
+      "follow_beeldkrant": "No audio",
+      "blockLabel": "Audio under this block",
+      "blockHint": "Plays under all items of this block (not under live items). Per item you can choose otherwise in the list below.",
+      "bkLabel": "Audio under the beeldkrant",
+      "bkHint": "A beeldkrant has no sound of its own: pick e.g. the radio stream. A block can still choose other audio.",
+      "bkHintNone": "Add an audio source first (On air → Audio), e.g. the station's radio stream.",
+      "underNow": "Audio under it: {{name}}",
+      "underError": "Not playing: {{error}}"
     }
   }
 }

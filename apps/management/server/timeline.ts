@@ -27,13 +27,19 @@ export interface BlockItemRow {
   beeldkrantId?: number | null;
   durationMs: number | null;
   title: string | null;
+  /** Audio under this item: null = follow the block, "none" = no audio, "<id>" = that audio source. */
+  audio?: AudioSetting;
 }
 export interface BlockRef {
   id: number;
   name: string;
   kind: "program" | "commercial";
   items: BlockItemRow[];
+  /** Audio under the whole block (nested blocks follow it unless they set their own). */
+  audio?: AudioSetting;
 }
+/** Stored audio choice: null/undefined = follow the parent, "none" = no audio, "<id>" = an audio source. */
+export type AudioSetting = string | null;
 export interface Loader {
   block(id: number): BlockRef | undefined;
   media(id: number): MediaRef | undefined;
@@ -46,6 +52,8 @@ export interface BeeldkrantRef {
   name: string;
   durationMs: number;
   showOverlay: boolean;
+  /** Audio under the beeldkrant when the block or item does not choose one. */
+  audioSourceId?: number | null;
 }
 
 export interface Leaf {
@@ -66,6 +74,8 @@ export interface Leaf {
   blockName: string;
   /** Problems the editor should see (missing file, unknown duration). */
   warning?: "missing" | "no_duration";
+  /** Audio source mixed under this item (radio stream, line input), null = none. */
+  audioSourceId?: number | null;
 }
 
 export const DEFAULT_LIVE_MS = 30 * 60_000;
@@ -77,15 +87,26 @@ export class BlockCycleError extends Error {
   }
 }
 
+/** The nearest choice wins: an item's own setting, else its block's, else what the parent block passed down. */
+export const pickAudio = (own: AudioSetting | undefined, inherited: AudioSetting | undefined): AudioSetting => (own == null || own === "" ? (inherited ?? null) : own);
+/** Audio source id of a setting ("none" and "follow" give null). */
+export const audioSourceOf = (a: AudioSetting | undefined): number | null => (a && /^\d+$/.test(a) ? Number(a) : null);
+/** Normalises what the API accepts: null/"" = follow, "none", or a source id. */
+export const audioIn = (a: string | number | null | undefined): AudioSetting => (a == null || a === "" ? null : a === "none" ? "none" : Number.isInteger(Number(a)) && Number(a) > 0 ? String(Number(a)) : null);
+
 /** Flattens a block. Throws BlockCycleError when blocks contain each other. */
-export function expandBlock(loader: Loader, blockId: number, stack: number[] = []): Leaf[] {
+export function expandBlock(loader: Loader, blockId: number, stack: number[] = [], inheritedAudio: AudioSetting = null, forcedAudio = false): Leaf[] {
   if (stack.includes(blockId) || stack.length > MAX_DEPTH) throw new BlockCycleError(blockId);
   const block = loader.block(blockId);
   if (!block) return [];
   const out: Leaf[] = [];
+  // A choice on the item that holds this block wins over the block's own setting.
+  const blockAudio = forcedAudio ? inheritedAudio : pickAudio(block.audio, inheritedAudio);
   for (const it of block.items) {
+    const audio = pickAudio(it.audio, blockAudio);
+    const audioSourceId = audioSourceOf(audio);
     if (it.type === "block" && it.childBlockId != null) {
-      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId]));
+      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId], audio, forcedAudio || (it.audio != null && it.audio !== "")));
     } else if (it.type === "media" && it.mediaId != null) {
       const m = loader.media(it.mediaId);
       if (!m) continue;
@@ -101,15 +122,19 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
         blockKind: block.kind,
         blockName: block.name,
         warning: m.missing ? "missing" : dur == null ? "no_duration" : undefined,
+        audioSourceId,
       });
     } else if (it.type === "live" && it.liveSourceId != null) {
       const l = loader.live(it.liveSourceId);
       if (!l) continue;
-      out.push({ type: "live", durationMs: it.durationMs ?? DEFAULT_LIVE_MS, title: it.title || l.name, liveSourceId: l.id, blockKind: block.kind, blockName: block.name });
+      // Live pictures come with their own sound: nothing is mixed under them.
+      out.push({ type: "live", durationMs: it.durationMs ?? DEFAULT_LIVE_MS, title: it.title || l.name, liveSourceId: l.id, blockKind: block.kind, blockName: block.name, audioSourceId: null });
     } else if (it.type === "beeldkrant" && it.beeldkrantId != null) {
       const b = loader.beeldkrant?.(it.beeldkrantId);
       if (!b) continue;
-      out.push({ type: "beeldkrant", durationMs: it.durationMs ?? b.durationMs, title: it.title || b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: block.kind, blockName: block.name });
+      // A beeldkrant is silent: without a choice in the block it takes the beeldkrant's own audio setting.
+      const bkAudio = audio == null ? (b.audioSourceId ?? null) : audioSourceId;
+      out.push({ type: "beeldkrant", durationMs: it.durationMs ?? b.durationMs, title: it.title || b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: block.kind, blockName: block.name, audioSourceId: bkAudio });
     }
   }
   return out;

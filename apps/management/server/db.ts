@@ -352,4 +352,20 @@ export const MANAGEMENT_MIGRATIONS = [
      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
    );
    CREATE INDEX recordings_started ON recordings(started_at);`,
+  // Audio under the broadcast ("geluid onder"): a radio stream or a physical input on the studio node, mixed under
+  // what CasparCG plays (e.g. behind the beeldkrant). Chosen per block or per item; NULL = follow the parent,
+  // 'none' = no audio, '<id>' = that audio source.
+  `CREATE TABLE audio_sources (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('stream','soundcard','decklink')),
+     -- stream: http(s)/HLS/Icecast URL; soundcard: Windows recording device name; decklink: device number.
+     address TEXT NOT NULL,
+     -- Studio node that has the physical input (soundcard/decklink); NULL for streams.
+     studio_id INTEGER REFERENCES studio_nodes(id) ON DELETE SET NULL,
+     volume INTEGER NOT NULL DEFAULT 70 CHECK (volume BETWEEN 0 AND 150),
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   ALTER TABLE blocks ADD COLUMN audio TEXT;
+   ALTER TABLE block_items ADD COLUMN audio TEXT;`,
 ];
