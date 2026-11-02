@@ -1,5 +1,5 @@
 import { Alert, Button, Dialog, Field, Input, Select, cx, post } from "@tvsm/ui";
-import { FolderOpen, Sparkles, Tags } from "lucide-react";
+import { Dices, FolderOpen, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fmtDuration, useCategories, useGet } from "../lib";
@@ -12,6 +12,7 @@ export interface AutoRule {
   count: number;
   maxAgeDays: number | null;
   maxMinutes: number | null;
+  pick: "newest" | "rotate" | "random";
   order: "newest_first" | "oldest_first";
 }
 export interface AutoInfo {
@@ -20,11 +21,35 @@ export interface AutoInfo {
   autoClips: { id: number; name: string; durationMs: number }[];
   effectiveDurationMs: number;
 }
-export const defaultRule = (): AutoRule => ({ source: "category", categoryId: null, folder: "", count: 5, maxAgeDays: null, maxMinutes: null, order: "newest_first" });
+/** A new dynamic slot: one clip from a folder, in turn (the usual hour build-up: ad, bumper, item, bumper). */
+export const defaultRule = (): AutoRule => ({ source: "folder", categoryId: null, folder: "", count: 1, maxAgeDays: null, maxMinutes: null, pick: "rotate", order: "newest_first" });
 
-/** One line for the rundown: "Newest 5 clips from News". */
+/** One line for the rundown: "Newest 5 clips from News", "In turn from Bumpers". */
 export function autoLabel(t: (k: string, o?: Record<string, unknown>) => string, info: Pick<AutoInfo, "autoRule" | "autoSourceName">) {
-  return t("mgmt.auto.label", { count: info.autoRule.count, source: info.autoSourceName ?? "?" });
+  return t(`mgmt.auto.labels.${info.autoRule.pick ?? "newest"}`, { count: info.autoRule.count, source: info.autoSourceName ?? "?" });
+}
+const PICKS = ["rotate", "random", "newest"] as const;
+
+/**
+ * What the dynamic parts of a block being edited play now, computed together so a clip is not shown twice
+ * (two bumper slots get two different bumpers, as on air). Index i belongs to rules[i]; null = not a dynamic part.
+ */
+export function useAutoPreviews(rules: (AutoRule | null | undefined)[]) {
+  const key = JSON.stringify(rules.map((r) => r ?? null));
+  const [previews, setPreviews] = useState<(AutoInfo | null)[] | null>(null);
+  useEffect(() => {
+    if (!rules.some(Boolean)) return setPreviews(null);
+    let gone = false;
+    void post<{ previews: (AutoInfo | null)[] }>("/api/blocks/auto-previews", { rules: JSON.parse(key) }).then(
+      (r) => !gone && setPreviews(r.previews),
+      () => undefined,
+    );
+    return () => {
+      gone = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return previews;
 }
 
 const numOrNull = (v: string) => (v.trim() === "" ? null : Math.max(1, Math.round(Number(v))) || null);
@@ -113,8 +138,29 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
               )}
             </Field>
           )}
+          <div>
+            <p className="mb-1.5 text-[13px] font-medium">{t("mgmt.auto.how")}</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {PICKS.map((k) => {
+                const Icon = k === "rotate" ? Repeat : k === "random" ? Dices : TrendingUp;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setR({ ...r, pick: k })}
+                    className={cx("rounded-md border px-3 py-2.5 text-left transition", r.pick === k ? "border-brand bg-brand/8" : "border-line hover:bg-surface-2")}
+                  >
+                    <span className={cx("flex items-center gap-2 text-sm", r.pick === k && "font-medium text-brand")}>
+                      <Icon className="size-4" />
+                      {t(`mgmt.auto.picks.${k}`)}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">{t(`mgmt.auto.pickHints.${k}`)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={t("mgmt.auto.count")} hint={t("mgmt.auto.countHint")}>
+            <Field label={t("mgmt.auto.count")} hint={t(r.pick === "newest" ? "mgmt.auto.countHint" : "mgmt.auto.countHintSlot")}>
               {(id) => <Input id={id} type="number" min={1} max={50} value={r.count} onChange={(e) => setR({ ...r, count: Math.min(50, Math.max(1, Math.round(Number(e.target.value)) || 1)) })} />}
             </Field>
             <Field label={t("mgmt.auto.maxAge")} hint={t("mgmt.auto.optional")}>
@@ -124,6 +170,7 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
               {(id) => <Input id={id} type="number" min={1} max={240} placeholder="—" value={r.maxMinutes ?? ""} onChange={(e) => setR({ ...r, maxMinutes: numOrNull(e.target.value) })} />}
             </Field>
           </div>
+          {r.pick === "newest" && (
           <Field label={t("mgmt.auto.order")}>
             {(id) => (
               <Select id={id} value={r.order} onChange={(e) => setR({ ...r, order: e.target.value as AutoRule["order"] })}>
@@ -132,6 +179,7 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
               </Select>
             )}
           </Field>
+          )}
         </div>
         <div className="rounded-lg border border-line bg-surface-2/50 p-4">
           <p className="text-[13px] font-semibold">{t("mgmt.auto.nowPlays")}</p>

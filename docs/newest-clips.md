@@ -17,3 +17,19 @@ How it works
   clips that existed when it started, so it never changes halfway. Later broadcasts pick up new clips automatically
   (a library scan triggers a recompile and a new week publish).
 - `POST /api/blocks/auto-preview` returns what a rule would play now.
+
+## Dynamic parts: build an hour from folders
+
+The same item can pick in three ways (`pick` in the rule):
+- **newest**: the newest N clips (above).
+- **rotate** (in turn): the clip picked longest ago first, so every ad or bumper gets its turn.
+- **random**: a seeded random clip, avoiding the most recently picked ones.
+
+Example hour block: *ad in turn from Reclames*, *bumper in turn from Bumpers*, *newest item from Programma*,
+*random bumper from Bumpers*. Within one broadcast (a week-schedule occurrence, key `occ:<occurrence>`, or a single
+schedule entry, `entry:<id>`) a clip is never picked twice unless the folder has nothing else.
+
+Rotate/random picks are remembered in `auto_picks` (key, item path in the block tree, rule, media ids) once the broadcast
+starts within `PICK_MEMO_AHEAD_MS` (3 h), and `media.last_pick_at` is updated; until then they are a forecast. So the
+director, the EPG and the week planner see the same clips, and a block on air never changes. Changing the rule picks
+again. The blocks page and the wizard "New hour programme" preview all parts together (`POST /api/blocks/auto-previews`).

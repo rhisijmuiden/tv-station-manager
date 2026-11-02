@@ -442,4 +442,15 @@ export const MANAGEMENT_MIGRATIONS = [
    DROP TABLE block_items;
    ALTER TABLE block_items_new RENAME TO block_items;
    CREATE INDEX block_items_block ON block_items(block_id, position);`,
+  // Dynamic items that pick in turn or at random: the picks of a broadcast are remembered until it has aired.
+  `CREATE TABLE auto_picks (
+     key TEXT NOT NULL,
+     path TEXT NOT NULL,
+     at TEXT NOT NULL,
+     rule TEXT NOT NULL,
+     media_ids TEXT NOT NULL,
+     PRIMARY KEY (key, path)
+   );
+   CREATE INDEX auto_picks_at ON auto_picks(at);
+   ALTER TABLE media ADD COLUMN last_pick_at TEXT;`,
 ];

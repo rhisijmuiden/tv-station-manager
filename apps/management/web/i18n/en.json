@@ -183,7 +183,7 @@
         "live": "Live",
         "beeldkrant": "Beeldkrant",
         "webcam": "Webcam",
-        "auto": "Newest clips"
+        "auto": "Dynamic from folder"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duration (h:mm:ss); empty = from the beeldkrant",
@@ -1108,7 +1108,8 @@
       "exactTime": "Exact time",
       "chosen": "{{n}} time(s) per day:",
       "clearTimes": "Clear",
-      "selfClash": "Some chosen times run into each other. Choose times at least one programme length apart."
+      "selfClash": "Some chosen times run into each other. Choose times at least one programme length apart.",
+      "dynamicHint": "Build the hour from folders: e.g. an ad from Ads, a bumper, a programme item, a bumper again."
     },
     "rec": {
       "title": "Recordings",
@@ -1465,10 +1466,10 @@
       "confirmDeleteUsed": "“{{name}}” is used in programmes. Delete it there too?"
     },
     "auto": {
-      "button": "Newest clips",
-      "buttonHint": "Fills itself with the newest clips of a category or folder",
-      "title": "Newest clips (automatic)",
-      "intro": "This part of the block fills itself every time it is played: it takes the newest clips from a category or folder. When a new clip arrives, the oldest one drops out by itself.",
+      "button": "Dynamic from folder",
+      "buttonHint": "Picks clips by itself from a folder or category: in turn, random or the newest",
+      "title": "Dynamic part (picks by itself)",
+      "intro": "This part picks its clips by itself every time the block is broadcast, from a folder or category. Use it to build an hour: an ad from Ads, a bumper from Bumpers, an item from Programmes, a bumper again.",
       "from": "Where do the clips come from?",
       "source": {
         "category": "A category",
@@ -1488,15 +1489,33 @@
         "newest_first": "Newest first",
         "oldest_first": "In the order they came in (oldest first)"
       },
-      "nowPlays": "This plays now",
-      "nowPlaysHint": "Changes by itself when new clips come in.",
+      "nowPlays": "This is next",
+      "nowPlaysHint": "Changes by itself: new clips, next in turn.",
       "pickSource": "Choose a category or folder first.",
       "noneYet": "No clips yet: nothing plays here until clips with a known length arrive.",
       "add": "Add to block",
       "change": "Change",
       "now": "Now",
-      "label_one": "Newest clip from {{source}}",
-      "label_other": "Newest {{count}} clips from {{source}}"
+      "how": "How should it pick?",
+      "picks": {
+        "rotate": "In turn",
+        "random": "Random",
+        "newest": "Newest"
+      },
+      "pickHints": {
+        "rotate": "Each clip gets its turn; good for ads and bumpers.",
+        "random": "A different one each time, not the last one again.",
+        "newest": "The newest clips; old ones drop out (news)."
+      },
+      "countHintSlot": "Never twice the same clip within one broadcast.",
+      "labels": {
+        "newest_one": "Newest clip from {{source}}",
+        "newest_other": "Newest {{count}} clips from {{source}}",
+        "rotate_one": "In turn from {{source}}",
+        "rotate_other": "{{count}} clips in turn from {{source}}",
+        "random_one": "Random from {{source}}",
+        "random_other": "{{count}} random clips from {{source}}"
+      }
     }
   }
 }

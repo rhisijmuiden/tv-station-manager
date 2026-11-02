@@ -8,7 +8,7 @@ import { managementOptions } from "../server/app.ts";
 import { parseAutoRule, pickClips } from "../server/autofill.ts";
 import { dbLoader } from "../server/content.ts";
 import type { DriverFactory } from "../server/drivers.ts";
-import { expandBlock } from "../server/timeline.ts";
+import { entryLeaves, expandBlock } from "../server/timeline.ts";
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -37,6 +37,25 @@ test("newest clips: newest first, at most N, the oldest drop out", () => {
   // Broken rules fall back to the defaults.
   assert.equal(parseAutoRule("{nope").count, 5);
   assert.equal(parseAutoRule({ count: 999 }).count, 5);
+});
+
+test("dynamic slots: in turn, random and no repeats within a broadcast", () => {
+  const now = Date.parse("2026-11-02T12:00:00Z");
+  const c = [1, 2, 3, 4].map((id) => ({ id, addedAt: now - id * DAY, durationMs: 20_000, lastPickAt: null as number | null }));
+  const rotate = parseAutoRule({ source: "folder", folder: "Bumpers", count: 1, pick: "rotate" });
+  // Never picked: the newest first.
+  assert.deepEqual(pickClips(c, rotate, now), [1]);
+  // Picked longest ago comes next.
+  const played = c.map((x) => ({ ...x, lastPickAt: now - (5 - x.id) * 3600_000 })); // 1 longest ago … 4 most recent
+  assert.deepEqual(pickClips(played, rotate, now), [1]);
+  assert.deepEqual(pickClips(played, rotate, now, { exclude: new Set([1]) }), [2]);
+  // Nothing else left: repeating beats an empty slot.
+  assert.deepEqual(pickClips(c.slice(0, 1), rotate, now, { exclude: new Set([1]) }), [1]);
+  // Random: the same seed gives the same clip, the most recent pick is avoided.
+  const random = { ...rotate, pick: "random" as const };
+  const a = pickClips(played, random, now, { seed: "occ:x|b1/0" });
+  assert.deepEqual(pickClips(played, random, now, { seed: "occ:x|b1/0" }), a);
+  for (let i = 0; i < 20; i++) assert.notDeepEqual(pickClips(played, random, now, { seed: `s${i}` }), [4]);
 });
 
 // ---- API end to end ---------------------------------------------------------------
@@ -141,4 +160,33 @@ test("news block: newest clips of a folder fill it, a new clip pushes the oldest
   assert.equal(d.items[0].autoSourceName, "Nieuws");
   assert.deepEqual(d.items[0].autoClips.map((c: { name: string }) => c.name), ["older", "old"]);
   assert.equal(d.items[0].durationMs, null);
+});
+
+test("hour block from dynamic folders: ad, bumper, news, bumper", async () => {
+  const dir = join(root, "media");
+  for (const f of ["Reclames/ad1.mp4", "Reclames/ad2.mp4", "Bumpers/bump1.mp4", "Bumpers/bump2.mp4", "Bumpers/bump3.mp4", "Programma/item1.mp4", "Programma/item2.mp4"]) {
+    mkdirSync(join(dir, f.split("/")[0]!), { recursive: true });
+    writeFileSync(join(dir, f), "x");
+    const t = new Date(Date.now() - DAY);
+    utimesSync(join(dir, f), t, t);
+  }
+  const src = ((await api("GET", "/api/media/sources")).body.sources as { id: number }[])[0]!.id;
+  await api("POST", `/api/media/sources/${src}/scan`);
+  await new Promise((r) => setTimeout(r, 400));
+  for (const m of (await api("GET", "/api/media?limit=500")).body.items as { id: number }[]) await api("PUT", `/api/media/${m.id}`, { category: "program", durationMs: 30_000 });
+  const slot = (folder: string, pick: string) => ({ type: "auto", autoRule: { source: "folder", folder, count: 1, pick } });
+  const block = (await api("POST", "/api/blocks", { name: "Uur", items: [slot("Reclames", "rotate"), slot("Bumpers", "rotate"), slot("Programma", "newest"), slot("Bumpers", "random")] })).body.id as number;
+  const folderOf = (title: string) => title.replace(/\d+$/, "");
+  const start = Date.now() + 10 * MIN;
+  const hour1 = entryLeaves(dbLoader(p.ctx.db), { id: 9001, blockId: block, start }).map((l) => l.title);
+  assert.deepEqual(hour1.map(folderOf), ["ad", "bump", "item", "bump"]);
+  assert.notEqual(hour1[1], hour1[3], "no bumper twice in one hour");
+  // Remembered: computing it again (next director tick, other loader) gives the same hour.
+  assert.deepEqual(entryLeaves(dbLoader(p.ctx.db), { id: 9001, blockId: block, start }).map((l) => l.title), hour1);
+  // The next hour, the other ad is in turn.
+  const hour2 = entryLeaves(dbLoader(p.ctx.db), { id: 9002, blockId: block, start: start + 60 * MIN }).map((l) => l.title);
+  assert.notEqual(hour2[0], hour1[0]);
+  // The blocks page shows the slots without repeating a bumper.
+  const d = (await api("GET", `/api/blocks/${block}`)).body;
+  assert.notEqual(d.items[1].autoClips[0].id, d.items[3].autoClips[0].id);
 });
