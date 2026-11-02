@@ -12,6 +12,7 @@ import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
+import { registerSwitching } from "./switching.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
 export interface ManagementHandles {
@@ -61,6 +62,9 @@ export function managementOptions(
       registerRss(server, platform, rss, changed);
       registerRecordings(server, platform, recorder);
       registerOrchestratorLink(server, orchestrator);
+      registerSwitching(server, platform, { hub, director, remote, recorder });
+      // A remote stream taken live by hand goes off air: its recording is finished (library, repeats).
+      director.overrideEnded.push((_channelId, liveSourceId) => recorder.liveEnded(liveSourceId));
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;

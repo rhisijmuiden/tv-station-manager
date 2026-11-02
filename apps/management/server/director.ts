@@ -438,6 +438,44 @@ export class Director {
     };
   }
 
+  /** Called when a live source taken by hand goes off air again (back to the schedule, or another source taken). */
+  overrideEnded: ((channelId: number, liveSourceId: number) => void)[] = [];
+
+  /** Live source on air by hand: it stays on air (the schedule waits) until `resume` or another source is taken. */
+  async takeLive(c: ChannelRow, live: LiveRow, by: string) {
+    if (this.hub.lock(c.atem_id)) throw new HttpError(409, "atem_locked");
+    const s = this.state(c.id);
+    const before = s.override;
+    try {
+      await this.takeRemote(s, live);
+      await this.switchTo(c, live.atem_input);
+    } catch (e) {
+      throw new HttpError(502, "live_failed", (e as Error).message);
+    }
+    s.override = { liveSourceId: live.id, name: live.name, since: new Date(this.now()).toISOString() };
+    this.asrun(c.id, "live", live.name, `Taken live by ${by}`, true);
+    if (before && before.liveSourceId !== live.id) this.overrideEnded.forEach((f) => f(c.id, before.liveSourceId));
+  }
+
+  /** Back to the schedule after a live source taken by hand. */
+  async resume(c: ChannelRow, by: string) {
+    const s = this.state(c.id);
+    const before = s.override;
+    s.override = null;
+    s.currentKey = null;
+    s.preloadedKey = null;
+    s.prerolled = null;
+    s.standby = null;
+    await this.stopRtmp(s);
+    this.asrun(c.id, "control", "Back to schedule", by, true);
+    if (before) this.overrideEnded.forEach((f) => f(c.id, before.liveSourceId));
+  }
+
+  /** Live source taken by hand on this channel, if any. */
+  override(channelId: number) {
+    return this.states.get(channelId)?.override ?? null;
+  }
+
   register(app: FastifyInstance) {
     const { db } = this.platform.ctx;
     const channel = (id: number) => {
@@ -467,30 +505,13 @@ export class Director {
       const { liveSourceId } = z.object({ liveSourceId: z.number().int() }).parse(req.body);
       const live = this.live(liveSourceId);
       if (!live) throw new HttpError(404, "not_found");
-      if (this.hub.lock(c.atem_id)) throw new HttpError(409, "atem_locked");
-      const s = this.state(c.id);
-      try {
-        await this.takeRemote(s, live);
-        await this.switchTo(c, live.atem_input);
-      } catch (e) {
-        throw new HttpError(502, "live_failed", (e as Error).message);
-      }
-      s.override = { liveSourceId: live.id, name: live.name, since: new Date().toISOString() };
-      this.asrun(c.id, "live", live.name, `Taken live by ${req.user!.username}`, true);
+      await this.takeLive(c, live, req.user!.username);
       return { ok: true };
     });
 
     app.post("/api/control/:id/resume", async (req) => {
       requireRole(req, "operator");
-      const c = channel(pid(req));
-      const s = this.state(c.id);
-      s.override = null;
-      s.currentKey = null;
-      s.preloadedKey = null;
-      s.prerolled = null;
-      s.standby = null;
-      await this.stopRtmp(s);
-      this.asrun(c.id, "control", "Back to schedule", req.user!.username, true);
+      await this.resume(channel(pid(req)), req.user!.username);
       return { ok: true };
     });
 
