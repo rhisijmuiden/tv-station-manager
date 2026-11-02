@@ -20,6 +20,7 @@ export interface LiveRef {
   kind: "atem" | "rtmp";
 }
 export interface BlockItemRow {
+  id?: number;
   type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto";
   mediaId: number | null;
   childBlockId: number | null;
@@ -51,8 +52,11 @@ export interface Loader {
   beeldkrant?(id: number): BeeldkrantRef | undefined;
   /** Webcams and external streams; `durationMs` is the default length set on the webcam. */
   webcam?(id: number): WebcamRef | undefined;
-  /** "Newest clips" item: the clips its rule picks at `asOf` (ms), in play order. */
-  autoMedia?(rule: string | null | undefined, asOf: number | undefined): MediaRef[];
+  /**
+   * Dynamic item: the clips its rule picks at `asOf` (ms), in play order. `slot` names the broadcast (`key`) and the
+   * item's place in it (`path`), so a pick is remembered and clips are not repeated within one broadcast.
+   */
+  autoMedia?(rule: string | null | undefined, asOf: number | undefined, slot?: { key: string; path: string }): MediaRef[];
 }
 export interface WebcamRef {
   id: number;
@@ -128,24 +132,24 @@ const mediaLeaf = (m: MediaRef, dur: number | null | undefined, title: string | 
  * Flattens a block. Throws BlockCycleError when blocks contain each other.
  * `asOf` is when the block plays: "newest clips" items take the clips that existed then (default: now).
  */
-export function expandBlock(loader: Loader, blockId: number, stack: number[] = [], inheritedAudio: AudioSetting = null, forcedAudio = false, asOf?: number): Leaf[] {
+export function expandBlock(loader: Loader, blockId: number, stack: number[] = [], inheritedAudio: AudioSetting = null, forcedAudio = false, asOf?: number, key?: string, path = `b${blockId}`): Leaf[] {
   if (stack.includes(blockId) || stack.length > MAX_DEPTH) throw new BlockCycleError(blockId);
   const block = loader.block(blockId);
   if (!block) return [];
   const out: Leaf[] = [];
   // A choice on the item that holds this block wins over the block's own setting.
   const blockAudio = forcedAudio ? inheritedAudio : pickAudio(block.audio, inheritedAudio);
-  for (const it of block.items) {
+  for (const [idx, it] of block.items.entries()) {
     const audio = pickAudio(it.audio, blockAudio);
     const audioSourceId = audioSourceOf(audio);
     if (it.type === "block" && it.childBlockId != null) {
-      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId], audio, forcedAudio || (it.audio != null && it.audio !== ""), asOf));
+      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId], audio, forcedAudio || (it.audio != null && it.audio !== ""), asOf, key, `${path}/${idx}`));
     } else if (it.type === "media" && it.mediaId != null) {
       const m = loader.media(it.mediaId);
       if (!m) continue;
       out.push(mediaLeaf(m, it.durationMs ?? m.durationMs, it.title, block, audioSourceId));
     } else if (it.type === "auto") {
-      for (const m of loader.autoMedia?.(it.autoRule, asOf) ?? []) out.push({ ...mediaLeaf(m, m.durationMs, null, block, audioSourceId), auto: true });
+      for (const m of loader.autoMedia?.(it.autoRule, asOf, key ? { key, path: `${path}/${idx}` } : undefined) ?? []) out.push({ ...mediaLeaf(m, m.durationMs, null, block, audioSourceId), auto: true });
     } else if (it.type === "live" && it.liveSourceId != null) {
       const l = loader.live(it.liveSourceId);
       if (!l) continue;
@@ -184,8 +188,10 @@ export interface ScheduleEntry {
 }
 
 /** The leaves an entry plays (the whole block, or the part given by skip/take). */
-export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take"> & { start?: number }): Leaf[] {
-  const all = expandBlock(loader, entry.blockId, [], null, false, entry.start);
+export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take"> & { start?: number; id?: number; group?: string | null }): Leaf[] {
+  // One broadcast = a week-schedule occurrence (all its parts) or a single schedule entry.
+  const key = entry.group ? `occ:${entry.group}` : entry.id != null ? `entry:${entry.id}` : undefined;
+  const all = expandBlock(loader, entry.blockId, [], null, false, entry.start, key);
   const skip = entry.skip ?? 0;
   return entry.take == null ? all.slice(skip) : all.slice(skip, skip + entry.take);
 }

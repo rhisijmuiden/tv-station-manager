@@ -14,7 +14,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ChannelRow } from "./content.js";
 import { autoRuleSchema } from "./autofill.js";
-import { autoItemInfo, dbLoader, ITEM_COLUMNS, scheduleEntries, writeBlockItems, type ItemIn } from "./content.js";
+import { autoItemInfo, dbLoader, newPickMemory, ITEM_COLUMNS, scheduleEntries, writeBlockItems, type ItemIn } from "./content.js";
 import {
   DAY_MIN,
   addDaysIso,
@@ -329,7 +329,7 @@ export class WeekPlanner {
     const { fixed, windows } = this.windowsOf(occ);
     let leaves: Leaf[] = [];
     try {
-      leaves = content.blockId != null ? expandBlock(loader, content.blockId, [], null, false, occ.start) : [];
+      leaves = content.blockId != null ? expandBlock(loader, content.blockId, [], null, false, occ.start, `occ:${occ.key}`) : [];
     } catch {
       leaves = [];
     }
@@ -864,6 +864,7 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       }),
     ].sort((a, b) => a.start - b.start);
     const used = p.placements.reduce((s, x) => s + x.take, 0);
+    const picks = newPickMemory();
     const items =
       p.content.blockId != null && p.content.state !== "block"
         ? (db
@@ -882,10 +883,10 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       layout: occ.layout,
       parts: parts.map((x) => ({ ...x, startAt: new Date(x.start).toISOString(), endAt: new Date(x.end).toISOString(), items: x.items.map((i) => ({ ...i, startAt: new Date(i.start).toISOString() })) })),
       overflow: occ.layout ? p.leaves.slice(used).map((l) => ({ title: l.title, durationMs: l.durationMs })) : [],
-      items: items.map((i) => ({
+      items: items.map((i, idx) => ({
         ...i,
         mediaMissing: !!i.mediaMissing,
-        ...(i.type === "auto" ? autoItemInfo(db, i.autoRule, occ.start) : {}),
+        ...(i.type === "auto" ? autoItemInfo(db, i.autoRule, occ.start, { key: `occ:${occ.key}`, path: `b${p.content.blockId}/${idx}` }, picks) : {}),
         effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null)),
       })),
       windowsMs: p.windows.map((w) => w.end - w.start),

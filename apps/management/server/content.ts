@@ -70,6 +70,7 @@ export function dbLoader(db: Db): Loader {
   const blocks = new Map<number, BlockRef | undefined>();
   const bk = new Map<number, ReturnType<NonNullable<Loader["beeldkrant"]>>>();
   const cams = new Map<number, ReturnType<NonNullable<Loader["webcam"]>>>();
+  const picks = newPickMemory();
   return {
     block(id) {
       if (!blocks.has(id)) {
@@ -101,38 +102,82 @@ export function dbLoader(db: Db): Loader {
       if (!cams.has(id)) cams.set(id, webcamRef(db, id));
       return cams.get(id);
     },
-    autoMedia(stored, asOf) {
-      return autoMedia(db, stored, asOf ?? Date.now());
+    autoMedia(stored, asOf, slot) {
+      return autoMedia(db, stored, asOf ?? Date.now(), slot, picks);
     },
   };
 }
 
 /** Columns of a block item as the timeline loader and the rundown copies read them. */
 export const ITEM_COLUMNS =
-  "type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, webcam_id AS webcamId, auto_rule AS autoRule, duration_ms AS durationMs, title, audio";
+  "id, type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, webcam_id AS webcamId, auto_rule AS autoRule, duration_ms AS durationMs, title, audio";
 
-/** The clips a "newest clips" rule picks at `asOf` (newest of a category or folder, oldest drop out). */
-export function autoMedia(db: Db, stored: unknown, asOf: number): MediaRef[] {
+/** Picks for broadcasts that start within this time are remembered (and count for "in turn"); later ones are a forecast. */
+export const PICK_MEMO_AHEAD_MS = 3 * 3600_000;
+
+/** What one loader (one compile) has picked so far: no repeats within a broadcast, and "in turn" moves on in the forecast. */
+export interface PickMemory {
+  picked: Map<string, Set<number>>;
+  lastPick: Map<number, number>;
+}
+export const newPickMemory = (): PickMemory => ({ picked: new Map(), lastPick: new Map() });
+
+/**
+ * The clips a dynamic item's rule picks at `asOf`. With a `slot` (a broadcast and the item's place in it) a rotate or
+ * random pick is remembered in `auto_picks` once the broadcast is near, so it stays the same until it has aired, and
+ * clips already picked elsewhere in the same broadcast are avoided.
+ */
+export function autoMedia(db: Db, stored: unknown, asOf: number, slot?: { key: string; path: string; preview?: boolean }, mem: PickMemory = newPickMemory()): MediaRef[] {
   const rule = parseAutoRule(stored);
   if (!ruleReady(rule)) return [];
+  const folder = rule.folder.trim().replace(/^\/+|\/+$/g, "");
   const where = rule.source === "category" ? "category_id = ?" : "(folder = ? OR folder LIKE ?)";
-  const args = rule.source === "category" ? [rule.categoryId!] : [rule.folder.trim().replace(/^\/+|\/+$/g, ""), `${rule.folder.trim().replace(/^\/+|\/+$/g, "")}/%`];
+  const args = rule.source === "category" ? [rule.categoryId!] : [folder, `${folder}/%`];
   const rows = db
     .prepare(
-      `SELECT id, name, title, path, duration_ms AS durationMs, fps, category, missing, mtime, created_at AS createdAt FROM media
+      `SELECT id, name, title, path, duration_ms AS durationMs, fps, category, missing, mtime, created_at AS createdAt, last_pick_at AS lastPickAt FROM media
         WHERE missing = 0 AND probe_status != 'failed' AND ${where} ORDER BY COALESCE(mtime, created_at) DESC, id DESC LIMIT 1000`,
     )
-    .all(...args) as unknown as (Omit<MediaRef, "missing"> & { missing: number; mtime: string | null; createdAt: string })[];
+    .all(...args) as unknown as (Omit<MediaRef, "missing"> & { missing: number; mtime: string | null; createdAt: string; lastPickAt: string | null })[];
   const byId = new Map(rows.map((r) => [r.id, r]));
+  const out = (ids: number[]) =>
+    ids.map((id) => {
+      const { mtime: _m, createdAt: _c, lastPickAt: _l, ...m } = byId.get(id)!;
+      return { ...m, missing: !!m.missing };
+    });
+  const used = slot ? (mem.picked.get(slot.key) ?? new Set<number>()) : new Set<number>();
+  if (slot) mem.picked.set(slot.key, used);
+  // A preview (blocks page) avoids repeats within the block but reads and writes no remembered picks.
+  const remember = slot && !slot.preview && rule.pick !== "newest";
+  const sig = JSON.stringify(rule);
+  if (remember) {
+    const memo = db.prepare("SELECT media_ids AS ids, rule FROM auto_picks WHERE key = ? AND path = ?").get(slot.key, slot.path) as { ids: string; rule: string } | undefined;
+    const ids = memo ? (JSON.parse(memo.ids) as number[]) : [];
+    if (memo && memo.rule === sig && ids.length && ids.every((id) => byId.has(id))) {
+      for (const id of ids) used.add(id);
+      return out(ids);
+    }
+    // What other places in this broadcast already have.
+    for (const r of db.prepare("SELECT media_ids AS ids FROM auto_picks WHERE key = ? AND path != ?").all(slot.key, slot.path) as { ids: string }[]) for (const id of JSON.parse(r.ids) as number[]) used.add(id);
+  }
   const ids = pickClips(
-    rows.map((r) => ({ id: r.id, durationMs: r.durationMs, addedAt: Date.parse(r.mtime ?? "") || Date.parse(r.createdAt) || 0 })),
+    rows.map((r) => ({ id: r.id, durationMs: r.durationMs, addedAt: Date.parse(r.mtime ?? "") || Date.parse(r.createdAt) || 0, lastPickAt: mem.lastPick.get(r.id) ?? (r.lastPickAt ? Date.parse(r.lastPickAt) : null) })),
     rule,
     asOf,
+    { exclude: used, seed: slot ? `${slot.key}|${slot.path}` : String(asOf) },
   );
-  return ids.map((id) => {
-    const { mtime: _m, createdAt: _c, ...m } = byId.get(id)!;
-    return { ...m, missing: !!m.missing };
-  });
+  for (const id of ids) used.add(id);
+  if (remember) {
+    for (const id of ids) mem.lastPick.set(id, asOf);
+    if (ids.length && asOf <= Date.now() + PICK_MEMO_AHEAD_MS) {
+      const at = new Date(asOf).toISOString();
+      db.prepare("INSERT OR REPLACE INTO auto_picks (key, path, at, rule, media_ids) VALUES (?, ?, ?, ?, ?)").run(slot.key, slot.path, at, sig, JSON.stringify(ids));
+      const st = db.prepare("UPDATE media SET last_pick_at = ? WHERE id = ? AND (last_pick_at IS NULL OR last_pick_at < ?)");
+      for (const id of ids) st.run(at, id, at);
+      db.prepare("DELETE FROM auto_picks WHERE at < ?").run(new Date(Date.now() - 3 * 86_400_000).toISOString());
+    }
+  }
+  return out(ids);
 }
 
 export const scheduleEntries = (db: Db, channelId: number, from: number, to: number): ScheduleEntry[] =>
@@ -203,7 +248,7 @@ export function writeBlockItems(db: Db, blockId: number, items: ItemIn[]) {
 }
 
 /** What the editor sees of a "newest clips" item: its rule, where the clips come from and what it would play now. */
-export function autoItemInfo(db: Db, stored: unknown, asOf = Date.now()) {
+export function autoItemInfo(db: Db, stored: unknown, asOf = Date.now(), slot?: { key: string; path: string; preview?: boolean }, mem?: PickMemory) {
   const rule = parseAutoRule(stored);
   const sourceName =
     rule.source === "category"
@@ -211,7 +256,7 @@ export function autoItemInfo(db: Db, stored: unknown, asOf = Date.now()) {
         ? ((db.prepare("SELECT name FROM categories WHERE id = ?").get(rule.categoryId) as { name: string } | undefined)?.name ?? null)
         : null
       : rule.folder || null;
-  const clips = autoMedia(db, rule, asOf).map((m) => ({ id: m.id, name: m.title || m.name, durationMs: m.durationMs ?? 0 }));
+  const clips = autoMedia(db, rule, asOf, slot, mem).map((m) => ({ id: m.id, name: m.title || m.name, durationMs: m.durationMs ?? 0 }));
   return { autoRule: rule, autoSourceName: sourceName, autoClips: clips, effectiveDurationMs: clips.reduce((s, c) => s + c.durationMs, 0) };
 }
 
@@ -338,10 +383,18 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     return autoItemInfo(db, autoRule);
   });
 
+  /** Previews of all dynamic parts of a block being edited, together: no clip twice, like on air. */
+  app.post("/api/blocks/auto-previews", async (req) => {
+    const { rules } = z.object({ rules: z.array(autoRuleSchema.nullable()).max(200) }).parse(req.body);
+    const mem = newPickMemory();
+    return { previews: rules.map((r, i) => (r ? autoItemInfo(db, r, Date.now(), { key: "preview", path: String(i), preview: true }, mem) : null)) };
+  });
+
   app.get("/api/blocks/:id", async (req) => {
     const b = db.prepare("SELECT * FROM blocks WHERE id = ?").get(pid(req)) as Record<string, unknown> | undefined;
     if (!b) throw new HttpError(404, "not_found");
     const loader = dbLoader(db);
+    const previewPicks = newPickMemory();
     const items = (
       db
         .prepare(
@@ -369,7 +422,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       if (i.type === "live") effective = (i.durationMs as number | null) ?? 30 * 60_000;
       if (i.type === "beeldkrant") effective = (i.durationMs as number | null) ?? (i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : null);
       if (i.type === "webcam") effective = (i.durationMs as number | null) ?? (i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null);
-      if (i.type === "auto") return { ...i, mediaMissing: false, ...autoItemInfo(db, i.autoRule) };
+      if (i.type === "auto") return { ...i, mediaMissing: false, ...autoItemInfo(db, i.autoRule, Date.now(), { key: `preview:${b.id}`, path: String(i.id), preview: true }, previewPicks) };
       return { ...i, mediaMissing: !!i.mediaMissing, effectiveDurationMs: effective };
     });
     return { block: blockSummary(loader, b), items };

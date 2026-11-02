@@ -7,7 +7,7 @@ import { indicatorClass, payloadItems, useDropList, type DragPayload } from "../
 import { WithMediaBin } from "../components/MediaBin";
 import { AudioSelect, useAudioSources } from "../components/AudioSelect";
 import { MediaPicker } from "../components/MediaPicker";
-import { AutoClipsDialog, autoLabel, type AutoInfo, type AutoRule } from "../components/AutoClips";
+import { AutoClipsDialog, autoLabel, useAutoPreviews, type AutoInfo, type AutoRule } from "../components/AutoClips";
 import { categoryTone, errorText, fmtDuration, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
 
 interface Item {
@@ -97,6 +97,19 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
     });
   }, [id, kind]);
 
+  // Dynamic parts previewed together (no bumper twice, as on air); updates their "now" line and length.
+  const previews = useAutoPreviews(items.map((i) => (i.type === "auto" ? i.autoRule : null)));
+  useEffect(() => {
+    if (!previews) return;
+    setItems((cur) =>
+      cur.length !== previews.length
+        ? cur
+        : cur.map((it, i) => {
+            const pv = previews[i];
+            return it.type === "auto" && pv ? { ...it, autoClips: pv.autoClips, autoSourceName: pv.autoSourceName, sub: autoSub(pv.autoClips), effectiveDurationMs: pv.effectiveDurationMs } : it;
+          }),
+    );
+  }, [previews]);
   const change = (next: Item[]) => {
     setItems(next);
     setDirty(true);

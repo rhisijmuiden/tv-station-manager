@@ -183,7 +183,7 @@
         "live": "Live",
         "beeldkrant": "Beeldkrant",
         "webcam": "Webcam",
-        "auto": "Nieuwste clips"
+        "auto": "Dynamisch uit map"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duur (u:mm:ss); leeg = volgens de beeldkrant",
@@ -1108,7 +1108,8 @@
       "exactTime": "Precieze tijd",
       "chosen": "{{n}} keer per dag:",
       "clearTimes": "Wissen",
-      "selfClash": "Sommige gekozen tijden lopen in elkaar over. Kies tijden die minstens één programmalengte uit elkaar liggen."
+      "selfClash": "Sommige gekozen tijden lopen in elkaar over. Kies tijden die minstens één programmalengte uit elkaar liggen.",
+      "dynamicHint": "Bouw het uur op uit mappen: bijvoorbeeld een reclame uit Reclames, een bumper, een programma-item, weer een bumper."
     },
     "rec": {
       "title": "Opnames",
@@ -1465,10 +1466,10 @@
       "confirmDeleteUsed": "“{{name}}” wordt in programma's gebruikt. Daar ook verwijderen?"
     },
     "auto": {
-      "button": "Nieuwste clips",
-      "buttonHint": "Vult zichzelf met de nieuwste clips uit een categorie of map",
-      "title": "Nieuwste clips (automatisch)",
-      "intro": "Dit deel van het blok vult zichzelf elke keer dat het wordt uitgezonden: het pakt de nieuwste clips uit een categorie of map. Komt er een nieuwe clip bij, dan valt de oudste er vanzelf uit.",
+      "button": "Dynamisch uit map",
+      "buttonHint": "Kiest zelf clips uit een map of categorie: om de beurt, willekeurig of de nieuwste",
+      "title": "Dynamisch onderdeel (kiest zelf)",
+      "intro": "Dit onderdeel kiest elke keer dat het blok wordt uitgezonden zelf zijn clips, uit een map of categorie. Zo bouw je een uur op: een reclame uit Reclames, een bumper uit Bumpers, een item uit Programma, weer een bumper.",
       "from": "Waar komen de clips vandaan?",
       "source": {
         "category": "Een categorie",
@@ -1488,15 +1489,33 @@
         "newest_first": "Nieuwste eerst",
         "oldest_first": "Op volgorde van binnenkomst (oudste eerst)"
       },
-      "nowPlays": "Dit speelt nu",
-      "nowPlaysHint": "Verandert vanzelf als er nieuwe clips binnenkomen.",
+      "nowPlays": "Dit is de volgende",
+      "nowPlaysHint": "Verandert vanzelf: nieuwe clips, volgende aan de beurt.",
       "pickSource": "Kies eerst een categorie of map.",
       "noneYet": "Nog geen clips: hier speelt niets tot er clips met een bekende lengte zijn.",
       "add": "Toevoegen aan blok",
       "change": "Wijzigen",
       "now": "Nu",
-      "label_one": "Nieuwste clip uit {{source}}",
-      "label_other": "Nieuwste {{count}} clips uit {{source}}"
+      "how": "Hoe moet hij kiezen?",
+      "picks": {
+        "rotate": "Om de beurt",
+        "random": "Willekeurig",
+        "newest": "Nieuwste"
+      },
+      "pickHints": {
+        "rotate": "Elke clip komt aan de beurt; handig voor reclames en bumpers.",
+        "random": "Steeds een andere, niet meteen dezelfde als vorige keer.",
+        "newest": "De nieuwste clips; oude vallen eruit (nieuws)."
+      },
+      "countHintSlot": "Nooit twee keer dezelfde clip in één uitzending.",
+      "labels": {
+        "newest_one": "Nieuwste clip uit {{source}}",
+        "newest_other": "Nieuwste {{count}} clips uit {{source}}",
+        "rotate_one": "Om de beurt uit {{source}}",
+        "rotate_other": "{{count}} clips om de beurt uit {{source}}",
+        "random_one": "Willekeurig uit {{source}}",
+        "random_other": "{{count}} willekeurige clips uit {{source}}"
+      }
     }
   }
 }
