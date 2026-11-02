@@ -1,9 +1,9 @@
 import { Alert, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Switch, Textarea, cx, post, put } from "@tvsm/ui";
-import { ImageUp, Save } from "lucide-react";
+import { CalendarClock, ImageUp, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChannelTabs } from "../components/ChannelPicker";
-import { errorText, fmtTime, useChannelSelection, useChannels, type Graphics, type Position } from "../lib";
+import { errorText, fmtTime, LINEUP_DEFAULTS, useChannelSelection, useChannels, type Graphics, type LineupSettings, type Position } from "../lib";
 
 const POSITIONS: Position[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const corner = (p: Position) => ({ "top-left": "top-[5%] left-[5%]", "top-right": "top-[5%] right-[5%]", "bottom-left": "bottom-[5%] left-[5%]", "bottom-right": "bottom-[5%] right-[5%]" })[p];
@@ -45,6 +45,56 @@ function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null;
         </div>
       )}
     </div>
+  );
+}
+
+/** Settings and live preview of the "coming up" slide (programmes of the coming hour). */
+function LineupCard({ channelId, value, onChange }: { channelId: number; value: LineupSettings; onChange: (v: LineupSettings) => void }) {
+  const { t } = useTranslation();
+  // The preview page is rendered by the server from the real schedule; wait a moment while typing.
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    const h = setTimeout(() => setSrc(`/lineup/page.html?channel=${channelId}&preview=1&settings=${encodeURIComponent(JSON.stringify(value))}`), 400);
+    return () => clearTimeout(h);
+  }, [channelId, value]);
+  return (
+    <Card className="mt-6">
+      <CardHeader title={t("mgmt.lineup.settingsTitle")} description={t("mgmt.lineup.settingsIntro")} actions={<CalendarClock className="size-5 text-muted" />} />
+      <CardBody className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <div className="space-y-2">
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">{src && <iframe title={t("mgmt.lineup.settingsTitle")} src={src} className="size-full border-0" />}</div>
+          <p className="text-xs text-muted">{t("mgmt.lineup.previewHint")}</p>
+        </div>
+        <div className="space-y-4">
+          <Field label={t("mgmt.lineup.heading")} hint={t("mgmt.lineup.headingHint")}>
+            {(id) => <Input id={id} value={value.heading} maxLength={80} placeholder={t("mgmt.lineup.headingPlaceholder")} onChange={(e) => onChange({ ...value, heading: e.target.value })} />}
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label={t("mgmt.lineup.language")}>
+              {(id) => (
+                <Select id={id} value={value.language} onChange={(e) => onChange({ ...value, language: e.target.value as LineupSettings["language"] })}>
+                  <option value="nl">Nederlands</option>
+                  <option value="en">English</option>
+                </Select>
+              )}
+            </Field>
+            <Field label={t("mgmt.lineup.minutesAhead")}>
+              {(id) => (
+                <Select id={id} value={value.minutesAhead} onChange={(e) => onChange({ ...value, minutesAhead: Number(e.target.value) })}>
+                  {[30, 60, 90, 120, 180].map((m) => (
+                    <option key={m} value={m}>
+                      {t("mgmt.lineup.minutes", { count: m })}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label={t("mgmt.lineup.maxRows")}>{(id) => <Input id={id} type="number" min={2} max={10} value={value.maxRows} onChange={(e) => onChange({ ...value, maxRows: Math.min(10, Math.max(2, Number(e.target.value) || 7)) })} />}</Field>
+          </div>
+          <p className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">{t("mgmt.lineup.howTo")}</p>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -177,6 +227,7 @@ export function GraphicsPage() {
           </CardBody>
         </Card>
       </div>
+      <LineupCard channelId={channel.id} value={g.lineup ?? LINEUP_DEFAULTS} onChange={(lineup) => setG({ ...g, lineup })} />
     </>
   );
 }

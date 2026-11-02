@@ -2,7 +2,8 @@ import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { audioIn, BlockCycleError, compile, expandBlock, type BlockRef, type Loader, type MediaRef, type ScheduleEntry } from "./timeline.js";
+import { lineupSchema } from "./lineuplogic.js";
+import { audioIn, BlockCycleError, compile, DEFAULT_LINEUP_MS, expandBlock, type BlockRef, type Loader, type MediaRef, type ScheduleEntry } from "./timeline.js";
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
 import { webcamRef } from "./webcamdb.js";
@@ -24,6 +25,8 @@ export const graphicsSchema = z.object({
   subtitles: z.object({ enabled: z.boolean().default(true), size: z.enum(["small", "medium", "large"]).default("medium") }).default({ enabled: true, size: "medium" }),
   /** No logo, clock or ticker during commercial breaks. */
   hideInCommercials: z.boolean().default(true),
+  /** "Coming up" slide (block item type lineup): the programmes of the coming hour, see lineuplogic.ts. */
+  lineup: lineupSchema.default(lineupSchema.parse({})),
 });
 export type Graphics = z.infer<typeof graphicsSchema>;
 
@@ -203,7 +206,7 @@ export const scheduleEntries = (db: Db, channelId: number, from: number, to: num
     group: (r.occurrence as string) || null,
   }));
 
-export type ItemType = "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto";
+export type ItemType = "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
 export interface ItemIn {
   type: ItemType;
   mediaId?: number | null;
@@ -331,7 +334,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
 
   // ---- blocks -------------------------------------------------------------------
   const itemIn = z.object({
-    type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto"]),
+    type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup"]),
     /** "Newest clips" rule for type auto. */
     autoRule: autoRuleSchema.nullable().optional(),
     mediaId: z.number().int().nullable().optional(),
@@ -421,6 +424,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       }
       if (i.type === "live") effective = (i.durationMs as number | null) ?? 30 * 60_000;
       if (i.type === "beeldkrant") effective = (i.durationMs as number | null) ?? (i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : null);
+      if (i.type === "lineup") effective = (i.durationMs as number | null) ?? DEFAULT_LINEUP_MS;
       if (i.type === "webcam") effective = (i.durationMs as number | null) ?? (i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null);
       if (i.type === "auto") return { ...i, mediaMissing: false, ...autoItemInfo(db, i.autoRule, Date.now(), { key: `preview:${b.id}`, path: String(i.id), preview: true }, previewPicks) };
       return { ...i, mediaMissing: !!i.mediaMissing, effectiveDurationMs: effective };

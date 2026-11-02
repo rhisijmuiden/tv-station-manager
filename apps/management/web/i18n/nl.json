@@ -183,7 +183,8 @@
         "live": "Live",
         "beeldkrant": "Beeldkrant",
         "webcam": "Webcam",
-        "auto": "Dynamisch uit map"
+        "auto": "Dynamisch uit map",
+        "lineup": "Slide"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duur (u:mm:ss); leeg = volgens de beeldkrant",
@@ -1516,6 +1517,25 @@
         "random_one": "Willekeurig uit {{source}}",
         "random_other": "{{count}} willekeurige clips uit {{source}}"
       }
+    },
+    "lineup": {
+      "item": "Straks-slide",
+      "itemSub": "Programma's van het komende uur, met begintijden",
+      "add": "Straks-slide",
+      "addHint": "Slide over het hele beeld die laat zien hoe laat de programma's van het komende uur beginnen",
+      "duration": "Hoe lang de slide in beeld is (leeg = 0:15)",
+      "settingsTitle": "Straks-slide",
+      "settingsIntro": "Een slide over het hele beeld die je in een uurblok zet. Hij laat zien hoe laat de programma's van het komende uur beginnen, gemaakt uit de planning.",
+      "previewHint": "Voorbeeld met de echte planning van dit kanaal vanaf nu. Sla op om de instellingen op tv te gebruiken.",
+      "heading": "Kop",
+      "headingHint": "Leeg = \"Straks op\" + kanaalnaam (of de Engelse tekst).",
+      "headingPlaceholder": "Straks op IJmond360",
+      "language": "Taal in beeld",
+      "minutesAhead": "Vooruitkijken",
+      "minutes_one": "{{count}} minuut",
+      "minutes_other": "{{count}} minuten",
+      "maxRows": "Max. programma's",
+      "howTo": "Zet hem in een blok of dagindeling met \"Straks-slide\" (blokken: in de lijst Meer). Alleen programmabestanden en live-items komen erop, met de bestandsnaam als titel; reclame, jingles, beeldkrant en webcams worden overgeslagen."
     }
   }
 }

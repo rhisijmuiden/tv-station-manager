@@ -90,7 +90,17 @@ export interface Graphics {
   ticker: { enabled: boolean; text: string };
   subtitles: { enabled: boolean; size: "small" | "medium" | "large" };
   hideInCommercials: boolean;
+  /** "Coming up" slide (block item type lineup). */
+  lineup?: LineupSettings;
 }
+export interface LineupSettings {
+  heading: string;
+  language: "nl" | "en";
+  minutesAhead: number;
+  maxRows: number;
+  colors: { background: string; panel: string; accent: string; text: string };
+}
+export const LINEUP_DEFAULTS: LineupSettings = { heading: "", language: "nl", minutesAhead: 60, maxRows: 7, colors: { background: "#2A1430", panel: "#713C80", accent: "#E92E7F", text: "#FFFFFF" } };
 export interface MediaItem {
   id: number;
   sourceId: number;
@@ -238,3 +248,7 @@ export const parseMinutes = (v: string) => {
 export const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
 /** 0 = Monday … 6 = Sunday for a yyyy-mm-dd date. */
 export const weekdayOfIso = (date: string) => (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+
+/** "Coming up" slide with the programmes of the coming hour (default length as on the server). */
+export const LINEUP_MS = 15_000;
+export const lineupItem = (t: (k: string) => string) => ({ type: "lineup" as const, label: t("mgmt.lineup.item"), sub: t("mgmt.lineup.itemSub"), durationMs: null, effectiveDurationMs: LINEUP_MS });
