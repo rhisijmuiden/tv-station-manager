@@ -26,7 +26,8 @@
       "recordings": "Recordings",
       "switch": "Switch",
       "switchButtons": "Switch buttons",
-      "audio": "Audio"
+      "audio": "Audio",
+      "webcams": "Webcams & streams"
     },
     "categories": {
       "program": "Programme",
@@ -179,10 +180,13 @@
       "inUse": "This block is still scheduled. Delete it and remove it from the schedule?",
       "types": {
         "live": "Live",
-        "beeldkrant": "Beeldkrant"
+        "beeldkrant": "Beeldkrant",
+        "webcam": "Webcam"
       },
       "addBeeldkrant": "+ Beeldkrant",
-      "beeldkrantDuration": "Duration (h:mm:ss); empty = from the beeldkrant"
+      "beeldkrantDuration": "Duration (h:mm:ss); empty = from the beeldkrant",
+      "addWebcam": "+ Webcam",
+      "webcamDuration": "Duration (h:mm:ss); empty = from the webcam"
     },
     "ads": {
       "title": "Ad breaks",
@@ -421,10 +425,13 @@
       "url_required": "Enter the address of the orchestrator.",
       "preview_url": "Use an address that starts with http:// or https://.",
       "repeat_needs_time": "Choose when the repeat should be.",
-      "invalid_url": "That is not a stream address (it must start with http://, https://, rtmp://, rtsp:// or srt://).",
+      "invalid_url": "This is not a valid link.",
       "studio_required": "Choose the studio node that has this input.",
       "invalid_device": "Choose a DeckLink device number.",
-      "invalid_address": "The address contains characters that are not allowed (\")."
+      "invalid_address": "The address contains characters that are not allowed (\").",
+      "webcam_in_use": "This webcam is used in programmes.",
+      "webcam_required": "Choose a webcam.",
+      "inspect_failed": "Could not open this link: {{message}}"
     },
     "remote": {
       "title": "Remote sources",
@@ -873,7 +880,9 @@
       "noRoom": "Only {{d}} left; what does not fit moves to the next window or is left out.",
       "noDates": "No upcoming dates for this slot.",
       "added": "“{{what}}” added to the rundown of {{date}}.",
-      "openRundown": "Open the rundown"
+      "openRundown": "Open the rundown",
+      "tab_webcams": "Webcams",
+      "noWebcams": "No webcams yet. Add them under Editorial → Webcams & streams."
     },
     "bk": {
       "title": "Beeldkrant",
@@ -1371,6 +1380,78 @@
       "bkHintNone": "Add an audio source first (On air → Audio), e.g. the station's radio stream.",
       "underNow": "Audio under it: {{name}}",
       "underError": "Not playing: {{error}}"
+    },
+    "cams": {
+      "title": "Webcams & streams",
+      "intro": "Live pictures from outside: local webcams, IP cameras and streams that you put in a programme like any other item.",
+      "add": "Add webcam or stream",
+      "edit": "Edit webcam",
+      "step1": "Paste a link",
+      "linkPlaceholder": "e.g. www.webcam.nl/… , rtsp://… or https://…/live.m3u8",
+      "linkHint": "A webcam page (like webcam.nl), an IP camera (RTSP), an HLS stream (.m3u8), RTMP, SRT, MJPEG or a camera picture. For a web page we look up the stream behind it.",
+      "lookUp": "Look up",
+      "foundMany": "{{count}} streams found on this page; pick one:",
+      "youtube": "This is a YouTube stream. The studio node cannot play YouTube directly; ask the owner of the webcam for the stream link (RTSP or HLS).",
+      "noStream": "No stream found on this page. The page itself will be shown as it is (adverts or a cookie banner may be visible). A direct stream link works better.",
+      "testing": "Testing…",
+      "works": "Works",
+      "noPicture": "No picture",
+      "testAgain": "Test again",
+      "hasSound": "Sound: {{codec}}",
+      "noSound": "No sound in the stream",
+      "pageHint": "A web page is shown full screen by the studio node; it needs internet access for that.",
+      "step2": "How it goes on air",
+      "name": "Name",
+      "namePlaceholder": "e.g. Pier IJmuiden",
+      "length": "Length in a programme",
+      "lengthHint": "Default; you can change it per programme.",
+      "caption": "Caption",
+      "captionHint": "Name at the bottom of the screen, so viewers know what they are watching.",
+      "captionPlaceholder": "Caption text",
+      "liveBadge": "Show “LIVE”",
+      "position": "Position",
+      "sound": "Sound of the stream",
+      "soundHint": "Off by default: most webcams have no sound or just wind.",
+      "overlay": "Channel logo and clock on top",
+      "overlayHint": "The channel overlay (logo, clock, ticker) stays visible.",
+      "refresh": "New picture every (seconds)",
+      "moreOptions": "More options",
+      "lessOptions": "Fewer options",
+      "kind": "Type",
+      "streamUrl": "Stream address",
+      "credentialsKept": "The stored user name and password are kept.",
+      "via": "Playback",
+      "via_relay": "Through the management node (recommended)",
+      "via_direct": "Studio node opens the stream itself",
+      "viaHint_relay": "The management node fetches the stream and passes it on; the studio node needs no internet.",
+      "viaHint_direct": "Only when the studio node can reach the camera itself.",
+      "fit": "Picture",
+      "fit_cover": "Fill the screen",
+      "fit_contain": "Show the whole picture",
+      "kinds": {
+        "hls": "HLS stream",
+        "rtsp": "IP camera (RTSP)",
+        "rtmp": "RTMP stream",
+        "srt": "SRT stream",
+        "video": "Video stream",
+        "mjpeg": "MJPEG camera",
+        "image": "Camera picture",
+        "page": "Web page"
+      },
+      "status_online": "Online",
+      "status_offline": "Offline",
+      "status_unknown": "Not checked yet",
+      "checkedAt": "Checked {{at}}",
+      "check": "Check now",
+      "usedIn_one": "in {{count}} other block",
+      "usedIn_other": "in {{count}} other blocks",
+      "block": "Open as block",
+      "blockHint": "Every webcam has its own block: drag it from the media library (tab Webcams) into an hour clock, the week board or a rundown.",
+      "howToPlan": "Plan a webcam by dragging it from the media library (tab Webcams) into an hour clock, the week board or a rundown, or add it to a block with “+ Webcam”.",
+      "emptyTitle": "No webcams yet",
+      "emptyText": "Paste the link of a local webcam or stream; we test it and show a preview. Then drag it into your programmes.",
+      "confirmDelete": "Delete webcam “{{name}}”?",
+      "confirmDeleteUsed": "“{{name}}” is used in programmes. Delete it there too?"
     }
   }
 }

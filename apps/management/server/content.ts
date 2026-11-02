@@ -5,6 +5,7 @@ import { z } from "zod";
 import { audioIn, BlockCycleError, compile, expandBlock, type BlockRef, type Loader, type ScheduleEntry } from "./timeline.js";
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
+import { webcamRef } from "./webcamdb.js";
 
 // ---- graphics settings (per channel) ------------------------------------------
 
@@ -67,6 +68,7 @@ export const channelOut = (r: ChannelRow) => ({
 export function dbLoader(db: Db): Loader {
   const blocks = new Map<number, BlockRef | undefined>();
   const bk = new Map<number, ReturnType<NonNullable<Loader["beeldkrant"]>>>();
+  const cams = new Map<number, ReturnType<NonNullable<Loader["webcam"]>>>();
   return {
     block(id) {
       if (!blocks.has(id)) {
@@ -76,7 +78,7 @@ export function dbLoader(db: Db): Loader {
           b && {
             ...b,
             items: db
-              .prepare("SELECT type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, duration_ms AS durationMs, title, audio FROM block_items WHERE block_id = ? ORDER BY position, id")
+              .prepare("SELECT type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, webcam_id AS webcamId, duration_ms AS durationMs, title, audio FROM block_items WHERE block_id = ? ORDER BY position, id")
               .all(id) as unknown as BlockRef["items"],
           },
         );
@@ -93,6 +95,10 @@ export function dbLoader(db: Db): Loader {
     beeldkrant(id) {
       if (!bk.has(id)) bk.set(id, beeldkrantRef(db, id));
       return bk.get(id);
+    },
+    webcam(id) {
+      if (!cams.has(id)) cams.set(id, webcamRef(db, id));
+      return cams.get(id);
     },
   };
 }
@@ -191,11 +197,12 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
 
   // ---- blocks -------------------------------------------------------------------
   const itemIn = z.object({
-    type: z.enum(["media", "block", "live", "beeldkrant"]),
+    type: z.enum(["media", "block", "live", "beeldkrant", "webcam"]),
     mediaId: z.number().int().nullable().optional(),
     childBlockId: z.number().int().nullable().optional(),
     liveSourceId: z.number().int().nullable().optional(),
     beeldkrantId: z.number().int().nullable().optional(),
+    webcamId: z.number().int().nullable().optional(),
     durationMs: z.number().int().min(0).max(24 * 3600_000).nullable().optional(),
     title: z.string().max(200).nullable().optional(),
     /** null = follow the block, "none", or an audio source id. */
@@ -241,14 +248,15 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const items = (
       db
         .prepare(
-          `SELECT i.id, i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.duration_ms AS durationMs, i.title, i.audio,
+          `SELECT i.id, i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.duration_ms AS durationMs, i.title, i.audio,
                   m.name AS mediaName, m.title AS mediaTitle, m.path AS mediaPath, m.duration_ms AS mediaDurationMs, m.category AS mediaCategory, m.missing AS mediaMissing,
-                  cb.name AS childName, cb.kind AS childKind, ls.name AS liveName, ls.kind AS liveKind, bk.name AS beeldkrantName
+                  cb.name AS childName, cb.kind AS childKind, ls.name AS liveName, ls.kind AS liveKind, bk.name AS beeldkrantName, wc.name AS webcamName, wc.kind AS webcamKind
              FROM block_items i
              LEFT JOIN media m ON m.id = i.media_id
              LEFT JOIN blocks cb ON cb.id = i.child_block_id
              LEFT JOIN live_sources ls ON ls.id = i.live_source_id
              LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id
+             LEFT JOIN webcams wc ON wc.id = i.webcam_id
             WHERE i.block_id = ? ORDER BY i.position, i.id`,
         )
         .all(Number(b.id)) as Record<string, unknown>[]
@@ -263,6 +271,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       }
       if (i.type === "live") effective = (i.durationMs as number | null) ?? 30 * 60_000;
       if (i.type === "beeldkrant") effective = (i.durationMs as number | null) ?? (i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : null);
+      if (i.type === "webcam") effective = (i.durationMs as number | null) ?? (i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null);
       return { ...i, mediaMissing: !!i.mediaMissing, effectiveDurationMs: effective };
     });
     return { block: blockSummary(loader, b), items };
@@ -270,13 +279,14 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
 
   const saveItems = (blockId: number, items: z.infer<typeof itemIn>[]) => {
     db.prepare("DELETE FROM block_items WHERE block_id = ?").run(blockId);
-    const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, duration_ms, title, audio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     items.forEach((it, i) => {
       if (it.type === "media" && !it.mediaId) throw new HttpError(400, "media_required");
       if (it.type === "block" && !it.childBlockId) throw new HttpError(400, "block_required");
       if (it.type === "live" && !it.liveSourceId) throw new HttpError(400, "live_source_required");
       if (it.type === "beeldkrant" && !it.beeldkrantId) throw new HttpError(400, "beeldkrant_required");
-      ins.run(blockId, i, it.type, it.type === "media" ? it.mediaId! : null, it.type === "block" ? it.childBlockId! : null, it.type === "live" ? it.liveSourceId! : null, it.type === "beeldkrant" ? it.beeldkrantId! : null, it.durationMs ?? null, it.title || null, audioIn(it.audio));
+      if (it.type === "webcam" && !it.webcamId) throw new HttpError(400, "webcam_required");
+      ins.run(blockId, i, it.type, it.type === "media" ? it.mediaId! : null, it.type === "block" ? it.childBlockId! : null, it.type === "live" ? it.liveSourceId! : null, it.type === "beeldkrant" ? it.beeldkrantId! : null, it.type === "webcam" ? it.webcamId! : null, it.durationMs ?? null, it.title || null, audioIn(it.audio));
     });
     // Reject blocks that contain themselves (directly or through other blocks).
     try {
@@ -370,7 +380,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const id = tx(() => {
       const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio) VALUES (?, ?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null, src.audio ?? null);
       const id = Number(r.lastInsertRowid);
-      db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
+      db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
       return id;
     });
     return { id };

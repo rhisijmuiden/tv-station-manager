@@ -26,7 +26,8 @@
       "recordings": "Opnames",
       "switch": "Schakelen",
       "switchButtons": "Schakelknoppen",
-      "audio": "Geluid"
+      "audio": "Geluid",
+      "webcams": "Webcams & streams"
     },
     "categories": {
       "program": "Programma",
@@ -179,10 +180,13 @@
       "inUse": "Dit blok staat nog in het schema. Verwijderen en uit het schema halen?",
       "types": {
         "live": "Live",
-        "beeldkrant": "Beeldkrant"
+        "beeldkrant": "Beeldkrant",
+        "webcam": "Webcam"
       },
       "addBeeldkrant": "+ Beeldkrant",
-      "beeldkrantDuration": "Duur (u:mm:ss); leeg = volgens de beeldkrant"
+      "beeldkrantDuration": "Duur (u:mm:ss); leeg = volgens de beeldkrant",
+      "addWebcam": "+ Webcam",
+      "webcamDuration": "Duur (u:mm:ss); leeg = van de webcam"
     },
     "ads": {
       "title": "Reclameblokken",
@@ -421,10 +425,13 @@
       "url_required": "Vul het adres van de orchestrator in.",
       "preview_url": "Gebruik een adres dat begint met http:// of https://.",
       "repeat_needs_time": "Kies wanneer de herhaling moet zijn.",
-      "invalid_url": "Dat is geen streamadres (het moet beginnen met http://, https://, rtmp://, rtsp:// of srt://).",
+      "invalid_url": "Dit is geen geldige link.",
       "studio_required": "Kies de studio-node die deze ingang heeft.",
       "invalid_device": "Kies een DeckLink-apparaatnummer.",
-      "invalid_address": "Het adres bevat tekens die niet mogen (\")."
+      "invalid_address": "Het adres bevat tekens die niet mogen (\").",
+      "webcam_in_use": "Deze webcam wordt in programma's gebruikt.",
+      "webcam_required": "Kies een webcam.",
+      "inspect_failed": "Deze link kon niet geopend worden: {{message}}"
     },
     "remote": {
       "title": "Remote bronnen",
@@ -873,7 +880,9 @@
       "noRoom": "Nog maar {{d}} vrij; wat niet past schuift door naar het volgende venster of valt weg.",
       "noDates": "Geen komende datums voor dit slot.",
       "added": "“{{what}}” toegevoegd aan de rundown van {{date}}.",
-      "openRundown": "Rundown openen"
+      "openRundown": "Rundown openen",
+      "tab_webcams": "Webcams",
+      "noWebcams": "Nog geen webcams. Voeg ze toe onder Redactie → Webcams & streams."
     },
     "bk": {
       "title": "Beeldkrant",
@@ -1371,6 +1380,78 @@
       "bkHintNone": "Voeg eerst een geluidsbron toe (Uitzending → Geluid), bijv. de radiostream van de omroep.",
       "underNow": "Geluid eronder: {{name}}",
       "underError": "Speelt niet: {{error}}"
+    },
+    "cams": {
+      "title": "Webcams & streams",
+      "intro": "Live beelden van buiten: webcams uit de omgeving, IP-camera's en streams die je net als elk ander item in een programma zet.",
+      "add": "Webcam of stream toevoegen",
+      "edit": "Webcam bewerken",
+      "step1": "Plak een link",
+      "linkPlaceholder": "bijv. www.webcam.nl/… , rtsp://… of https://…/live.m3u8",
+      "linkHint": "Een webcampagina (zoals webcam.nl), een IP-camera (RTSP), een HLS-stream (.m3u8), RTMP, SRT, MJPEG of een camerafoto. Bij een webpagina zoeken we de stream die erachter zit.",
+      "lookUp": "Opzoeken",
+      "foundMany": "{{count}} streams gevonden op deze pagina; kies er een:",
+      "youtube": "Dit is een YouTube-stream. De studio node kan YouTube niet rechtstreeks afspelen; vraag de eigenaar van de webcam om de streamlink (RTSP of HLS).",
+      "noStream": "Geen stream gevonden op deze pagina. De pagina zelf wordt getoond zoals hij is (reclame of een cookiemelding kan zichtbaar zijn). Een directe streamlink werkt beter.",
+      "testing": "Testen…",
+      "works": "Werkt",
+      "noPicture": "Geen beeld",
+      "testAgain": "Opnieuw testen",
+      "hasSound": "Geluid: {{codec}}",
+      "noSound": "Geen geluid in de stream",
+      "pageHint": "Een webpagina wordt schermvullend door de studio node getoond; die heeft daarvoor internet nodig.",
+      "step2": "Zo gaat hij de uitzending in",
+      "name": "Naam",
+      "namePlaceholder": "bijv. Pier IJmuiden",
+      "length": "Lengte in een programma",
+      "lengthHint": "Standaard; per programma aan te passen.",
+      "caption": "Onderschrift",
+      "captionHint": "Naam onderin beeld, zodat kijkers weten wat ze zien.",
+      "captionPlaceholder": "Tekst onderschrift",
+      "liveBadge": "Toon “LIVE”",
+      "position": "Positie",
+      "sound": "Geluid van de stream",
+      "soundHint": "Standaard uit: de meeste webcams hebben geen geluid of alleen wind.",
+      "overlay": "Zenderlogo en klok erover",
+      "overlayHint": "De zender-overlay (logo, klok, ticker) blijft zichtbaar.",
+      "refresh": "Nieuwe foto elke (seconden)",
+      "moreOptions": "Meer opties",
+      "lessOptions": "Minder opties",
+      "kind": "Soort",
+      "streamUrl": "Streamadres",
+      "credentialsKept": "De opgeslagen gebruikersnaam en wachtwoord blijven bewaard.",
+      "via": "Afspelen",
+      "via_relay": "Via de management node (aangeraden)",
+      "via_direct": "Studio node opent de stream zelf",
+      "viaHint_relay": "De management node haalt de stream op en geeft hem door; de studio node heeft geen internet nodig.",
+      "viaHint_direct": "Alleen als de studio node de camera zelf kan bereiken.",
+      "fit": "Beeld",
+      "fit_cover": "Scherm vullen",
+      "fit_contain": "Hele beeld tonen",
+      "kinds": {
+        "hls": "HLS-stream",
+        "rtsp": "IP-camera (RTSP)",
+        "rtmp": "RTMP-stream",
+        "srt": "SRT-stream",
+        "video": "Videostream",
+        "mjpeg": "MJPEG-camera",
+        "image": "Camerafoto",
+        "page": "Webpagina"
+      },
+      "status_online": "Online",
+      "status_offline": "Offline",
+      "status_unknown": "Nog niet gecontroleerd",
+      "checkedAt": "Gecontroleerd {{at}}",
+      "check": "Nu controleren",
+      "usedIn_one": "in {{count}} ander blok",
+      "usedIn_other": "in {{count}} andere blokken",
+      "block": "Open als blok",
+      "blockHint": "Elke webcam heeft een eigen blok: sleep hem vanuit de mediabak (tab Webcams) in een uurklok, het weekbord of een draaiboek.",
+      "howToPlan": "Plan een webcam door hem vanuit de mediabak (tab Webcams) in een uurklok, het weekbord of een draaiboek te slepen, of voeg hem met “+ Webcam” aan een blok toe.",
+      "emptyTitle": "Nog geen webcams",
+      "emptyText": "Plak de link van een webcam of stream uit de omgeving; we testen hem en laten een voorbeeld zien. Daarna sleep je hem in je programma's.",
+      "confirmDelete": "Webcam “{{name}}” verwijderen?",
+      "confirmDeleteUsed": "“{{name}}” wordt in programma's gebruikt. Daar ook verwijderen?"
     }
   }
 }

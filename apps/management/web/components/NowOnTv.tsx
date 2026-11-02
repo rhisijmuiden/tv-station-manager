@@ -1,5 +1,5 @@
 import { Badge, Button, Card, Input, cx, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { Clapperboard, Film, Megaphone, MonitorPlay, Newspaper, Pause, Radio, Settings2, X } from "lucide-react";
+import { Clapperboard, Film, Megaphone, MonitorPlay, Newspaper, Pause, Radio, Settings2, Webcam, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -7,7 +7,7 @@ import { errorText, fmtDuration, fmtTime } from "../lib";
 
 export interface NowEv {
   key: string;
-  type: "media" | "live" | "beeldkrant" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "filler";
   title: string;
   programTitle: string;
   startAt: string;
@@ -50,7 +50,7 @@ const ms = (iso: string) => Date.parse(iso);
 
 function typeIcon(e: NowEv) {
   if (e.blockKind === "commercial") return Megaphone;
-  return { media: Film, live: Radio, beeldkrant: Newspaper, filler: Pause }[e.type] ?? Clapperboard;
+  return { media: Film, live: Radio, beeldkrant: Newspaper, webcam: Webcam, filler: Pause }[e.type] ?? Clapperboard;
 }
 
 function Bar({ value, className, fill = "bg-brand" }: { value: number; className?: string; fill?: string }) {

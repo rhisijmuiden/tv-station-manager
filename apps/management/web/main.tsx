@@ -1,6 +1,6 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { AudioLines, Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, ToggleRight, Tv, Video, WandSparkles } from "lucide-react";
+import { AudioLines, Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, ToggleRight, Tv, Video, WandSparkles, Webcam } from "lucide-react";
 import { AudioSourcesPage } from "./pages/AudioSources";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
@@ -20,6 +20,7 @@ import { RemoteSourcesPage } from "./pages/RemoteSources";
 import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
 import { SwitchButtonsPage, SwitchPage } from "./pages/Switch";
+import { WebcamsPage } from "./pages/Webcams";
 import { WeekPage } from "./pages/Week";
 import en from "./i18n/en.json";
 import nl from "./i18n/nl.json";
@@ -46,6 +47,7 @@ mountPlatformApp({
         { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
         { to: "/ads", label: "mgmt.nav.ads", icon: Film },
         { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
+        { to: "/webcams", label: "mgmt.nav.webcams", icon: Webcam },
       ],
     },
     {
@@ -94,6 +96,7 @@ mountPlatformApp({
     { path: "/media", element: <MediaPage /> },
     { path: "/beeldkrant", element: <BeeldkrantPage /> },
     { path: "/beeldkrant/:id", element: <BeeldkrantPage /> },
+    { path: "/webcams", element: <WebcamsPage /> },
     { path: "/epg", element: <EpgPage /> },
     { path: "/graphics", element: <GraphicsPage /> },
     { path: "/channels", element: <ChannelsPage /> },
