@@ -58,6 +58,11 @@ test("windows: service state, studio config and update asset", () => {
   assert.equal(cfg.casparService, "tvsm-casparcg");
   assert.equal(cfg.mediaPath, "\\\\unas\\TV");
   assert.equal(cfg.outputs.length, 1);
+  assert.equal(cfg.role, null);
+  writeFileSync(file, JSON.stringify({ role: "live" }));
+  assert.equal(readStudioConfig()!.role, "live");
+  writeFileSync(file, JSON.stringify({ role: "director" }));
+  assert.equal(readStudioConfig()!.role, null);
   process.env.TVSM_STUDIO_CONFIG = join(dir, "missing.json");
   assert.equal(readStudioConfig(), null);
   rmSync(dir, { recursive: true, force: true });
