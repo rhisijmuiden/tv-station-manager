@@ -33,7 +33,7 @@ export const BEELDKRANT_PAGE = `<!doctype html>
   footer .text { opacity: .9; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   footer .num { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--text) 12%, transparent); padding: 6px 18px; border-radius: 999px; }
   #progress { position: absolute; left: 96px; right: 96px; bottom: 124px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 16%, transparent); overflow: hidden; z-index: 5; }
-  #progress i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; }
+  #progress i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left center; will-change: transform; background: var(--accent); border-radius: 3px; }
 
   .page { position: absolute; inset: 0; opacity: 0; transition: opacity var(--fade) ease, transform var(--fade) cubic-bezier(.2,.8,.2,1); }
   .page.on { opacity: 1; }
@@ -172,20 +172,23 @@ export const BEELDKRANT_PAGE = `<!doctype html>
     $("progress").style.display = s.show.progress ? "" : "none";
   }
 
+  // Only write to the DOM when a value changes: every write makes CasparCG's browser paint and copy a full frame.
+  function setText(id, v) { var e = $(id); if (e.textContent !== v) e.textContent = v; }
+  function setProgress(f) { var e = $("bar-progress"), v = "scaleX(" + f.toFixed(3) + ")"; if (e.style.transform !== v) e.style.transform = v; }
   function tick() {
     var t = new Date(now());
-    $("clock").textContent = pad(t.getHours()) + ":" + pad(t.getMinutes());
+    setText("clock", pad(t.getHours()) + ":" + pad(t.getMinutes()));
     var ds = t.toLocaleDateString(lang(), { weekday: "long", day: "numeric", month: "long" });
-    $("date").textContent = ds.charAt(0).toUpperCase() + ds.slice(1);
+    setText("date", ds.charAt(0).toUpperCase() + ds.slice(1));
     if (!data) return;
     var s = data.settings, pages = data.pages || [], n = pages.length, per = s.secondsPerPage * 1000;
-    if (!n) { $("num").textContent = ""; $("bar-progress").style.width = "0"; show("empty:" + s.emptyText, function () { var e = el("div", "page"); e.appendChild(el("div", "empty", s.emptyText)); return e; }); return; }
+    if (!n) { setText("num", ""); setProgress(0); show("empty:" + s.emptyText, function () { var e = el("div", "page"); e.appendChild(el("div", "empty", s.emptyText)); return e; }); return; }
     var elapsed = Math.max(0, now() - start), idx = pin != null ? Math.min(pin, n - 1) : Math.floor(elapsed / per) % n;
     var p = pages[idx];
     show(JSON.stringify([p, s]), function () { return render(p, s); });
     preload(pages[(idx + 1) % n]);
-    $("num").textContent = (idx + 1) + " / " + n;
-    $("bar-progress").style.width = (pin != null ? 100 : ((elapsed % per) / per) * 100) + "%";
+    setText("num", (idx + 1) + " / " + n);
+    setProgress(pin != null ? 1 : (elapsed % per) / per);
   }
 
   function load() {

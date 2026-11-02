@@ -72,6 +72,8 @@
     if (t.text !== tickerText) { tickerText = t.text; $("ticker-run").textContent = t.text || ""; tickerX = 1920; }
     var tickerOn = !hidden && t.enabled && !!t.text;
     show($("ticker"), tickerOn);
+    tickerRunning = tickerOn;
+    if (tickerOn) tickerW = $("ticker-run").offsetWidth;
     document.body.classList.toggle("ticker-on", tickerOn);
     var sub = d.subtitles || {};
     $("subs").className = sub.size || "medium";
@@ -104,13 +106,19 @@
     el.textContent = text;
     el.style.display = text ? "inline-block" : "none";
   }
+  // Runs every frame, so it only touches the DOM when something changes: every DOM write makes CEF paint and
+  // CasparCG copy a new 1920x1080 frame, which costs CPU even with nothing visible moving.
+  var shownClock = null, tickerW = 0, tickerRunning = false;
   function frame() {
-    $("clock").textContent = hhmm(new Date());
+    var c = hhmm(new Date());
+    if (c !== shownClock) { shownClock = c; $("clock").textContent = c; }
     renderSubs();
-    var run = $("ticker-run");
-    tickerX -= 3;
-    if (tickerX < -run.offsetWidth) tickerX = 1920;
-    run.style.transform = "translateX(" + tickerX + "px)";
+    if (tickerRunning) {
+      var run = $("ticker-run");
+      tickerX -= 3;
+      if (tickerX < -tickerW) tickerX = 1920;
+      run.style.transform = "translateX(" + tickerX + "px)";
+    }
     requestAnimationFrame(frame);
   }
   function parse(s) { try { return typeof s === "string" ? JSON.parse(s) : (s || {}); } catch (e) { return {}; } }
