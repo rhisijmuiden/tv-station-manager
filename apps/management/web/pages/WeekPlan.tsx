@@ -177,6 +177,40 @@ export function WeekPlanPage() {
   const label = (s: Slot) => s.title || (s.blockId ? blockById.get(s.blockId)?.name : null) || (s.categoryId ? categories?.find((c) => c.id === s.categoryId)?.name : null) || t("mgmt.plan.week.unnamed");
   const color = (s: Slot) => (s.blockId ? blockById.get(s.blockId)?.color : null) || (s.categoryId ? categories?.find((c) => c.id === s.categoryId)?.color : null) || "var(--tvsm-primary)";
   const simple = (s: Slot) => s.blockId != null && s.clockMode === "none";
+  /** The longest a slot can get: until the next slot on the same day, or midnight. */
+  const maxLength = (s: Slot) => Math.min(1440, ...slots.filter((o) => o.weekday === s.weekday && o.startMin > s.startMin).map((o) => o.startMin)) - s.startMin;
+
+  // Pulling the bottom edge of a block makes it longer or shorter, in whole hours; the whole series follows.
+  const [resize, setResize] = useState<{ slot: Slot; y: number; dur: number } | null>(null);
+  const resizeRef = useRef(resize);
+  resizeRef.current = resize;
+  useEffect(() => {
+    if (!resize) return;
+    const move = (e: PointerEvent) => {
+      const r = resizeRef.current;
+      if (!r) return;
+      const raw = r.slot.durationMin + ((e.clientY - r.y) / ROW) * 60;
+      const dur = Math.max(60, Math.min(maxLength(r.slot), Math.round(raw / 60) * 60));
+      if (dur !== r.dur) setResize({ ...r, dur });
+    };
+    const up = () => {
+      const r = resizeRef.current;
+      setResize(null);
+      if (!r || r.dur === r.slot.durationMin) return;
+      void run(async () => {
+        const ser = await get<{ slots: { weekday: number }[] }>(`/api/week/slots/${r.slot.id}/series`);
+        await put(`/api/week/slots/${r.slot.id}/series`, { ...slotBody(r.slot), durationMin: r.dur, weekdays: ser.slots.map((x) => x.weekday) });
+      }, t("mgmt.plan.week.resized", { time: `${hh(r.slot.startMin)}–${hh((r.slot.startMin + r.dur) % 1440)}` }));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    // Only (re)attach when a resize starts or ends.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!resize]);
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
     setMsg(null);
@@ -287,6 +321,7 @@ export function WeekPlanPage() {
                     .filter((s) => s.weekday === d)
                     .map((s) => {
                       const b = s.blockId ? blockById.get(s.blockId) : undefined;
+                      const dur = resize?.slot.id === s.id ? resize.dur : s.durationMin;
                       return (
                         <button
                           key={s.id}
@@ -298,15 +333,35 @@ export function WeekPlanPage() {
                           }}
                           onDragEnd={() => ((dragging = null), setOver(null))}
                           onClick={() => setSel(s.id === sel ? null : s.id)}
-                          className={cx("absolute inset-x-1 z-10 overflow-hidden rounded-md px-1.5 py-1 text-left text-[12px] leading-tight font-semibold text-white shadow-sm transition", canEdit && "cursor-grab active:cursor-grabbing", s.id === sel && "ring-2 ring-onair ring-offset-2 ring-offset-surface")}
-                          style={{ top: (s.startMin / 60) * ROW + 2, height: Math.max(18, (s.durationMin / 60) * ROW - 4), background: color(s) }}
-                          title={`${label(s)} · ${hh(s.startMin)}–${hh((s.startMin + s.durationMin) % 1440)}`}
+                          className={cx("group absolute inset-x-1 z-10 overflow-hidden rounded-md px-1.5 py-1 text-left text-[12px] leading-tight font-semibold text-white shadow-sm transition", canEdit && "cursor-grab active:cursor-grabbing", s.id === sel && "ring-2 ring-onair ring-offset-2 ring-offset-surface")}
+                          style={{ top: (s.startMin / 60) * ROW + 2, height: Math.max(18, (dur / 60) * ROW - 4), background: color(s) }}
+                          title={`${label(s)} · ${hh(s.startMin)}–${hh((s.startMin + dur) % 1440)}`}
                         >
                           <span className="block truncate">{label(s)}</span>
                           <span className="block truncate text-[11px] font-medium opacity-85">
-                            {hh(s.startMin)}
-                            {b ? ` · ${fmtDuration(b.durationMs)}` : !simple(s) ? ` · ${t("mgmt.plan.week.advancedSlot")}` : ""}
+                            {resize?.slot.id === s.id ? `${hh(s.startMin)}–${hh((s.startMin + dur) % 1440)}` : hh(s.startMin)}
+                            {resize?.slot.id === s.id ? "" : b ? ` · ${fmtDuration(b.durationMs)}` : !simple(s) ? ` · ${t("mgmt.plan.week.advancedSlot")}` : ""}
                           </span>
+                          {canEdit && simple(s) && (
+                            <span
+                              role="separator"
+                              aria-orientation="horizontal"
+                              aria-label={t("mgmt.plan.week.resizeHint")}
+                              title={t("mgmt.plan.week.resizeHint")}
+                              draggable={false}
+                              onDragStart={(e) => (e.preventDefault(), e.stopPropagation())}
+                              onClick={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSel(s.id);
+                                setResize({ slot: s, y: e.clientY, dur: s.durationMin });
+                              }}
+                              className="absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize items-center justify-center hover:bg-black/15"
+                            >
+                              <span className={cx("h-0.5 w-6 rounded-full bg-white/80 transition-opacity", s.id === sel || resize?.slot.id === s.id ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -389,7 +444,7 @@ export function WeekPlanPage() {
                   <label className="block text-xs text-muted">
                     {t("mgmt.plan.week.length")}
                     <Select className="mt-1" value={selected.durationMin} disabled={!canEdit} onChange={(e) => setLength(Number(e.target.value))}>
-                      {[60, 120, 180].map((m) => (
+                      {Array.from({ length: Math.max(1, Math.floor(maxLength(selected) / 60)) }, (_, i) => (i + 1) * 60).concat(selected.durationMin % 60 ? [selected.durationMin] : []).map((m) => (
                         <option key={m} value={m}>
                           {t("mgmt.plan.week.hours", { count: m / 60 })}
                         </option>

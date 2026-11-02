@@ -1635,7 +1635,7 @@
       },
       "week": {
         "title": "Week planning",
-        "intro": "Drag a block from the list onto a day and hour. Click a block to choose the days it comes back. Drag it to move it.",
+        "intro": "Drag a block from the list onto a day and hour. Click a block to choose the days it comes back. Drag it to move it, pull its bottom edge to change how long it plays.",
         "advanced": "Advanced board",
         "active": "The week planning runs the channel",
         "activeOn": "What you plan here goes on air by itself (the next 14 days).",
@@ -1665,7 +1665,9 @@
         "dragHint": "Drag onto the week",
         "readOnly": "Editors can change the planning.",
         "noBlocks": "No blocks yet. Make one first.",
-        "withStart": "with fixed start"
+        "withStart": "with fixed start",
+        "resized": "Now {{time}}, on every day of this series.",
+        "resizeHint": "Drag the bottom edge to make it longer or shorter"
       },
       "live": {
         "button": "Plan live",

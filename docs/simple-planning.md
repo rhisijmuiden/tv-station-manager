@@ -30,7 +30,8 @@ The hour bar above the list shows all three. Items that hide the logo on air are
 ## Week planning
 
 - Drag a block from the list on the right onto a day and hour: a week slot (`clock_mode = 'none'`, 60 minutes) on that
-  weekday. Drag a block in the grid to move it.
+  weekday. Drag a block in the grid to move it; pull its bottom edge to make it longer or shorter (whole hours, up to the
+  next block or midnight; every day of the series follows).
 - Click a block: the day buttons switch the series on and off (same time, same block; `/api/week/slots/:id/series`),
   the length can be 1, 2 or 3 hours, *Only <date>* opens the rundown of that one date.
 - Slots made with a clock or category on the advanced board show here too, and are edited there.
