@@ -12,6 +12,7 @@ import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
+import { Webcams, registerWebcams } from "./webcams.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
 export interface ManagementHandles {
@@ -21,6 +22,7 @@ export interface ManagementHandles {
   outputs: StreamOutputs;
   planner: WeekPlanner;
   rss: RssFeeds;
+  webcams: Webcams;
   recorder: Recorder;
   orchestrator: OrchestratorLink;
 }
@@ -51,6 +53,7 @@ export function managementOptions(
       const recorder = new Recorder(platform, remote, () => changed());
       const outputs = new StreamOutputs(platform, hub, remote);
       const rss = new RssFeeds(platform, changed);
+      const webcams = new Webcams(platform, changed);
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
@@ -59,6 +62,7 @@ export function managementOptions(
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
+      registerWebcams(server, platform, webcams, changed);
       registerRecordings(server, platform, recorder);
       registerOrchestratorLink(server, orchestrator);
 
@@ -84,6 +88,7 @@ export function managementOptions(
         remote.start();
         planner.start();
         rss.start();
+        webcams.start();
         recorder.start();
         orchestrator.start();
       }
@@ -92,12 +97,13 @@ export function managementOptions(
         recorder.stop();
         orchestrator.stop();
         rss.stop();
+        webcams.stop();
         director.stop();
         remote.stop();
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, rss, recorder, orchestrator });
+      opts.onReady?.({ hub, director, remote, planner, outputs, rss, webcams, recorder, orchestrator });
     },
   };
 }

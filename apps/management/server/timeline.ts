@@ -20,11 +20,12 @@ export interface LiveRef {
   kind: "atem" | "rtmp";
 }
 export interface BlockItemRow {
-  type: "media" | "block" | "live" | "beeldkrant";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
   beeldkrantId?: number | null;
+  webcamId?: number | null;
   durationMs: number | null;
   title: string | null;
 }
@@ -40,6 +41,14 @@ export interface Loader {
   live(id: number): LiveRef | undefined;
   /** Full-screen RSS news pages; `durationMs` is the default length (one pass of the pages, or a fixed time). */
   beeldkrant?(id: number): BeeldkrantRef | undefined;
+  /** Webcams and external streams; `durationMs` is the default length set on the webcam. */
+  webcam?(id: number): WebcamRef | undefined;
+}
+export interface WebcamRef {
+  id: number;
+  name: string;
+  durationMs: number;
+  showOverlay: boolean;
 }
 export interface BeeldkrantRef {
   id: number;
@@ -49,13 +58,14 @@ export interface BeeldkrantRef {
 }
 
 export interface Leaf {
-  type: "media" | "live" | "beeldkrant";
+  type: "media" | "live" | "beeldkrant" | "webcam";
   durationMs: number;
   title: string;
   mediaId?: number;
   liveSourceId?: number;
   beeldkrantId?: number;
-  /** Beeldkrant: the channel overlay (logo, clock, ticker) stays on top. */
+  webcamId?: number;
+  /** Beeldkrant / webcam: the channel overlay (logo, clock, ticker) stays on top. */
   showOverlay?: boolean;
   /** Path relative to the media source root, e.g. "Programmas/Journaal.mp4". */
   path?: string;
@@ -110,6 +120,10 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
       const b = loader.beeldkrant?.(it.beeldkrantId);
       if (!b) continue;
       out.push({ type: "beeldkrant", durationMs: it.durationMs ?? b.durationMs, title: it.title || b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: block.kind, blockName: block.name });
+    } else if (it.type === "webcam" && it.webcamId != null) {
+      const w = loader.webcam?.(it.webcamId);
+      if (!w) continue;
+      out.push({ type: "webcam", durationMs: it.durationMs ?? w.durationMs, title: it.title || w.name, webcamId: w.id, showOverlay: w.showOverlay, blockKind: block.kind, blockName: block.name });
     }
   }
   return out;
@@ -145,7 +159,7 @@ export interface TimelineEvent {
   scheduleId: number | null;
   start: number;
   end: number;
-  type: "media" | "live" | "beeldkrant" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "filler";
   title: string;
   programTitle: string;
   /** Offset into the item when the event starts (only non-zero when the window cuts it). */

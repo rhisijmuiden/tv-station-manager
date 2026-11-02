@@ -7,6 +7,8 @@ import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics }
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
 import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
+import { webcamOf } from "./webcamdb.js";
+import { playPlan } from "./webcamlogic.js";
 
 /**
  * The director ("regisseur"). For every channel with automation on it follows the compiled schedule:
@@ -22,6 +24,8 @@ import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
  */
 
 export const PLAYOUT_LAYER = 10;
+/** Caption of a webcam ("LIVE · Strand Wijk aan Zee"), just above the playout layer and below the channel overlay. */
+export const CAPTION_LAYER = 11;
 const PRELOAD_MS = 3000;
 const RETRY_MS = 5000;
 const WINDOW_BACK = 6 * 3600_000;
@@ -53,6 +57,8 @@ interface ChannelState {
   liveGfx: (Output & { session: number | undefined; json: string }) | null;
   lastError: string | null;
   lastAlertAt: number;
+  /** A webcam caption is on CAPTION_LAYER of the playout channel. */
+  captionOn: boolean;
 }
 
 export class Director {
@@ -86,7 +92,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0 };
+      s = { events: [], compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, captionOn: false };
       this.states.set(id, s);
     }
     return s;
@@ -244,6 +250,7 @@ export class Director {
     s.executedAt = now;
     const elapsed = now - ev.start + ev.offsetMs;
     try {
+      if (s.captionOn && ev.type !== "webcam") await this.clearCaption(ch, s);
       if (ev.type === "media" && ev.leaf?.path) {
         const p = this.playout(ch);
         if (!p) throw new Error("no studio node configured for this channel");
@@ -263,6 +270,8 @@ export class Director {
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "webcam" && ev.leaf?.webcamId) {
+        await this.playWebcam(ch, s, ev.leaf.webcamId);
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
         const live = this.live(ev.leaf.liveSourceId);
         if (!live) throw new Error("live source was removed");
@@ -298,6 +307,44 @@ export class Director {
     }
   }
 
+  /**
+   * Webcam / external stream on the playout layer, the playout node on air. Video streams play with the FFmpeg
+   * producer (by default relayed by the management node), pictures and web pages with the HTML producer; the caption
+   * goes on the layer above. When the stream does not come in, an "picture not available" card is shown and the
+   * director tries again (RETRY_MS) until it does.
+   */
+  private async playWebcam(ch: ChannelRow, s: ChannelState, webcamId: number) {
+    const p = this.playout(ch);
+    if (!p) throw new Error("no studio node configured for this channel");
+    const cam = webcamOf(this.platform.ctx.db, webcamId);
+    if (!cam) throw new Error("webcam was removed");
+    const base = publicUrl(this.platform);
+    const plan = playPlan(cam, base);
+    this.remote.forget(ch.studio_id, ch.caspar_channel);
+    s.standby = null;
+    await this.stopRtmp(s);
+    await this.switchTo(ch, ch.playout_input);
+    try {
+      if (plan.mode === "video") await p.play(ch.caspar_channel, PLAYOUT_LAYER, plan.url);
+      else await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, plan.url);
+    } catch (e) {
+      await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, `${base}/webcam/page.html?id=${cam.id}&offline=1`).catch(() => undefined);
+      if (s.captionOn) await this.clearCaption(ch, s);
+      throw new Error(`webcam ${cam.name}: ${(e as Error).message}`);
+    }
+    if (plan.captionUrl) {
+      await p.playHtml(ch.caspar_channel, CAPTION_LAYER, plan.captionUrl).catch(() => undefined);
+      s.captionOn = true;
+    } else if (s.captionOn) await this.clearCaption(ch, s);
+  }
+
+  private async clearCaption(ch: ChannelRow, s: ChannelState) {
+    s.captionOn = false;
+    await this.playout(ch)
+      ?.clear(ch.caspar_channel, CAPTION_LAYER)
+      .catch(() => undefined);
+  }
+
   private fail(ch: ChannelRow, s: ChannelState, message: string, ev?: TimelineEvent) {
     const first = s.lastError !== message;
     s.lastError = message;
@@ -322,7 +369,7 @@ export class Director {
     const g = channelOut(ch).graphics as Graphics;
     const inAd = current?.leaf?.blockKind === "commercial" || current?.leaf?.category === "commercial";
     // A beeldkrant has its own header and clock; the overlay only stays when the beeldkrant asks for it.
-    const onBeeldkrant = current?.type === "beeldkrant" && !current.leaf?.showOverlay;
+    const onBeeldkrant = (current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay;
     const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
     const nextProgram = upcoming.find((e) => e.scheduleId != null && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
