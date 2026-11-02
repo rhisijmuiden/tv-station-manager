@@ -1,3 +1,4 @@
+import { baseLayer } from "./layers.js";
 import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
@@ -461,10 +462,11 @@ export class Director {
 
   graphicsData(ch: ChannelRow, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {
     const g = channelOut(ch).graphics as Graphics;
-    const inAd = current?.leaf?.blockKind === "commercial" || current?.leaf?.category === "commercial";
-    // A beeldkrant has its own header and clock; the overlay only stays when the beeldkrant asks for it.
-    const onBeeldkrant = ((current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay) || current?.type === "lineup";
-    const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
+    // The base layer (logo, clock, ticker) follows the channel's rule for this kind of content: a beeldkrant has its own
+    // logo and clock, a commercial goes without (unless "hide in commercials" was switched off before the rules existed).
+    const base = baseLayer(g.layers, current);
+    const rule = base.kind === "commercial" && !g.hideInCommercials ? g.layers.media : base;
+    const hidden = !g.enabled || (!rule.logo && !rule.clock && !rule.ticker);
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
     const nextProgram = upcoming.find((e) => e.scheduleId != null && !e.fill && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
     const untilNext = nextProgram ? nextProgram.start - now : Infinity;
@@ -472,9 +474,9 @@ export class Director {
     return {
       channel: ch.name,
       hidden,
-      logo: { ...g.logo, url: g.logo.file ? `${publicUrl(this.platform)}/graphics/${ch.id}/logo?v=${encodeURIComponent(g.logo.file)}` : null },
-      clock: g.clock,
-      ticker: g.ticker,
+      logo: { ...g.logo, enabled: g.logo.enabled && rule.logo, url: g.logo.file ? `${publicUrl(this.platform)}/graphics/${ch.id}/logo?v=${encodeURIComponent(g.logo.file)}` : null },
+      clock: { ...g.clock, enabled: g.clock.enabled && rule.clock },
+      ticker: { ...g.ticker, enabled: g.ticker.enabled && rule.ticker },
       now: { title: current?.programTitle || current?.title || "" },
       upNext: { visible: upNextVisible, title: nextProgram?.programTitle ?? "", startAt: nextProgram ? new Date(nextProgram.start).toISOString() : null },
       subtitles: this.subtitlesFor(g, current),

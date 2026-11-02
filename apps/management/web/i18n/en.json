@@ -62,12 +62,12 @@
       "noDevices": "No devices yet.",
       "editorialTitle": "Editorial in three steps",
       "editorialIntro": "From clips to a full week of television.",
-      "ed1": "Make an hour programme",
-      "ed1Hint": "How the hour is built: name it and drag the clips in",
-      "ed2": "Plan it on the week board",
-      "ed2Hint": "Click a block and choose its days",
-      "ed3": "Check the day planning",
-      "ed3Hint": "See per date what plays and what is missing"
+      "ed1": "Get your material ready",
+      "ed1Hint": "Videos, beeldkranten, webcams and live streams in the library",
+      "ed2": "Make an hour block",
+      "ed2Hint": "Fixed start, your items, and the rest of the hour fills itself",
+      "ed3": "Drag it into the week",
+      "ed3Hint": "Click a block to choose its days"
     },
     "control": {
       "title": "Control room",
@@ -1558,6 +1558,138 @@
       "noBeeldkrant": "No beeldkrant yet? Make one under Media sources → Beeldkrant.",
       "fills": "{{d}} is still free; {{name}} fills it until the next hour.",
       "badgeAny": "Filled {{d}}"
+    },
+    "plan": {
+      "nav": {
+        "now": "Now on TV",
+        "week": "Week planning",
+        "blocks": "Blocks",
+        "library": "Library",
+        "channel": "Channel & layers",
+        "sources": "Sources",
+        "advanced": "Advanced planning"
+      },
+      "tabHour": "Hour blocks",
+      "tabAds": "Ad breaks",
+      "blocksTitle": "Blocks",
+      "blocksIntro": "A block is one hour of television: the fixed start of every hour, then your items, and the rest of the hour fills by itself. Drag a block into the week planning.",
+      "channelTitle": "Channel & layers",
+      "channelIntro": "A channel is a stack of layers: your content at the bottom, the base layer with logo, clock and ticker on top. Set it once here; editors never have to think about it.",
+      "kinds": {
+        "media": "Video",
+        "beeldkrant": "Beeldkrant",
+        "webcam": "Webcam",
+        "live": "Live stream",
+        "lineup": "Coming up slide",
+        "commercial": "Commercials",
+        "filler": "Filler"
+      },
+      "layers": {
+        "title": "What stays on screen, per kind of content",
+        "intro": "Green is visible. A beeldkrant has its own logo and sound, so the logo, clock and ticker step aside by themselves.",
+        "layer": "Layer {{n}}",
+        "subtitles": "Subtitles (when a .srt is next to the clip)",
+        "base": "Base layer",
+        "content": "Content",
+        "hidden": "hidden",
+        "logo": "Logo",
+        "clock": "Clock",
+        "ticker": "Ticker",
+        "kind": "Kind",
+        "tableHint": "These rules apply on air straight away after saving. A beeldkrant or webcam set to \"show the channel overlay\" keeps everything.",
+        "note": {
+          "beeldkrant": "During a beeldkrant the logo goes away: the beeldkrant shows its own logo and plays its own audio line (e.g. the radio stream).",
+          "other": "Pick a kind above to see which parts of the base layer stay on top of it."
+        }
+      },
+      "hourStart": {
+        "title": "Every hour begins with",
+        "intro": "For example the coming-up slide and the station tune. Set it once: it goes in front of every hour block by itself.",
+        "enabled": "Start every hour block with this",
+        "enabledHint": "Blocks can switch it off one by one.",
+        "block": "Fixed start",
+        "pick": "Choose a block…",
+        "edit": "Edit the fixed start",
+        "make": "Make a fixed start (coming-up slide)",
+        "defaultName": "Start of the hour",
+        "empty": "This block is still empty.",
+        "total": "before the items of every hour block"
+      },
+      "block": {
+        "isOpener": "This block is the fixed start of every hour. Change it here; every hour block starts with it.",
+        "startWith": "Begins with the fixed start of the hour",
+        "startWithHint": "Shown locked at the top of the list.",
+        "startWithOff": "No fixed start is set for this channel yet.",
+        "startWithLink": "Channel & layers",
+        "locked": "Fixed start of every hour",
+        "lockedHint": "Change this under Channel & layers",
+        "logoOff": "logo off",
+        "fillLabel": "Done with the items? Fill the rest of the hour with",
+        "fillHint": "At :00 the next block starts, again with the fixed start.",
+        "more": "More settings"
+      },
+      "bar": {
+        "fill": "{{name}} (fills the hour)",
+        "empty": "{{time}} empty (channel filler)",
+        "over": "{{time}} too long: the next hour cuts it off."
+      },
+      "week": {
+        "title": "Week planning",
+        "intro": "Drag a block from the list onto a day and hour. Click a block to choose the days it comes back. Drag it to move it.",
+        "advanced": "Advanced board",
+        "active": "The week planning runs the channel",
+        "activeOn": "What you plan here goes on air by itself (the next 14 days).",
+        "activeOff": "Switched off: nothing from this planning goes on air yet.",
+        "openerOn": "Every hour begins with the fixed start",
+        "openerOff": "Set the fixed start of every hour",
+        "unnamed": "Untitled",
+        "placed": "{{name}} is on {{day}} {{time}}, every week.",
+        "moved": "Moved to {{day}} {{time}}.",
+        "everyWeek": "every week",
+        "days": "On these days, same time:",
+        "preset": {
+          "weekdays": "Mon–Fri",
+          "weekend": "Weekend",
+          "all": "Every day"
+        },
+        "length": "Length",
+        "hours_one": "{{count}} hour",
+        "hours_other": "{{count}} hours",
+        "advancedHint": "This slot uses an hour clock or a category; change it on the advanced board.",
+        "advancedSlot": "advanced",
+        "openBlock": "Open block",
+        "onlyDate": "Only {{date}}",
+        "removeDay": "Remove this day",
+        "blocks": "Blocks",
+        "newBlock": "New",
+        "dragHint": "Drag onto the week",
+        "readOnly": "Editors can change the planning.",
+        "noBlocks": "No blocks yet. Make one first.",
+        "withStart": "with fixed start"
+      },
+      "live": {
+        "button": "Plan live",
+        "title": "Plan a live event",
+        "intro": "A live event with a day, start and end time goes over the week planning. After the end time the planning carries on by itself.",
+        "source": "Live source",
+        "name": "Name",
+        "date": "Day",
+        "from": "Start",
+        "to": "End",
+        "length": "Length {{time}}",
+        "save": "Plan live",
+        "done": "{{name}} is planned live on {{date}} from {{from}} to {{to}}.",
+        "noSources": "There is no live source yet. Add one under Library → Live.",
+        "over": "Live: goes over the week planning"
+      },
+      "library": {
+        "title": "Library",
+        "media": "Videos",
+        "recordings": "Recordings",
+        "beeldkrant": "Beeldkranten",
+        "webcams": "Webcams",
+        "live": "Live"
+      }
     }
   }
 }

@@ -446,7 +446,8 @@ export class WeekPlanner {
   cleanup() {
     const before = addDaysIso(new Date().toISOString().slice(0, 10), -60);
     this.db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id IN (SELECT block_id FROM week_fills WHERE date < ?)").run(before);
-    this.db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id NOT IN (SELECT block_id FROM week_fills) AND updated_at < ?").run(`${before}T00:00:00.000Z`);
+    // A hidden block that is still planned (e.g. a live event far ahead) stays.
+    this.db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id NOT IN (SELECT block_id FROM week_fills) AND id NOT IN (SELECT block_id FROM schedule WHERE start_at >= ?) AND updated_at < ?").run(new Date().toISOString(), `${before}T00:00:00.000Z`);
   }
 }
 

@@ -3,7 +3,8 @@ import { CalendarClock, ImageUp, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChannelTabs } from "../components/ChannelPicker";
-import { errorText, fmtTime, LINEUP_DEFAULTS, useChannelSelection, useChannels, type Graphics, type LineupSettings, type Position } from "../lib";
+import { HourStartCard, LayersCard } from "../components/ChannelLayers";
+import { errorText, fmtTime, layersOf, LINEUP_DEFAULTS, useChannelSelection, useChannels, type Graphics, type LineupSettings, type Position } from "../lib";
 
 const POSITIONS: Position[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const corner = (p: Position) => ({ "top-left": "top-[5%] left-[5%]", "top-right": "top-[5%] right-[5%]", "bottom-left": "bottom-[5%] left-[5%]", "bottom-right": "bottom-[5%] right-[5%]" })[p];
@@ -111,7 +112,7 @@ export function GraphicsPage() {
   if (!channel || !g)
     return (
       <>
-        <PageHeader title={t("mgmt.graphics.title")} description={t("mgmt.graphics.intro")} />
+        <PageHeader title={t("mgmt.plan.channelTitle")} description={t("mgmt.plan.channelIntro")} />
         {channels && !channels.length && <Alert tone="warn">{t("mgmt.control.noChannelsIntro")}</Alert>}
       </>
     );
@@ -151,8 +152,8 @@ export function GraphicsPage() {
   return (
     <>
       <PageHeader
-        title={t("mgmt.graphics.title")}
-        description={t("mgmt.graphics.intro")}
+        title={t("mgmt.plan.channelTitle")}
+        description={t("mgmt.plan.channelIntro")}
         actions={
           <Button icon={<Save className="size-4" />} onClick={() => void save()}>
             {t("common.save")}
@@ -174,7 +175,6 @@ export function GraphicsPage() {
           <CardHeader title={channel.name} />
           <CardBody className="space-y-5">
             <Switch checked={g.enabled} onChange={(v) => setG({ ...g, enabled: v })} label={t("mgmt.graphics.enabled")} description={t("mgmt.graphics.enabledHint")} />
-            <Switch checked={g.hideInCommercials} onChange={(v) => setG({ ...g, hideInCommercials: v })} label={t("mgmt.graphics.hideInAds")} />
             <div className="space-y-3 border-t border-line pt-4">
               <div className="flex items-center justify-between gap-3">
                 <Switch checked={g.logo.enabled} onChange={(v) => setG({ ...g, logo: { ...g.logo, enabled: v } })} label={t("mgmt.graphics.logo")} />
@@ -227,6 +227,8 @@ export function GraphicsPage() {
           </CardBody>
         </Card>
       </div>
+      <HourStartCard value={g.hourStart ?? { enabled: false, blockId: null }} onChange={(hourStart) => setG({ ...g, hourStart })} />
+      <LayersCard g={g} layers={layersOf(g)} onChange={(layers) => setG({ ...g, layers, hideInCommercials: true })} />
       <LineupCard channelId={channel.id} value={g.lineup ?? LINEUP_DEFAULTS} onChange={(lineup) => setG({ ...g, lineup })} />
     </>
   );

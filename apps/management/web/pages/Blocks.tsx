@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Clapperboard, Copy, Film, GripVertical, Newspaper, Pencil, Plus, Radio, Save, Sparkles, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Clapperboard, Copy, Film, GripVertical, Lock, Newspaper, Pencil, Plus, Radio, Save, Sparkles, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -9,7 +9,9 @@ import { AudioSelect, useAudioSources } from "../components/AudioSelect";
 import { FillSelect, useFillChoices } from "../components/FillSelect";
 import { MediaPicker } from "../components/MediaPicker";
 import { AutoClipsDialog, autoLabel, useAutoPreviews, type AutoInfo, type AutoRule } from "../components/AutoClips";
-import { categoryTone, errorText, fmtDuration, LINEUP_MS, lineupItem, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
+import { categoryTone, errorText, fmtDuration, itemLayerKind, layersOf, LINEUP_MS, lineupItem, parseDuration, useCategories, useChannels, useChannelSelection, useGet, type BlockSummary, type LiveSource } from "../lib";
+import { useHourStartItems } from "../components/ChannelLayers";
+import { HourBar, type HourBarPart } from "../components/HourBar";
 
 interface Item {
   type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
@@ -34,7 +36,7 @@ interface Item {
   warning?: string | null;
 }
 interface Detail {
-  block: BlockSummary & { audio?: string | null; fill?: string | null };
+  block: BlockSummary & { audio?: string | null; fill?: string | null; hourStart?: boolean };
   items: (Item & { autoSourceName?: string | null; mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string; webcamName?: string })[];
 }
 const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
@@ -48,7 +50,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
-  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null, audio: null as string | null, fill: null as string | null });
+  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null, audio: null as string | null, fill: null as string | null, hourStart: kind === "program" });
   const { categories } = useCategories();
   const [items, setItems] = useState<Item[]>([]);
   const [picker, setPicker] = useState(false);
@@ -64,17 +66,25 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const hasAudio = !!audioSources?.length;
   const webcams = useGet<{ webcams: { id: number; name: string; durationMs: number }[] }>("/api/webcams");
   const fillChoices = useFillChoices();
+  // The channel's fixed hour start and layer rules, shown in the hour of a programme block.
+  const { channels } = useChannels();
+  const [channel] = useChannelSelection(channels);
+  const hs = channel?.graphics.hourStart;
+  const opener = kind === "program" && hs?.enabled && hs.blockId && hs.blockId !== id ? hs.blockId : null;
+  const openerItems = useHourStartItems(opener);
+  const layers = layersOf(channel?.graphics);
+  const isOpener = hs?.blockId != null && hs.blockId === id;
 
   useEffect(() => {
     setMsg(null);
     setDirty(false);
     if (id === "new") {
-      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null, audio: null, fill: null });
+      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null, audio: null, fill: null, hourStart: kind === "program" });
       setItems([]);
       return;
     }
     void get<Detail>(`/api/blocks/${id}`).then((d) => {
-      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null, audio: d.block.audio ?? null, fill: d.block.fill ?? null });
+      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null, audio: d.block.audio ?? null, fill: d.block.fill ?? null, hourStart: !!d.block.hourStart });
       setItems(
         d.items.map((i) => ({
           type: i.type,
@@ -173,7 +183,17 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
     navigate(`${base}/${r.id}`);
   };
 
-  let offset = 0;
+  const openerMs = meta.hourStart && openerItems ? openerItems.reduce((s, o) => s + o.durationMs, 0) : 0;
+  let offset = openerMs;
+  const fillName = (() => {
+    const [ft, fid] = (meta.fill ?? "").split(":");
+    return ft === "beeldkrant" ? fillChoices.beeldkranten.find((b) => b.id === Number(fid))?.name : ft === "webcam" ? fillChoices.webcams.find((w) => w.id === Number(fid))?.name : undefined;
+  })();
+  const hourParts: HourBarPart[] = [
+    ...(meta.hourStart && openerItems ? openerItems.map((o) => ({ label: o.label, ms: o.durationMs, kind: "start" as const })) : []),
+    ...items.map((it) => ({ label: it.title || it.label, ms: it.effectiveDurationMs ?? 0, kind: it.type === "auto" ? ("auto" as const) : it.category === "commercial" ? ("commercial" as const) : (itemLayerKind(it.type) as HourBarPart["kind"]) })),
+  ];
+  if (meta.fill && fillName) hourParts.push({ label: fillName, ms: 0, kind: "fill" });
   const nestable = (kind === "program" ? [...(ads.data?.blocks ?? []), ...(programs.data?.blocks ?? [])] : (ads.data?.blocks ?? [])).filter((b) => b.id !== id);
 
   return (
@@ -214,20 +234,28 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
             {(fid) => <AudioSelect id={fid} scope="block" sources={audioSources} value={meta.audio} onChange={(audio) => (setMeta({ ...meta, audio }), setDirty(true))} />}
           </Field>
         )}
-        {kind === "program" && (
-          <Field label={t("mgmt.fill.label")} hint={fillChoices.loaded && !fillChoices.beeldkranten.length ? t("mgmt.fill.noBeeldkrant") : t("mgmt.fill.hint")}>
-            {(fid) => <FillSelect id={fid} value={meta.fill} choices={fillChoices} onChange={(fill) => (setMeta({ ...meta, fill }), setDirty(true))} />}
-          </Field>
-        )}
-        <Field label={t("mgmt.blocks.description")} hint={t("mgmt.blocks.descriptionHint")}>
-          {(fid) => <Textarea id={fid} className="min-h-16 font-sans text-sm" value={meta.description} onChange={(e) => (setMeta({ ...meta, description: e.target.value }), setDirty(true))} />}
-        </Field>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] font-medium">{t("mgmt.blocks.color")}</span>
           {COLORS.map((c) => (
             <button key={c} onClick={() => (setMeta({ ...meta, color: c }), setDirty(true))} className={cx("size-6 rounded-full ring-offset-2 ring-offset-surface", meta.color === c && "ring-2 ring-fg")} style={{ background: c }} aria-label={c} />
           ))}
         </div>
+        {kind === "program" && !isOpener && <HourBar parts={hourParts} />}
+        {isOpener && <Alert tone="brand">{t("mgmt.plan.block.isOpener")}</Alert>}
+        {kind === "program" && !isOpener && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-surface-2 p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 accent-brand" checked={meta.hourStart} onChange={(e) => (setMeta({ ...meta, hourStart: e.target.checked }), setDirty(true))} />
+            <span>
+              <span className="font-semibold">{t("mgmt.plan.block.startWith")}</span>
+              <span className="block text-xs text-muted">
+                {hs?.enabled && hs.blockId ? t("mgmt.plan.block.startWithHint") : t("mgmt.plan.block.startWithOff")}{" "}
+                <Link to="/graphics" className="font-medium text-brand hover:underline">
+                  {t("mgmt.plan.block.startWithLink")}
+                </Link>
+              </span>
+            </span>
+          </label>
+        )}
 
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -306,6 +334,24 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
               )}
             </Select>
           </div>
+          {meta.hourStart && openerItems && openerItems.length > 0 && (
+            <ol className="mb-1.5 divide-y divide-line rounded-md border border-line bg-surface-2/70">
+              {openerItems.map((o, n) => (
+                <li key={n} className="flex items-center gap-3 px-3 py-2 text-sm" title={t("mgmt.plan.block.lockedHint")}>
+                  <Lock className="-mr-1 size-3.5 shrink-0 text-muted" />
+                  <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(openerItems.slice(0, n).reduce((x, y) => x + y.durationMs, 0))}</span>
+                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-brand-light/15 text-brand-dark dark:text-brand-light">
+                    {o.type === "lineup" ? <CalendarClock className="size-3.5" /> : o.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : o.type === "webcam" ? <WebcamIcon className="size-3.5" /> : <Clapperboard className="size-3.5" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{o.label}</span>
+                    <span className="block text-xs text-muted">{t("mgmt.plan.block.locked")}</span>
+                  </span>
+                  <span className="w-16 text-right font-mono text-xs text-muted">{fmtDuration(o.durationMs)}</span>
+                </li>
+              ))}
+            </ol>
+          )}
           <ol {...dnd.listProps} className={cx("divide-y divide-line rounded-md border transition", dnd.indicator != null ? "border-brand/60" : "border-line")}>
             {items.map((it, i) => {
               const start = offset;
@@ -327,6 +373,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                   {it.type === "beeldkrant" && <Badge tone="ok">{t("mgmt.blocks.types.beeldkrant")}</Badge>}
                   {it.type === "webcam" && <Badge tone="brand">{t("mgmt.blocks.types.webcam")}</Badge>}
                   {it.type === "lineup" && <Badge tone="brand">{t("mgmt.blocks.types.lineup")}</Badge>}
+                  {kind === "program" && it.type !== "block" && !layers[itemLayerKind(it.type, it.category === "commercial")].logo && <Badge tone="neutral">{t("mgmt.plan.block.logoOff")}</Badge>}
                   {it.type === "auto" && (
                     <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setAutoEdit(i)}>
                       {t("mgmt.auto.change")}
@@ -377,6 +424,21 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
           </ol>
           {dirty && <p className="mt-2 text-xs text-warn">{t("mgmt.blocks.unsaved")}</p>}
         </div>
+        {kind === "program" && !isOpener && (
+          <div className="rounded-lg bg-surface-2 p-3">
+            <Field label={t("mgmt.plan.block.fillLabel")} hint={fillChoices.loaded && !fillChoices.beeldkranten.length ? t("mgmt.fill.noBeeldkrant") : t("mgmt.plan.block.fillHint")}>
+              {(fid) => <FillSelect id={fid} value={meta.fill} choices={fillChoices} onChange={(fill) => (setMeta({ ...meta, fill }), setDirty(true))} />}
+            </Field>
+          </div>
+        )}
+        <details className="text-sm">
+          <summary className="cursor-pointer font-medium text-muted">{t("mgmt.plan.block.more")}</summary>
+          <div className="mt-3">
+            <Field label={t("mgmt.blocks.description")} hint={t("mgmt.blocks.descriptionHint")}>
+              {(fid) => <Textarea id={fid} className="min-h-16 font-sans text-sm" value={meta.description} onChange={(e) => (setMeta({ ...meta, description: e.target.value }), setDirty(true))} />}
+            </Field>
+          </div>
+        </details>
       </CardBody>
       <AutoClipsDialog
         open={autoEdit != null}
@@ -412,8 +474,8 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
   return (
     <>
       <PageHeader
-        title={t(`mgmt.${k}.title`)}
-        description={t(`mgmt.${k}.intro`)}
+        title={t(kind === "program" ? "mgmt.plan.blocksTitle" : `mgmt.${k}.title`)}
+        description={t(kind === "program" ? "mgmt.plan.blocksIntro" : `mgmt.${k}.intro`)}
         actions={
           canEdit && (
             <Link to={`${base}/new`}>
@@ -422,6 +484,13 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
           )
         }
       />
+      <div className="mb-4 inline-flex rounded-lg bg-surface-2 p-1">
+        {(["program", "commercial"] as const).map((x) => (
+          <Link key={x} to={x === "program" ? "/blocks" : "/ads"} className={cx("rounded-md px-3 py-1.5 text-sm font-semibold transition", x === kind ? "bg-surface shadow-sm" : "text-muted hover:text-fg")}>
+            {t(x === "program" ? "mgmt.plan.tabHour" : "mgmt.plan.tabAds")}
+          </Link>
+        ))}
+      </div>
       <WithMediaBin onAdd={editing ? (p) => insertRef.current?.(p) : undefined} hint={editing ? t("mgmt.bin.hintBlock") : t("mgmt.bin.hintBlockSelect")}>
       <div className="grid gap-6 @4xl:grid-cols-[240px_minmax(0,1fr)]">
         <Card className="self-start">
