@@ -33,5 +33,5 @@ export function beeldkrantPages(db: Db, settings: BeeldkrantSettings, feedIds: n
 export function beeldkrantRef(db: Db, id: number): BeeldkrantRef | undefined {
   const b = beeldkrantSettings(db, id);
   if (!b) return undefined;
-  return { id, name: b.name, durationMs: beeldkrantDuration(b.settings, beeldkrantPages(db, b.settings, b.feedIds).length), showOverlay: b.settings.showOverlay };
+  return { id, name: b.name, durationMs: beeldkrantDuration(b.settings, beeldkrantPages(db, b.settings, b.feedIds).length), showOverlay: b.settings.showOverlay, audioSourceId: b.settings.audioSourceId };
 }

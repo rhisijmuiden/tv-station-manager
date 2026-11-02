@@ -328,6 +328,8 @@ export const beeldkrantSchema = z.object({
   duration: z
     .object({ mode: z.enum(["cycle", "fixed"]).default("cycle"), fixedSeconds: z.number().int().min(10).max(24 * 3600).default(600) })
     .default({ mode: "cycle", fixedSeconds: 600 }),
+  /** Audio source played under the beeldkrant (e.g. the station's radio), unless the block chooses other audio. */
+  audioSourceId: z.number().int().positive().nullable().default(null),
   /** Keep the channel overlay (logo, clock, ticker) on top of the beeldkrant. */
   showOverlay: z.boolean().default(false),
 });

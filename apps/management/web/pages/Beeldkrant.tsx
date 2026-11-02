@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, C
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { AudioSelect, useAudioSources } from "../components/AudioSelect";
 import { errorText, fmtDateTime, fmtDuration, useChannels, useGet } from "../lib";
 
 // ---- types -------------------------------------------------------------------------
@@ -28,6 +29,7 @@ interface Settings {
   colors: { background: string; panel: string; accent: string; text: string };
   duration: { mode: "cycle" | "fixed"; fixedSeconds: number };
   showOverlay: boolean;
+  audioSourceId: number | null;
 }
 interface Beeldkrant {
   id: number;
@@ -87,6 +89,7 @@ const defaults = (): Settings => ({
   colors: { background: "#2A1430", panel: "#713C80", accent: "#E92E7F", text: "#FFFFFF" },
   duration: { mode: "cycle", fixedSeconds: 600 },
   showOverlay: false,
+  audioSourceId: null,
 });
 
 // ---- small pieces ----------------------------------------------------------------------
@@ -235,6 +238,7 @@ function Editor({ id, feeds, onSaved }: { id: number | "new"; feeds: Feed[]; onS
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { channels } = useChannels();
+  const { sources: audioSources } = useAudioSources();
   const [name, setName] = useState("");
   const [feedIds, setFeedIds] = useState<number[]>([]);
   const [s, setS] = useState<Settings>(defaults);
@@ -470,6 +474,9 @@ function Editor({ id, feeds, onSaved }: { id: number | "new"; feeds: Feed[]; onS
               <Switch checked={s.show.progress} onChange={(v) => show("progress", v)} label={t("mgmt.bk.showProgress")} />
               <Switch checked={s.showOverlay} onChange={(v) => set({ showOverlay: v })} label={t("mgmt.bk.showOverlay")} description={t("mgmt.bk.showOverlayHint")} />
             </div>
+            <Field label={t("mgmt.audio.bkLabel")} hint={audioSources?.length ? t("mgmt.audio.bkHint") : t("mgmt.audio.bkHintNone")}>
+              {(fid) => <AudioSelect id={fid} scope="beeldkrant" sources={audioSources} value={s.audioSourceId != null ? String(s.audioSourceId) : null} onChange={(v) => set({ audioSourceId: v ? Number(v) : null })} />}
+            </Field>
             <Field label={t("mgmt.bk.logo")} hint={t("mgmt.bk.logoHint")}>
               {(fid) => (
                 <Select id={fid} value={s.logoChannelId ?? ""} onChange={(e) => set({ logoChannelId: e.target.value ? Number(e.target.value) : null })}>

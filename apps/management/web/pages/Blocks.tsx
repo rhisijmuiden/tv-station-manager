@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { indicatorClass, payloadItems, useDropList, type DragPayload } from "../components/dnd";
 import { WithMediaBin } from "../components/MediaBin";
+import { AudioSelect, useAudioSources } from "../components/AudioSelect";
 import { MediaPicker } from "../components/MediaPicker";
 import { categoryTone, errorText, fmtDuration, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
 
@@ -16,6 +17,8 @@ interface Item {
   beeldkrantId?: number | null;
   durationMs?: number | null;
   title?: string | null;
+  /** Audio under the item: null = like the block, "none", or an audio source id. */
+  audio?: string | null;
   // display
   label: string;
   sub?: string;
@@ -24,7 +27,7 @@ interface Item {
   warning?: string | null;
 }
 interface Detail {
-  block: BlockSummary;
+  block: BlockSummary & { audio?: string | null };
   items: (Item & { mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string })[];
 }
 const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
@@ -35,7 +38,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
-  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null });
+  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null, audio: null as string | null });
   const { categories } = useCategories();
   const [items, setItems] = useState<Item[]>([]);
   const [picker, setPicker] = useState(false);
@@ -45,17 +48,19 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const programs = useGet<{ blocks: BlockSummary[] }>("/api/blocks?kind=program");
   const live = useGet<{ sources: LiveSource[] }>("/api/live-sources");
   const beeldkranten = useGet<{ beeldkranten: { id: number; name: string; durationMs: number }[] }>("/api/beeldkranten");
+  const { sources: audioSources } = useAudioSources();
+  const hasAudio = !!audioSources?.length;
 
   useEffect(() => {
     setMsg(null);
     setDirty(false);
     if (id === "new") {
-      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null });
+      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null, audio: null });
       setItems([]);
       return;
     }
     void get<Detail>(`/api/blocks/${id}`).then((d) => {
-      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null });
+      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null, audio: d.block.audio ?? null });
       setItems(
         d.items.map((i) => ({
           type: i.type,
@@ -65,6 +70,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
           beeldkrantId: i.beeldkrantId,
           durationMs: i.durationMs,
           title: i.title,
+          audio: i.audio ?? null,
           label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.liveName || "",
           sub: i.type === "media" ? i.mediaPath : undefined,
           category: i.mediaCategory,
@@ -107,7 +113,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
 
   const save = async () => {
     setMsg(null);
-    const body = { ...meta, kind, items: items.map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title })) };
+    const body = { ...meta, kind, items: items.map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title, audio }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title, audio: audio ?? null })) };
     try {
       const r = id === "new" ? await post<{ id: number }>("/api/blocks", body) : await put<{ id: number }>(`/api/blocks/${id}`, body);
       setDirty(false);
@@ -172,6 +178,11 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
             )}
           </Field>
         </div>
+        {hasAudio && (
+          <Field label={t("mgmt.audio.blockLabel")} hint={t("mgmt.audio.blockHint")}>
+            {(fid) => <AudioSelect id={fid} scope="block" sources={audioSources} value={meta.audio} onChange={(audio) => (setMeta({ ...meta, audio }), setDirty(true))} />}
+          </Field>
+        )}
         <Field label={t("mgmt.blocks.description")} hint={t("mgmt.blocks.descriptionHint")}>
           {(fid) => <Textarea id={fid} className="min-h-16 font-sans text-sm" value={meta.description} onChange={(e) => (setMeta({ ...meta, description: e.target.value }), setDirty(true))} />}
         </Field>
@@ -257,6 +268,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                   {it.warning && <AlertTriangle className="size-4 shrink-0 text-warn" aria-label={t(`mgmt.warnings.${it.warning}`)} />}
                   {it.category && <Badge tone={categoryTone(it.category)}>{t(`mgmt.categories.${it.category}`)}</Badge>}
                   {it.type === "beeldkrant" && <Badge tone="ok">{t("mgmt.blocks.types.beeldkrant")}</Badge>}
+                  {hasAudio && it.type !== "live" && <AudioSelect compact scope="item" sources={audioSources} value={it.audio} onChange={(audio) => change(items.map((x, j) => (j === i ? { ...x, audio } : x)))} />}
                   {it.type === "beeldkrant" ? (
                     <Input
                       className="h-8 w-24! text-right font-mono text-xs"

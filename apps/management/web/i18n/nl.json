@@ -23,7 +23,8 @@
       "editorial": "Redactie",
       "newHour": "Nieuwe uurprogrammering",
       "broadcast": "Uitzending",
-      "recordings": "Opnames"
+      "recordings": "Opnames",
+      "audio": "Geluid"
     },
     "categories": {
       "program": "Programma",
@@ -415,7 +416,11 @@
       "not_recording": "Deze opname is al gestopt.",
       "thumb_failed": "Kon geen beeld uit de opname halen.",
       "atem_locked": "Deze ATEM is vastgezet in de orchestrator: schakel daar, of geef hem eerst vrij.",
-      "url_required": "Vul het adres van de orchestrator in."
+      "url_required": "Vul het adres van de orchestrator in.",
+      "invalid_url": "Dat is geen streamadres (het moet beginnen met http://, https://, rtmp://, rtsp:// of srt://).",
+      "studio_required": "Kies de studio-node die deze ingang heeft.",
+      "invalid_device": "Kies een DeckLink-apparaatnummer.",
+      "invalid_address": "Het adres bevat tekens die niet mogen (\")."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -1213,6 +1218,59 @@
         "manualLibrary": "naar bibliotheek na nakijken",
         "autoRepeats": "herhalingen: {{list}}"
       }
+    },
+    "audio": {
+      "title": "Geluid onder de uitzending",
+      "intro": "Geluid dat onder het beeld meeloopt, bijvoorbeeld de live radio van de omroep achter de beeldkrant. Voeg een bron hier één keer toe en kies hem daarna bij een blok, een item of een beeldkrant.",
+      "new": "Nieuwe geluidsbron",
+      "edit": "Geluidsbron bewerken",
+      "none": "🔇 Geen geluid eronder",
+      "noneIntro": "Voeg de radiostream van de omroep toe of een fysieke ingang (jack / line-in, DeckLink-ingang) van de studio-node. De redactie kan hem daarna kiezen onder een beeldkrant of een blok.",
+      "tip": "Tip: bij Blokken kies je het geluid voor een heel blok of per item; bij Beeldkrant stel je in welk geluid standaard onder een beeldkrant loopt.",
+      "namePlaceholder": "bijv. Radio IJmond live",
+      "kind": "Soort bron",
+      "kinds": {
+        "stream": "Internetstream",
+        "soundcard": "Geluidskaart-ingang",
+        "decklink": "DeckLink-ingang"
+      },
+      "kindHints": {
+        "stream": "Radiostream (Icecast, MP3/AAC, HLS)",
+        "soundcard": "Jack / line-in van de studio-node",
+        "decklink": "Geluid van een DeckLink-ingang (SDI / analoog)"
+      },
+      "address_stream": "Adres van de stream",
+      "address_soundcard": "Naam van het opnameapparaat",
+      "address_decklink": "DeckLink-apparaat",
+      "addressHint_stream": "Het adres van de stream zelf (eindigt vaak op .mp3, .aac of .m3u8), niet de webpagina van de speler. De studio-node moet dit adres kunnen bereiken.",
+      "addressHint_soundcard": "Precies zoals Windows hem op de studio-node noemt, bijv. \"Line In (Realtek(R) Audio)\". Je vindt hem bij Geluidsinstellingen → Opnemen, of met PowerShell: Get-PnpDevice -Class AudioEndpoint.",
+      "addressHint_decklink": "Nummer van de DeckLink-ingang zoals CasparCG telt (1 = eerste kaart/aansluiting). Het beeld wordt nooit getoond, alleen het geluid.",
+      "addressPlaceholder_stream": "https://stream.voorbeeld.nl/radio.mp3",
+      "addressPlaceholder_soundcard": "Line In (Realtek(R) Audio)",
+      "addressPlaceholder_decklink": "1",
+      "decklinkN": "DeckLink-ingang {{n}}",
+      "studio": "Studio-node met deze ingang",
+      "studioHint": "Een fysieke ingang werkt alleen op kanalen die op deze studio-node draaien.",
+      "volume": "Volume: {{v}}%",
+      "volumeShort": "{{v}}%",
+      "volumeHint": "100% = onveranderd. Zet hem lager als de bron onder clips met eigen geluid loopt.",
+      "listen": "Luisteren",
+      "stopListen": "Stop",
+      "listenFailed": "Je browser kan deze stream niet afspelen (HLS werkt alleen in Safari). In de uitzending kan hij wel werken.",
+      "usage": "Gebruikt in {{blocks}} blok(ken)/item(s), {{beeldkranten}} beeldkrant(en)",
+      "confirmDelete": "Geluidsbron \"{{name}}\" verwijderen?",
+      "confirmDeleteUsed": "\"{{name}}\" wordt {{n}} keer gebruikt. Die blokken en beeldkranten worden dan stil. Toch verwijderen?",
+      "pickTitle": "Geluid onder dit item",
+      "follow_block": "Standaard (geluid van de beeldkrant / alleen eigen geluid)",
+      "follow_item": "🔊 Zoals het blok",
+      "follow_beeldkrant": "Geen geluid",
+      "blockLabel": "Geluid onder dit blok",
+      "blockHint": "Loopt onder alle items van dit blok (niet onder live-items). Per item kun je hieronder iets anders kiezen.",
+      "bkLabel": "Geluid onder de beeldkrant",
+      "bkHint": "Een beeldkrant heeft zelf geen geluid: kies bijv. de radiostream. Een blok kan nog ander geluid kiezen.",
+      "bkHintNone": "Voeg eerst een geluidsbron toe (Uitzending → Geluid), bijv. de radiostream van de omroep.",
+      "underNow": "Geluid eronder: {{name}}",
+      "underError": "Speelt niet: {{error}}"
     }
   }
 }

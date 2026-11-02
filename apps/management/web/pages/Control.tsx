@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, PageHeader, Switch, cx, post, useSession, roleAtLeast } from "@tvsm/ui";
-import { AlertTriangle, Lock, MonitorPlay, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
+import { AlertTriangle, AudioLines, Lock, MonitorPlay, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -26,6 +26,7 @@ interface ChannelStatus {
   playout: { connected: boolean; version: string | null } | null;
   onAir: { input: number; node: "playout" | "live" | "fallback" | "other"; studio: string | null; source: string | null } | null;
   standby: { liveSourceId: number; name: string; since: string } | null;
+  audio?: { sourceId: number; name: string; kind: string; playing: boolean; error: string | null } | null;
   atemLock: { name: string; by: string | null; at: string | null; reason: string } | null;
   lastError: string | null;
   graphics: { hidden: boolean; upNext: { visible: boolean; title: string } };
@@ -152,6 +153,15 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                   )}
                 </p>
                 <Progress ev={s.current} now={now} offset={offset} />
+                {s.audio && (
+                  <p className={cx("mt-3 flex items-center gap-2 text-sm", s.audio.error ? "text-warn" : s.audio.playing ? "text-ok" : "text-muted")}>
+                    <AudioLines className="size-4 shrink-0" />
+                    <span>
+                      {t("mgmt.audio.underNow", { name: s.audio.name })}
+                      {s.audio.error && <span className="block text-xs">{t("mgmt.audio.underError", { error: s.audio.error })}</span>}
+                    </span>
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-muted">{t("mgmt.control.nothing")}</p>

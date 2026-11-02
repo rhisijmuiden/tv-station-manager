@@ -1,5 +1,6 @@
 import type { Platform, PlatformOptions } from "@tvsm/platform";
 import { join } from "node:path";
+import { registerAudio } from "./audio.js";
 import { registerContent } from "./content.js";
 import { MANAGEMENT_MIGRATIONS } from "./db.js";
 import { DeviceHub, registerDevices } from "./devices.js";
@@ -54,6 +55,7 @@ export function managementOptions(
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
+      registerAudio(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
       registerWeek(server, platform, planner);
       director.register(server);
