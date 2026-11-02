@@ -311,5 +311,6 @@ export function registerNodes(app: FastifyInstance, platform: Platform) {
     return { id: Number(r.lastInsertRowid), type, status: "queued" };
   });
 
-  return { counts };
+  const list = () => (db.prepare("SELECT * FROM nodes WHERE status != 'rejected' ORDER BY name COLLATE NOCASE").all() as unknown as NodeRow[]).map(toPublic);
+  return { counts, list };
 }
