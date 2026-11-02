@@ -3,6 +3,7 @@ import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { lineupSchema } from "./lineuplogic.js";
+import { layersSchema } from "./layers.js";
 import { audioIn, BlockCycleError, fillIn, compile, DEFAULT_LINEUP_MS, expandBlock, type BlockRef, type Loader, type MediaRef, type ScheduleEntry } from "./timeline.js";
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
@@ -28,6 +29,10 @@ export const graphicsSchema = z.object({
   hideInCommercials: z.boolean().default(true),
   /** "Coming up" slide (block item type lineup): the programmes of the coming hour, see lineuplogic.ts. */
   lineup: lineupSchema.default(lineupSchema.parse({})),
+  /** "Every hour begins with": a block played in front of every hour block that has `hour_start` switched on. */
+  hourStart: z.object({ enabled: z.boolean().default(false), blockId: z.number().int().nullable().default(null) }).default({ enabled: false, blockId: null }),
+  /** Which parts of the base layer (logo, clock, ticker) stay on air per kind of content. */
+  layers: layersSchema.default(layersSchema.parse({})),
 });
 export type Graphics = z.infer<typeof graphicsSchema>;
 
@@ -75,14 +80,20 @@ export function dbLoader(db: Db): Loader {
   const bk = new Map<number, ReturnType<NonNullable<Loader["beeldkrant"]>>>();
   const cams = new Map<number, ReturnType<NonNullable<Loader["webcam"]>>>();
   const picks = newPickMemory();
+  const openers = new Map<number, number | null>();
   return {
     block(id) {
       if (!blocks.has(id)) {
-        const b = db.prepare("SELECT id, name, kind, audio, fill FROM blocks WHERE id = ?").get(id) as { id: number; name: string; kind: "program" | "commercial"; audio: string | null; fill: string | null } | undefined;
+        const b = db.prepare("SELECT id, name, kind, audio, fill, hour_start FROM blocks WHERE id = ?").get(id) as { id: number; name: string; kind: "program" | "commercial"; audio: string | null; fill: string | null; hour_start: number } | undefined;
         blocks.set(
           id,
           b && {
-            ...b,
+            id: b.id,
+            name: b.name,
+            kind: b.kind,
+            audio: b.audio,
+            fill: b.fill,
+            hourStart: !!b.hour_start,
             items: db
               .prepare(`SELECT ${ITEM_COLUMNS} FROM block_items WHERE block_id = ? ORDER BY position, id`)
               .all(id) as unknown as BlockRef["items"],
@@ -109,7 +120,25 @@ export function dbLoader(db: Db): Loader {
     autoMedia(stored, asOf, slot) {
       return autoMedia(db, stored, asOf ?? Date.now(), slot, picks);
     },
+    hourStart(channelId) {
+      if (!openers.has(channelId)) openers.set(channelId, channelHourStart(db, channelId));
+      return openers.get(channelId) ?? null;
+    },
   };
+}
+
+/** The block a channel's hours begin with, or null when "every hour begins with" is off or the block is gone. */
+export function channelHourStart(db: Db, channelId: number): number | null {
+  const r = db.prepare("SELECT graphics FROM channels WHERE id = ?").get(channelId) as { graphics: string } | undefined;
+  if (!r) return null;
+  let hs: Graphics["hourStart"];
+  try {
+    hs = graphicsSchema.parse(JSON.parse(r.graphics || "{}")).hourStart;
+  } catch {
+    return null;
+  }
+  if (!hs.enabled || hs.blockId == null) return null;
+  return db.prepare("SELECT 1 FROM blocks WHERE id = ?").get(hs.blockId) ? hs.blockId : null;
 }
 
 /** Columns of a block item as the timeline loader and the rundown copies read them. */
@@ -392,6 +421,10 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     audio: z.union([z.string().max(12), z.number().int()]).nullable().optional(),
     /** Rest of the hour after the material: "beeldkrant:<id>", "webcam:<id>", or null for the channel filler. */
     fill: z.string().max(40).nullable().optional(),
+    /** Begins with the channel's fixed hour start. Left out = keep (update) or on for programmes (new). */
+    hourStart: z.boolean().optional(),
+    /** Only on create: a block made for one occasion (a planned live event) stays out of the block lists. */
+    hidden: z.boolean().optional(),
   });
 
   const blockSummary = (loader: Loader, b: Record<string, unknown>) => {
@@ -406,7 +439,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       cycle = e instanceof BlockCycleError;
     }
     const itemCount = (db.prepare("SELECT COUNT(*) AS n FROM block_items WHERE block_id = ?").get(Number(b.id)) as { n: number }).n;
-    return { id: b.id, name: b.name, kind: b.kind, color: b.color, description: b.description, genre: b.genre, categoryId: b.category_id ?? null, audio: b.audio ?? null, fill: b.fill ?? null, updatedAt: b.updated_at, itemCount, durationMs, warnings, cycle };
+    return { id: b.id, name: b.name, kind: b.kind, color: b.color, description: b.description, genre: b.genre, categoryId: b.category_id ?? null, audio: b.audio ?? null, fill: b.fill ?? null, hourStart: !!b.hour_start, hidden: !!b.hidden, updatedAt: b.updated_at, itemCount, durationMs, warnings, cycle };
   };
 
   app.get("/api/blocks", async (req) => {
@@ -494,7 +527,9 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     requireRole(req, "editor");
     const b = blockIn.parse(req.body);
     const id = tx(() => {
-      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), fillIn(b.fill));
+      const r = db
+        .prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill, hour_start, hidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), fillIn(b.fill), (b.hourStart ?? b.kind === "program") ? 1 : 0, b.hidden ? 1 : 0);
       const id = Number(r.lastInsertRowid);
       saveItems(id, b.items);
       return id;
@@ -547,9 +582,9 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const b = blockIn.parse(req.body);
     tx(() => {
       const r = db
-        .prepare("UPDATE blocks SET name = ?, kind = ?, color = ?, description = ?, genre = ?, category_id = ?, audio = ?, fill = CASE WHEN ? THEN ? ELSE fill END, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?")
+        .prepare("UPDATE blocks SET name = ?, kind = ?, color = ?, description = ?, genre = ?, category_id = ?, audio = ?, fill = CASE WHEN ? THEN ? ELSE fill END, hour_start = COALESCE(?, hour_start), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?")
         // Callers that do not send `fill` keep the block's "rest of the hour" choice.
-        .run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), b.fill === undefined ? 0 : 1, fillIn(b.fill), id);
+        .run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), b.fill === undefined ? 0 : 1, fillIn(b.fill), b.hourStart === undefined ? null : b.hourStart ? 1 : 0, id);
       if (!r.changes) throw new HttpError(404, "not_found");
       saveItems(id, b.items);
     });
@@ -561,9 +596,9 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const src = db.prepare("SELECT * FROM blocks WHERE id = ?").get(pid(req)) as Record<string, string> | undefined;
     if (!src) throw new HttpError(404, "not_found");
     const id = tx(() => {
-      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null, src.audio ?? null, src.fill ?? null);
+      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill, hour_start) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null, src.audio ?? null, src.fill ?? null, (src.hour_start as unknown as number) ?? 0);
       const id = Number(r.lastInsertRowid);
-      db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
+      db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
       return id;
     });
     return { id };

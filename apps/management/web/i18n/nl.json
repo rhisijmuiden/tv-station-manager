@@ -62,12 +62,12 @@
       "noDevices": "Nog geen apparatuur.",
       "editorialTitle": "Redactie in drie stappen",
       "editorialIntro": "Van clips naar een volle week televisie.",
-      "ed1": "Maak een uurprogrammering",
-      "ed1Hint": "Hoe het uur is opgebouwd: geef het een naam en sleep de clips erin",
-      "ed2": "Plan het op het weekbord",
-      "ed2Hint": "Klik op een blok en kies de dagen",
-      "ed3": "Controleer de dagplanning",
-      "ed3Hint": "Zie per datum wat er speelt en wat ontbreekt"
+      "ed1": "Zet je materiaal klaar",
+      "ed1Hint": "Video's, beeldkranten, webcams en live streams in de bibliotheek",
+      "ed2": "Maak een uurblok",
+      "ed2Hint": "Vaste start, je items, en de rest van het uur loopt vanzelf vol",
+      "ed3": "Sleep het in de week",
+      "ed3Hint": "Klik op een blok om de dagen te kiezen"
     },
     "control": {
       "title": "Regie",
@@ -1558,6 +1558,138 @@
       "noBeeldkrant": "Nog geen beeldkrant? Maak er een onder Mediabronnen → Beeldkrant.",
       "fills": "Er is nog {{d}} vrij; {{name}} vult dat tot het volgende uur.",
       "badgeAny": "Opgevuld {{d}}"
+    },
+    "plan": {
+      "nav": {
+        "now": "Nu op TV",
+        "week": "Weekplanning",
+        "blocks": "Blokken",
+        "library": "Bibliotheek",
+        "channel": "Kanaal & lagen",
+        "sources": "Bronnen",
+        "advanced": "Geavanceerd plannen"
+      },
+      "tabHour": "Uurblokken",
+      "tabAds": "Reclameblokken",
+      "blocksTitle": "Blokken",
+      "blocksIntro": "Een blok is één uur televisie: de vaste start van elk uur, daarna je items, en de rest van het uur loopt vanzelf vol. Sleep een blok in de weekplanning.",
+      "channelTitle": "Kanaal & lagen",
+      "channelIntro": "Een kanaal is een stapel lagen: onderaan je content, daarboven de basislaag met logo, klok en ticker. Eén keer instellen; de redactie hoeft er nooit meer aan te denken.",
+      "kinds": {
+        "media": "Video",
+        "beeldkrant": "Beeldkrant",
+        "webcam": "Webcam",
+        "live": "Live stream",
+        "lineup": "Straks-slide",
+        "commercial": "Reclame",
+        "filler": "Opvulling"
+      },
+      "layers": {
+        "title": "Wat blijft er in beeld, per soort content",
+        "intro": "Groen is zichtbaar. Een beeldkrant heeft een eigen logo en geluid, dus logo, klok en ticker gaan dan vanzelf weg.",
+        "layer": "Laag {{n}}",
+        "subtitles": "Ondertitels (als er een .srt bij de clip staat)",
+        "base": "Basislaag",
+        "content": "Content",
+        "hidden": "verborgen",
+        "logo": "Logo",
+        "clock": "Klok",
+        "ticker": "Ticker",
+        "kind": "Soort",
+        "tableHint": "Na opslaan gelden deze regels meteen op de zender. Een beeldkrant of webcam met \"kanaal-overlay tonen\" houdt alles in beeld.",
+        "note": {
+          "beeldkrant": "Tijdens een beeldkrant gaat het logo weg: de beeldkrant toont zijn eigen logo en speelt zijn eigen audiolijn (bijvoorbeeld de radiostream).",
+          "other": "Kies hierboven een soort om te zien wat van de basislaag erover blijft staan."
+        }
+      },
+      "hourStart": {
+        "title": "Elk uur begint met",
+        "intro": "Bijvoorbeeld de Straks-slide en de zendertune. Eén keer instellen: het komt vanzelf vóór elk uurblok.",
+        "enabled": "Elk uurblok hiermee laten beginnen",
+        "enabledHint": "Per blok kun je het uitzetten.",
+        "block": "Vaste start",
+        "pick": "Kies een blok…",
+        "edit": "Vaste start aanpassen",
+        "make": "Maak een vaste start (Straks-slide)",
+        "defaultName": "Begin van het uur",
+        "empty": "Dit blok is nog leeg.",
+        "total": "vóór de items van elk uurblok"
+      },
+      "block": {
+        "isOpener": "Dit blok is de vaste start van elk uur. Pas het hier aan; elk uurblok begint ermee.",
+        "startWith": "Begint met de vaste start van het uur",
+        "startWithHint": "Staat op slot bovenaan de lijst.",
+        "startWithOff": "Voor dit kanaal is nog geen vaste start ingesteld.",
+        "startWithLink": "Kanaal & lagen",
+        "locked": "Vaste start van elk uur",
+        "lockedHint": "Aanpassen via Kanaal & lagen",
+        "logoOff": "logo uit",
+        "fillLabel": "Klaar met de items? Vul de rest van het uur met",
+        "fillHint": "Om :00 begint het volgende blok, weer met de vaste start.",
+        "more": "Meer instellingen"
+      },
+      "bar": {
+        "fill": "{{name}} (vult het uur)",
+        "empty": "{{time}} leeg (opvulling kanaal)",
+        "over": "{{time}} te lang: het volgende uur kapt het af."
+      },
+      "week": {
+        "title": "Weekplanning",
+        "intro": "Sleep een blok uit de lijst op een dag en uur. Klik op een blok om te kiezen op welke dagen het terugkomt. Verslepen = verplaatsen.",
+        "advanced": "Geavanceerd weekbord",
+        "active": "De weekplanning stuurt het kanaal",
+        "activeOn": "Wat je hier plant gaat vanzelf de lucht in (de komende 14 dagen).",
+        "activeOff": "Uit: nog niets uit deze planning gaat de lucht in.",
+        "openerOn": "Elk uur begint met de vaste start",
+        "openerOff": "Stel de vaste start van elk uur in",
+        "unnamed": "Zonder naam",
+        "placed": "{{name}} staat op {{day}} {{time}}, elke week.",
+        "moved": "Verplaatst naar {{day}} {{time}}.",
+        "everyWeek": "elke week",
+        "days": "Op deze dagen, zelfde tijd:",
+        "preset": {
+          "weekdays": "Ma–vr",
+          "weekend": "Weekend",
+          "all": "Elke dag"
+        },
+        "length": "Lengte",
+        "hours_one": "{{count}} uur",
+        "hours_other": "{{count}} uur",
+        "advancedHint": "Dit tijdvak gebruikt een uurklok of categorie; pas het aan op het geavanceerde weekbord.",
+        "advancedSlot": "geavanceerd",
+        "openBlock": "Blok openen",
+        "onlyDate": "Alleen {{date}}",
+        "removeDay": "Deze dag weghalen",
+        "blocks": "Blokken",
+        "newBlock": "Nieuw",
+        "dragHint": "Sleep naar de week",
+        "readOnly": "Redacteuren kunnen de planning aanpassen.",
+        "noBlocks": "Nog geen blokken. Maak er eerst een.",
+        "withStart": "met vaste start"
+      },
+      "live": {
+        "button": "Live plannen",
+        "title": "Live-uitzending plannen",
+        "intro": "Een live-uitzending met een dag, begin- en eindtijd gaat over de weekplanning heen. Na de eindtijd loopt de planning vanzelf verder.",
+        "source": "Live bron",
+        "name": "Naam",
+        "date": "Dag",
+        "from": "Begin",
+        "to": "Einde",
+        "length": "Lengte {{time}}",
+        "save": "Live plannen",
+        "done": "{{name}} staat live gepland op {{date}} van {{from}} tot {{to}}.",
+        "noSources": "Er is nog geen live bron. Voeg er een toe via Bibliotheek → Live.",
+        "over": "Live: gaat over de weekplanning heen"
+      },
+      "library": {
+        "title": "Bibliotheek",
+        "media": "Video's",
+        "recordings": "Opnames",
+        "beeldkrant": "Beeldkranten",
+        "webcams": "Webcams",
+        "live": "Live"
+      }
     }
   }
 }

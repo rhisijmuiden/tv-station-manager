@@ -17,6 +17,8 @@ export interface NavItem {
   end?: boolean;
   /** Hide unless the user has at least this role (admin > editor > operator). */
   minRole?: "admin" | "editor" | "operator";
+  /** Other routes (and their sub-routes) that count as this item, e.g. the tabs of one page. */
+  also?: string[];
   /** A submenu: the item folds open to show these (opens by itself when one of them is the current page). */
   children?: NavItem[];
 }
@@ -36,7 +38,8 @@ const readFolded = (): Record<string, boolean> => {
     return {};
   }
 };
-const pathMatches = (path: string, item: NavItem) => (item.end || item.to === "/" ? path === item.to : path === item.to || path.startsWith(`${item.to}/`));
+const under = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
+const pathMatches = (path: string, item: NavItem) => (item.end || item.to === "/" ? path === item.to : under(path, item.to)) || !!item.also?.some((p) => under(path, p));
 const containsPath = (path: string, item: NavItem): boolean => (item.children ? item.children.some((c) => containsPath(path, c)) : pathMatches(path, item));
 
 const rank = (r?: string) => ({ admin: 3, editor: 2, operator: 1 })[r ?? ""] ?? 0;
@@ -90,14 +93,15 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
       end={item.end}
       onClick={() => setMobileOpen(false)}
       title={mini ? t(item.label) : undefined}
-      className={({ isActive }) =>
-        cx(
+      className={({ isActive: own }) => {
+        const isActive = own || !!item.also?.some((p) => under(location.pathname, p));
+        return cx(
           "group relative flex items-center gap-3 rounded-md font-medium transition",
           sub ? "py-1.5 text-[13px]" : "py-2 text-[13.5px]",
           mini ? "justify-center px-0" : sub ? "px-2.5" : "px-3",
           isActive ? "bg-brand text-white shadow-md shadow-brand/30" : "text-sidebar-fg/80 hover:bg-white/5 hover:text-white",
-        )
-      }
+        );
+      }}
     >
       <item.icon className={cx("shrink-0", sub ? "size-4" : "size-[18px]")} />
       {!mini && <span className="truncate">{t(item.label)}</span>}

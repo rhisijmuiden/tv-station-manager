@@ -532,3 +532,34 @@ test("stream output: channel encoder on CasparCG, one relay per destination, rem
   assert.equal((await api("DELETE", `/api/stream-outputs/${ev.body.id}`)).status, 200);
   assert.ok(procs.at(-1)!.exitCode !== null);
 });
+
+test("simple planning: hour blocks begin with the channel's fixed start; hidden one-off blocks stay out of the lists", async () => {
+  const ch = (await api("POST", "/api/channels", { name: "Uurstart TV", atemId: null, studioId: null, casparChannel: 1, playoutInput: null })).body;
+  const opener = (await api("POST", "/api/blocks", { name: "Begin van het uur", hourStart: false, items: [{ type: "lineup", durationMs: 30_000 }] })).body.id;
+  const hour = (await api("POST", "/api/blocks", { name: "Nieuwsuur", items: [{ type: "lineup", durationMs: 120_000, title: "Item" }] })).body.id;
+  const live = (await api("POST", "/api/blocks", { name: "Live: raad", hidden: true, items: [{ type: "lineup", durationMs: 60_000 }] })).body.id;
+  const list = (await api("GET", "/api/blocks?kind=program")).body.blocks as { id: number; hourStart: boolean }[];
+  assert.equal(list.find((b) => b.id === hour)?.hourStart, true);
+  assert.equal(list.find((b) => b.id === opener)?.hourStart, false);
+  assert.ok(!list.some((b) => b.id === live));
+
+  const g = ch.graphics;
+  const saved = (await api("PUT", `/api/channels/${ch.id}/graphics`, { ...g, hourStart: { enabled: true, blockId: opener }, layers: { ...g.layers, webcam: { logo: true, clock: false, ticker: false } } })).body;
+  assert.deepEqual(saved.graphics.hourStart, { enabled: true, blockId: opener });
+  assert.equal(saved.graphics.layers.webcam.logo, true);
+  assert.equal(saved.graphics.layers.beeldkrant.logo, false);
+
+  const start = new Date(Date.now() + 2 * 86400_000);
+  start.setUTCMinutes(0, 0, 0);
+  for (const blockId of [hour, opener]) await api("POST", "/api/schedule", { channelId: ch.id, startAt: new Date(start.getTime() + (blockId === hour ? 0 : 3600_000)).toISOString(), blockId });
+  const q = `/api/schedule?channel=${ch.id}&from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(new Date(start.getTime() + 2 * 3600_000).toISOString())}`;
+  const entries = (await api("GET", q)).body.entries as { blockId: number; startAt: string; contentEndAt: string }[];
+  const len = (id: number) => entries.filter((e) => e.blockId === id).map((e) => Date.parse(e.contentEndAt) - Date.parse(e.startAt))[0];
+  assert.equal(len(hour), 150_000, "fixed start (30 s) + the block's item (2 min)");
+  assert.equal(len(opener), 30_000, "the fixed start itself does not start with itself");
+
+  // A block can switch the fixed start off.
+  await api("PUT", `/api/blocks/${hour}`, { name: "Nieuwsuur", hourStart: false, items: [{ type: "lineup", durationMs: 120_000, title: "Item" }] });
+  const after = (await api("GET", q)).body.entries as { blockId: number; startAt: string; contentEndAt: string }[];
+  assert.equal(after.filter((e) => e.blockId === hour).map((e) => Date.parse(e.contentEndAt) - Date.parse(e.startAt))[0], 120_000);
+});

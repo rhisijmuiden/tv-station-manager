@@ -43,6 +43,8 @@ export interface BlockRef {
   audio?: AudioSetting;
   /** What fills the rest of the hour when the block's material ends early ("beeldkrant:<id>", "webcam:<id>"); null = the channel filler. */
   fill?: string | null;
+  /** Starts with the channel's fixed hour start ("every hour begins with", e.g. the coming-up slide and a tune). */
+  hourStart?: boolean;
 }
 /** Stored audio choice: null/undefined = follow the parent, "none" = no audio, "<id>" = an audio source. */
 export type AudioSetting = string | null;
@@ -59,6 +61,8 @@ export interface Loader {
    * item's place in it (`path`), so a pick is remembered and clips are not repeated within one broadcast.
    */
   autoMedia?(rule: string | null | undefined, asOf: number | undefined, slot?: { key: string; path: string }): MediaRef[];
+  /** The block every hour of this channel begins with (graphics setting `hourStart`), or null when switched off. */
+  hourStart?(channelId: number): number | null;
 }
 export interface WebcamRef {
   id: number;
@@ -98,6 +102,8 @@ export interface Leaf {
   audioSourceId?: number | null;
   /** Picked by a "newest clips" rule (changes by itself when new clips arrive). */
   auto?: boolean;
+  /** Part of the channel's fixed hour start, played before the block's own items. */
+  hourStart?: boolean;
 }
 
 export const DEFAULT_LIVE_MS = 30 * 60_000;
@@ -220,6 +226,30 @@ export function fillLeaf(loader: Loader, fill: string | null | undefined, blockN
 /** The next whole hour after `t` (station time is a whole number of hours from UTC). */
 export const nextHour = (t: number) => Math.floor(t / 3600_000) * 3600_000 + 3600_000;
 
+/**
+ * Whether a block starts with the channel's fixed hour start: its own setting, or that of its first nested block
+ * (an editor's rundown for a date holds the planned hour block as its first item).
+ */
+export function blockHourStart(loader: Loader, blockId: number): boolean {
+  const b = loader.block(blockId);
+  if (!b) return false;
+  if (b.hourStart) return true;
+  const first = b.items[0];
+  return first?.type === "block" && first.childBlockId != null && first.childBlockId !== blockId && !!loader.block(first.childBlockId)?.hourStart;
+}
+
+/** The leaves of the channel's fixed hour start for an entry that plays this block, or [] (none, or not wanted). */
+export function hourStartLeaves(loader: Loader, channelId: number | undefined, blockId: number, asOf?: number, key?: string): Leaf[] {
+  if (channelId == null || !loader.hourStart) return [];
+  const opener = loader.hourStart(channelId);
+  if (opener == null || opener === blockId || !blockHourStart(loader, blockId)) return [];
+  try {
+    return expandBlock(loader, opener, [blockId], null, false, asOf, key, `h${opener}`).map((l) => ({ ...l, hourStart: true }));
+  } catch {
+    return [];
+  }
+}
+
 export const blockDuration = (loader: Loader, blockId: number) => expandBlock(loader, blockId).reduce((s, l) => s + l.durationMs, 0);
 
 export interface ScheduleEntry {
@@ -238,11 +268,13 @@ export interface ScheduleEntry {
 }
 
 /** The leaves an entry plays (the whole block, or the part given by skip/take). */
-export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take"> & { start?: number; id?: number; group?: string | null }): Leaf[] {
+export function entryLeaves(loader: Loader, entry: Pick<ScheduleEntry, "blockId" | "skip" | "take"> & { start?: number; id?: number; group?: string | null; channelId?: number }): Leaf[] {
   // One broadcast = a week-schedule occurrence (all its parts) or a single schedule entry.
   const key = entry.group ? `occ:${entry.group}` : entry.id != null ? `entry:${entry.id}` : undefined;
   const all = expandBlock(loader, entry.blockId, [], null, false, entry.start, key);
   const skip = entry.skip ?? 0;
+  // The fixed hour start goes in front of a whole block (not of a part an hour clock spreads over its windows).
+  if (skip === 0 && entry.take == null) return [...hourStartLeaves(loader, entry.channelId, entry.blockId, entry.start, key), ...all];
   return entry.take == null ? all.slice(skip) : all.slice(skip, skip + entry.take);
 }
 

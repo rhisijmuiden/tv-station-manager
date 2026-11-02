@@ -476,4 +476,6 @@ export const MANAGEMENT_MIGRATIONS = [
    CREATE INDEX block_items_block ON block_items(block_id, position);`,
   // "Rest of the hour" of a block: what plays after its material until the next whole hour (beeldkrant:<id> / webcam:<id>).
   `ALTER TABLE blocks ADD COLUMN fill TEXT;`,
+  // Hour blocks begin with the channel's fixed hour start (graphics.hourStart); existing blocks keep playing as before.
+  `ALTER TABLE blocks ADD COLUMN hour_start INTEGER NOT NULL DEFAULT 0;`,
 ];

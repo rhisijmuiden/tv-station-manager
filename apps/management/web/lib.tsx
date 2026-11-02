@@ -92,7 +92,27 @@ export interface Graphics {
   hideInCommercials: boolean;
   /** "Coming up" slide (block item type lineup). */
   lineup?: LineupSettings;
+  /** "Every hour begins with": a block in front of every hour block. */
+  hourStart?: { enabled: boolean; blockId: number | null };
+  /** Which parts of the base layer stay on air per kind of content. */
+  layers?: Layers;
 }
+export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "commercial", "filler"] as const;
+export type LayerKind = (typeof LAYER_KINDS)[number];
+export interface LayerRule {
+  logo: boolean;
+  clock: boolean;
+  ticker: boolean;
+}
+export type Layers = Record<LayerKind, LayerRule>;
+const on = { logo: true, clock: true, ticker: true };
+const off = { logo: false, clock: false, ticker: false };
+/** The server's defaults (server/layers.ts): a beeldkrant, webcam, coming-up slide or commercial hides the base layer. */
+export const LAYER_DEFAULTS: Layers = { media: on, beeldkrant: off, webcam: off, live: on, lineup: off, commercial: off, filler: on };
+export const layersOf = (g: Graphics | undefined | null): Layers => ({ ...LAYER_DEFAULTS, ...(g?.layers ?? {}) });
+/** The kind of content a block item is, for the layer rules (items of an ad break count as commercials). */
+export const itemLayerKind = (type: string, commercial?: boolean): LayerKind =>
+  commercial ? "commercial" : type === "beeldkrant" || type === "webcam" || type === "live" || type === "lineup" ? type : "media";
 export interface LineupSettings {
   heading: string;
   language: "nl" | "en";
@@ -133,6 +153,8 @@ export interface BlockSummary {
   durationMs: number;
   warnings: number;
   cycle: boolean;
+  /** Begins with the channel's fixed hour start. */
+  hourStart?: boolean;
 }
 export interface LiveSource {
   id: number;
