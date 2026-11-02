@@ -39,7 +39,8 @@ when editing to keep it.
 ## 2. Streams
 
 **Add stream**: a TV channel output (studio node + CasparCG channel) or a remote source, plus the destinations.
-Channel settings: video bitrate (default 4500 kbit/s), audio bitrate (160 kbit/s AAC), resolution (same as the
+Channel settings: video bitrate (default 4500 kbit/s), audio bitrate (160 kbit/s AAC, stereo: the first two of
+CasparCG's 8 audio channels, because 8-channel AAC does not play in browsers), resolution (same as the
 channel, or 720p), encoder (x264 on the CPU, or NVIDIA NVENC), deinterlace (on; keep it on for 1080i50) and extra
 FFmpeg options for specialists. Keyframe every 50 frames (2 s at 25 fps), as YouTube and Facebook require.
 

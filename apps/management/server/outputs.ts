@@ -73,8 +73,11 @@ export function encoderArgs(o: Pick<OutputRow, "encoder" | "video_kbps" | "audio
   // yuv420p: players and platforms do not accept the 4:4:4 that CasparCG's BGRA frames would otherwise give.
   const filters = [o.deinterlace ? "yadif=0:-1:0" : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
   const v = o.video_kbps;
+  // CasparCG mixes 8 audio channels. AAC with 8 channels and no standard layout gets channel configuration 0,
+  // which browsers (Owncast/hls.js, YouTube) cannot decode: the player keeps spinning. Send stereo (the first pair).
+  const audio = `-filter:a pan=stereo|c0=c0|c1=c1 -codec:a aac -b:a ${o.audio_kbps}k`;
   const codec = o.encoder === "nvenc" ? "-codec:v h264_nvenc -preset:v p4 -tune:v ll -rc:v cbr" : "-codec:v libx264 -preset:v veryfast -tune:v zerolatency";
-  return [`-format flv -filter:v ${filters}`, codec, `-b:v ${v}k -maxrate:v ${v}k -bufsize:v ${v * 2}k -g:v 50 -codec:a aac -b:a ${o.audio_kbps}k`, o.extra_args.trim()].filter(Boolean).join(" ");
+  return [`-format flv -filter:v ${filters}`, codec, `-b:v ${v}k -maxrate:v ${v}k -bufsize:v ${v * 2}k -g:v 50`, audio, o.extra_args.trim()].filter(Boolean).join(" ");
 }
 
 export const programPath = (outputId: number) => `program/out-${outputId}`;
