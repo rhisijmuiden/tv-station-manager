@@ -117,6 +117,9 @@ importers:
       fastify:
         specifier: ^5.6.1
         version: 5.12.7
+      hyperdeck-connection:
+        specifier: ^3.1.0
+        version: 3.1.0
       lucide-react:
         specifier: ^0.548.0
         version: 0.548.0(react@19.3.1)
@@ -1382,6 +1385,10 @@ packages:
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
     engines: {node: '>= 0.8'}
+
+  hyperdeck-connection@3.1.0:
+    resolution: {integrity: sha512-20+hsP7uHNgFd7m/y+3AzCrk7uv0YzaGI5Ku3f6/djni5CSHbRVib0OgUF1OhzSjN0MTrM9KKxeDVRaqcQ2qTg==}
+    engines: {node: '>=22.22'}
 
   i18next@25.10.10:
     resolution: {integrity: sha512-cqUW2Z3EkRx7NqSyywjkgCLK7KLCL6IFVFcONG7nVYIJ3ekZ1/N5jUsihHV6Bq37NfhgtczxJcxduELtjTwkuQ==}
@@ -3007,6 +3014,8 @@ snapshots:
       setprototypeof: 1.2.0
       statuses: 2.0.2
       toidentifier: 1.0.1
+
+  hyperdeck-connection@3.1.0: {}
 
   i18next@25.10.10(typescript@5.9.3):
     dependencies:

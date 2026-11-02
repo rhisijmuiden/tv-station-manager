@@ -37,6 +37,7 @@ import {
   SlidersHorizontal,
   Trash2,
   Unplug,
+  Video,
   Wand2,
   X,
   type LucideIcon,
@@ -45,6 +46,7 @@ import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRe
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { AtemControl, type ControlState } from "./AtemControl";
+import { TransportBadge } from "./Hyperdeck";
 import { autoLayout, CABLES, CARD_PRESETS, cardFromPreset, DEVICE_TYPES, linkError, trace, type Card as CardT, type Link, type LinkTally, type ResolvedPort } from "../server/diagramlogic";
 
 interface AtemInfo {
@@ -60,7 +62,7 @@ interface AtemInfo {
 }
 interface Device {
   id: string;
-  kind: "node" | "atem" | "device";
+  kind: "node" | "atem" | "hyperdeck" | "device";
   refId: string | null;
   name: string;
   deviceType: string;
@@ -72,16 +74,17 @@ interface Device {
   online: boolean | null;
   node: { role: string; hostname: string } | null;
   atem: AtemInfo | null;
+  hyperdeck?: { host: string; model: string | null; status: string | null; timecode: string | null } | null;
 }
 interface DiagramData {
   devices: Device[];
   links: Link[];
   broken: string[];
-  available: { nodes: { id: string; name: string; role: string }[]; atems: { id: string; name: string }[] };
+  available: { nodes: { id: string; name: string; role: string }[]; atems: { id: string; name: string }[]; hyperdecks?: { id: string; name: string; model: string | null }[] };
 }
 
 const TYPE_ICON: Record<string, LucideIcon> = { server: Server, camera: Camera, converter: ArrowLeftRight, encoder: Cast, recorder: HardDrive, monitor: Monitor, router: Network, other: Box };
-const iconOf = (d: Device) => (d.kind === "atem" ? SlidersHorizontal : (TYPE_ICON[d.deviceType] ?? Box));
+const iconOf = (d: Device) => (d.kind === "atem" ? SlidersHorizontal : d.kind === "hyperdeck" ? Video : (TYPE_ICON[d.deviceType] ?? Box));
 
 const TALLY_COLOR: Record<Exclude<LinkTally, null>, string> = { air: "var(--tvsm-on-air)", program: "var(--tvsm-danger)", preview: "var(--tvsm-success)" };
 
@@ -122,7 +125,7 @@ function PortRow({ p, devId, extra }: { p: ResolvedPort; devId: string; extra?: 
 function NodeShell({ dev, selected, children, accent }: { dev: Device; selected: boolean; children: React.ReactNode; accent?: "locked" | null }) {
   const { t } = useTranslation();
   const Icon = iconOf(dev);
-  const sub = dev.kind === "atem" ? (dev.atem?.model ?? dev.atem?.host ?? "") : dev.kind === "node" ? `${t(`orch.nodes.role_${dev.node?.role ?? "unassigned"}`, { defaultValue: dev.node?.role ?? "" })} · ${dev.node?.hostname ?? ""}` : t(`orch.diagram.type_${dev.deviceType}`);
+  const sub = dev.kind === "atem" ? (dev.atem?.model ?? dev.atem?.host ?? "") : dev.kind === "hyperdeck" ? (dev.hyperdeck?.model ?? dev.hyperdeck?.host ?? "HyperDeck") : dev.kind === "node" ? `${t(`orch.nodes.role_${dev.node?.role ?? "unassigned"}`, { defaultValue: dev.node?.role ?? "" })} · ${dev.node?.hostname ?? ""}` : t(`orch.diagram.type_${dev.deviceType}`);
   return (
     <div
       className={cx(
@@ -138,6 +141,7 @@ function NodeShell({ dev, selected, children, accent }: { dev: Device; selected:
           <p className="truncate text-[13px] leading-tight font-semibold">{dev.name}</p>
           <p className={cx("truncate text-[11px] leading-tight", dev.kind === "atem" ? "text-white/55" : "text-muted")}>{sub}</p>
         </div>
+        {dev.kind === "hyperdeck" && dev.hyperdeck?.status === "record" && <TransportBadge status="record" />}
         {dev.online != null && <span title={dev.online ? t("orch.nodes.online") : t("orch.nodes.offline")} className={cx("size-2.5 shrink-0 rounded-full", dev.online ? "bg-ok" : "bg-danger")} />}
         {accent === "locked" && <Lock className="size-3.5 text-warn" />}
       </div>
@@ -368,20 +372,22 @@ function DeviceDialog({ dev, onClose, onDone }: { dev: Device; onClose: () => vo
 function AddDialog({ data, onClose, onAdd }: { data: DiagramData; onClose: () => void; onAdd: (body: Record<string, unknown>) => Promise<void> }) {
   const { t } = useTranslation();
   const err = useErr();
-  const [kind, setKind] = useState<"node" | "atem" | "device">(data.available.nodes.length ? "node" : data.available.atems.length ? "atem" : "device");
+  const decks = data.available.hyperdecks ?? [];
+  const [kind, setKind] = useState<"node" | "atem" | "hyperdeck" | "device">(data.available.nodes.length ? "node" : data.available.atems.length ? "atem" : decks.length ? "hyperdeck" : "device");
   const [refId, setRefId] = useState("");
   const [name, setName] = useState("");
   const [deviceType, setDeviceType] = useState("camera");
   const [preset, setPreset] = useState("decklink-4k-extreme-12g");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const list = kind === "node" ? data.available.nodes : kind === "atem" ? data.available.atems : [];
+  const list = kind === "node" ? data.available.nodes : kind === "atem" ? data.available.atems : kind === "hyperdeck" ? decks : [];
   const chosen = refId || list[0]?.id || "";
   const add = async () => {
     setBusy(true);
     setError(null);
     try {
-      const cards = kind === "atem" || preset === "" ? [] : [cardFromPreset(preset, "c1", { name: t("orch.diagram.customCard") })];
+      // HyperDecks get the connectors of their model from the server.
+      const cards = kind === "atem" || kind === "hyperdeck" || preset === "" ? [] : [cardFromPreset(preset, "c1", { name: t("orch.diagram.customCard") })];
       await onAdd(kind === "device" ? { kind, name, deviceType, cards } : { kind, refId: chosen, cards });
     } catch (e) {
       setError(err(e));
@@ -406,9 +412,9 @@ function AddDialog({ data, onClose, onAdd }: { data: DiagramData; onClose: () =>
     >
       <div className="space-y-4">
         {error && <Alert tone="danger">{error}</Alert>}
-        <div className="grid grid-cols-3 gap-2">
-          {(["node", "atem", "device"] as const).map((k) => {
-            const Icon = k === "node" ? Server : k === "atem" ? SlidersHorizontal : Camera;
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {(["node", "atem", "hyperdeck", "device"] as const).map((k) => {
+            const Icon = k === "node" ? Server : k === "atem" ? SlidersHorizontal : k === "hyperdeck" ? Video : Camera;
             return (
               <button
                 key={k}
@@ -429,9 +435,9 @@ function AddDialog({ data, onClose, onAdd }: { data: DiagramData; onClose: () =>
         </div>
         {kind !== "device" &&
           (list.length === 0 ? (
-            <p className="text-sm text-muted">{kind === "node" ? t("orch.diagram.allNodesPlaced") : t("orch.diagram.allAtemsPlaced")}</p>
+            <p className="text-sm text-muted">{kind === "node" ? t("orch.diagram.allNodesPlaced") : kind === "hyperdeck" ? t("orch.diagram.allHyperdecksPlaced") : t("orch.diagram.allAtemsPlaced")}</p>
           ) : (
-            <Field label={kind === "node" ? t("orch.diagram.kind_node") : t("orch.diagram.kind_atem")}>
+            <Field label={t(`orch.diagram.kind_${kind}`)}>
               {(id) => (
                 <Select id={id} value={chosen} onChange={(e) => setRefId(e.target.value)}>
                   {list.map((x) => (
@@ -459,7 +465,7 @@ function AddDialog({ data, onClose, onAdd }: { data: DiagramData; onClose: () =>
             </Field>
           </div>
         )}
-        {kind !== "atem" && (
+        {kind !== "atem" && kind !== "hyperdeck" && (
           <Field label={t("orch.diagram.firstCard")} hint={t("orch.diagram.firstCardHint")}>
             {(id) => (
               <Select id={id} value={preset} onChange={(e) => setPreset(e.target.value)}>
@@ -474,6 +480,7 @@ function AddDialog({ data, onClose, onAdd }: { data: DiagramData; onClose: () =>
           </Field>
         )}
         {kind === "atem" && <p className="text-xs text-muted">{t("orch.diagram.atemPortsHint")}</p>}
+        {kind === "hyperdeck" && <p className="text-xs text-muted">{t("orch.diagram.hyperdeckPortsHint")}</p>}
       </div>
     </Dialog>
   );
@@ -576,6 +583,17 @@ function DevicePanel({ dev, editing, onEdit, onRemove, onChanged }: { dev: Devic
               </p>
             </div>
           ))}
+          {dev.kind === "hyperdeck" && dev.refId && (
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="flex items-center gap-2">
+                <TransportBadge status={dev.hyperdeck?.status} />
+                {dev.hyperdeck?.status && <Mono>{dev.hyperdeck.timecode}</Mono>}
+              </span>
+              <RouterLink to={`/hyperdeck/${dev.refId}`} className="inline-flex items-center gap-1 text-brand hover:underline">
+                {t("orch.diagram.openHyperdeck")} <ExternalLink className="size-3" />
+              </RouterLink>
+            </div>
+          )}
           {dev.kind === "node" && dev.refId && (
             <RouterLink to="/nodes" className="inline-flex items-center gap-1 text-xs text-brand hover:underline">
               {t("orch.diagram.openNodes")} <ExternalLink className="size-3" />
@@ -758,6 +776,7 @@ function DiagramInner() {
       // Management nodes have no video connectors: they are left out (and can still be added by hand).
       for (const n of data.available.nodes.filter((x) => x.role !== "management")) await post("/api/diagram/devices", { kind: "node", refId: n.id, cards: ["studio", "playout", "live"].includes(n.role) ? [cardFromPreset("decklink-4k-extreme-12g", "c1")] : [] });
       for (const a of data.available.atems) await post("/api/diagram/devices", { kind: "atem", refId: a.id });
+      for (const h of data.available.hyperdecks ?? []) await post("/api/diagram/devices", { kind: "hyperdeck", refId: h.id });
       const d = await get<DiagramData>("/api/diagram");
       setData(d);
       setNodes(d.devices.map((dev) => ({ id: dev.id, type: dev.kind === "atem" ? "atem" : "device", position: { x: dev.x, y: dev.y }, data: { dev } })));
@@ -776,7 +795,7 @@ function DiagramInner() {
 
   if (!data) return null;
   const empty = data.devices.length === 0;
-  const placeable = data.available.nodes.filter((x) => x.role !== "management").length + data.available.atems.length;
+  const placeable = data.available.nodes.filter((x) => x.role !== "management").length + data.available.atems.length + (data.available.hyperdecks?.length ?? 0);
   const tallyCtx = { ports: tally.ports, editing };
 
   return (
