@@ -73,7 +73,9 @@ export function encoderArgs(o: Pick<OutputRow, "encoder" | "video_kbps" | "audio
   // yuv420p: players and platforms do not accept the 4:4:4 that CasparCG's BGRA frames would otherwise give.
   // yadif halves the time base (pts x2), but CasparCG gives the encoder 1/frame rate as time base without rescaling,
   // so the video ran at double speed against the audio and players stalled. settb=intb*2 restores the time base.
-  const filters = [o.deinterlace ? "yadif=0:-1:0,settb=intb*2" : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
+  // CasparCG hands the consumer 50 frames/s on a 1080i50 channel; keep every second one (25p, like the broadcast),
+  // otherwise Owncast has to transcode 1080p50 and falls behind. The second settb makes the time base 1/25 again.
+  const filters = [o.deinterlace ? "yadif=0:-1:0,settb=intb*2,framestep=2,settb=intb*2" : null, o.resolution === "720p" ? "scale=1280:720" : null, "format=yuv420p"].filter(Boolean).join(",");
   const v = o.video_kbps;
   // CasparCG mixes 8 audio channels. AAC with 8 channels and no standard layout gets channel configuration 0,
   // which browsers (Owncast/hls.js, YouTube) cannot decode: the player keeps spinning. Send stereo (the first pair).
