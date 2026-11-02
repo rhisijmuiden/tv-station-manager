@@ -8,6 +8,7 @@ import { ChannelTabs } from "../components/ChannelPicker";
 import { indicatorClass, payloadItems, useDrop, useDropList, type DragPayload, type DropItem } from "../components/dnd";
 import { WithMediaBin } from "../components/MediaBin";
 import { MediaPicker } from "../components/MediaPicker";
+import { autoLabel, type AutoInfo, type AutoRule } from "../components/AutoClips";
 import { addDays, errorText, fmtDate, fmtDuration, fmtTime, isoDay, startOfWeek, useCategories, useChannelSelection, useChannels, useGet, type BlockSummary } from "../lib";
 
 interface OccSummary {
@@ -51,7 +52,10 @@ interface Detail {
   items: RawItem[];
 }
 interface RawItem {
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto";
+  autoRule?: AutoRule | null;
+  autoSourceName?: string | null;
+  autoClips?: AutoInfo["autoClips"];
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
@@ -71,7 +75,9 @@ interface RawItem {
   effectiveDurationMs: number | null;
 }
 interface Item {
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto";
+  /** "Newest clips" rule, kept as set in the block editor. */
+  autoRule?: AutoRule | null;
   mediaId?: number | null;
   childBlockId?: number | null;
   liveSourceId?: number | null;
@@ -86,8 +92,9 @@ interface Item {
   effectiveDurationMs: number | null;
   warning?: string | null;
 }
-const toItem = (i: RawItem): Item => ({
+const toItem = (i: RawItem, t: (k: string, o?: Record<string, unknown>) => string): Item => ({
   type: i.type,
+  autoRule: i.autoRule ?? null,
   mediaId: i.mediaId,
   childBlockId: i.childBlockId,
   liveSourceId: i.liveSourceId,
@@ -96,8 +103,8 @@ const toItem = (i: RawItem): Item => ({
   durationMs: i.durationMs,
   title: i.title,
   audio: i.audio ?? null,
-  label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.type === "webcam" ? i.webcamName || "" : i.liveName || "",
-  sub: i.type === "media" ? i.mediaPath : null,
+  label: i.type === "auto" && i.autoRule ? autoLabel(t, { autoRule: i.autoRule, autoSourceName: i.autoSourceName ?? null }) : i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.type === "webcam" ? i.webcamName || "" : i.liveName || "",
+  sub: i.type === "media" ? i.mediaPath : i.type === "auto" ? i.autoClips?.map((c) => c.name).join(" · ") || null : null,
   effectiveDurationMs: i.effectiveDurationMs,
   warning: i.type === "media" ? (i.mediaMissing ? "missing" : i.effectiveDurationMs == null ? "no_duration" : null) : null,
 });
@@ -240,7 +247,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
   const load = async () => {
     const d = await get<Detail>(`/api/week/occurrences/${slotId}/${date}`);
     setDetail(d);
-    setItems(d.occurrence.state === "block" ? null : d.items.map(toItem));
+    setItems(d.occurrence.state === "block" ? null : d.items.map((i) => toItem(i, t)));
     setDirty(false);
   };
   useEffect(() => {
@@ -279,9 +286,9 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
     }
   };
   const save = (ready: boolean) =>
-    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, durationMs, title, audio }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, durationMs, title, audio: audio ?? null })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
+    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, autoRule, durationMs, title, audio }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, autoRule: type === "auto" ? autoRule : undefined, durationMs, title, audio: audio ?? null })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
   const ownFromBlock = async (extra: Item[] = [], at?: number) => {
-    const own = occ?.blockId ? (await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`)).items.map(toItem) : [];
+    const own = occ?.blockId ? (await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`)).items.map((i) => toItem(i, t)) : [];
     const pos = at ?? own.length;
     change([...own.slice(0, pos), ...extra, ...own.slice(pos)]);
   };
@@ -441,7 +448,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
                       <li key={i} {...(canEdit ? dnd.rowProps(i, it.title || it.label) : {})} className={cx("flex items-center gap-3 px-3 py-2 text-sm", out && "bg-danger/5", canEdit && "cursor-grab active:cursor-grabbing", indicatorClass(dnd.indicator, i, items.length))}>
                         {canEdit && <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />}
                         <span className={cx("w-12 font-mono text-xs", out ? "text-danger" : "text-muted")}>{at ? fmtTime(at.start) : "—"}</span>
-                        <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
+                        <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "auto" ? "bg-brand text-white" : it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "auto" ? <Sparkles className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{it.title || it.label}</span>
                           {it.sub && <span className="block truncate text-xs text-muted">{it.sub}</span>}

@@ -1,6 +1,6 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { AudioLines, Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, ToggleRight, Tv, Video, WandSparkles, Webcam } from "lucide-react";
+import { AudioLines, Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Library, Newspaper, Palette, Radio, Rss, Satellite, SlidersHorizontal, Tags, ToggleRight, Tv, Video, WandSparkles, Webcam } from "lucide-react";
 import { AudioSourcesPage } from "./pages/AudioSources";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
@@ -37,27 +37,35 @@ mountPlatformApp({
       label: "mgmt.nav.editorial",
       items: [
         { to: "/new-hour", label: "mgmt.nav.newHour", icon: WandSparkles, minRole: "editor" },
-        { to: "/switch", label: "mgmt.nav.switch", icon: ToggleRight, minRole: "operator" },
         { to: "/week", label: "mgmt.nav.week", icon: CalendarRange },
         { to: "/rundowns", label: "mgmt.nav.rundowns", icon: ClipboardList },
         { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
         { to: "/clocks", label: "mgmt.nav.clocks", icon: Clock3 },
-        { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
-        { to: "/recordings", label: "mgmt.nav.recordings", icon: Video },
-        { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
         { to: "/ads", label: "mgmt.nav.ads", icon: Film },
-        { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
-        { to: "/webcams", label: "mgmt.nav.webcams", icon: Webcam },
+        {
+          // Everything that can be put on air, together in one submenu.
+          to: "media-sources",
+          label: "mgmt.nav.mediaSources",
+          icon: Library,
+          children: [
+            { to: "/media", label: "mgmt.nav.media", icon: FolderOpen },
+            { to: "/recordings", label: "mgmt.nav.recordings", icon: Video },
+            { to: "/webcams", label: "mgmt.nav.webcams", icon: Webcam },
+            { to: "/remote", label: "mgmt.nav.remote", icon: Satellite },
+            { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
+            { to: "/audio", label: "mgmt.nav.audio", icon: AudioLines },
+            { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
+          ],
+        },
       ],
     },
     {
       label: "mgmt.nav.broadcast",
       items: [
+        { to: "/switch", label: "mgmt.nav.switch", icon: ToggleRight, minRole: "operator" },
         { to: "/control", label: "mgmt.nav.control", icon: Radio },
         { to: "/schedule", label: "mgmt.nav.schedule", icon: CalendarDays },
         { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
-        { to: "/remote", label: "mgmt.nav.remote", icon: Satellite },
-        { to: "/audio", label: "mgmt.nav.audio", icon: AudioLines },
         { to: "/outputs", label: "mgmt.nav.outputs", icon: Cast },
       ],
     },
@@ -68,7 +76,7 @@ mountPlatformApp({
         { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
         { to: "/channels", label: "mgmt.nav.channels", icon: Tv, minRole: "admin" },
         { to: "/devices", label: "mgmt.nav.devices", icon: Cable, minRole: "admin" },
-        { to: "/switch-buttons", label: "mgmt.nav.switchButtons", icon: ToggleRight, minRole: "admin" },
+        { to: "/switch-buttons", label: "mgmt.nav.switchButtons", icon: SlidersHorizontal, minRole: "admin" },
       ],
     },
   ],

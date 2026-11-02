@@ -1,4 +1,4 @@
-import { ChevronsLeft, Info, LogOut, Menu, Moon, ShieldAlert, Sun, UserRound } from "lucide-react";
+import { ChevronDown, ChevronsLeft, Info, LogOut, Menu, Moon, ShieldAlert, Sun, UserRound } from "lucide-react";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
@@ -9,6 +9,7 @@ import { InfoDialog } from "./InfoDialog";
 import { cx } from "./ui";
 
 export interface NavItem {
+  /** Route; for an item with `children` it is only a stable key (the item opens and closes the submenu). */
   to: string;
   /** i18n key */
   label: string;
@@ -16,6 +17,8 @@ export interface NavItem {
   end?: boolean;
   /** Hide unless the user has at least this role (admin > editor > operator). */
   minRole?: "admin" | "editor" | "operator";
+  /** A submenu: the item folds open to show these (opens by itself when one of them is the current page). */
+  children?: NavItem[];
 }
 export interface NavGroup {
   /** i18n key, omit for the first unlabeled group */
@@ -23,6 +26,18 @@ export interface NavGroup {
   minRole?: "admin" | "editor" | "operator";
   items: NavItem[];
 }
+
+/** Folded menu groups and submenus, remembered per browser. */
+const FOLD_KEY = "tvsm.nav.folded";
+const readFolded = (): Record<string, boolean> => {
+  try {
+    return JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+};
+const pathMatches = (path: string, item: NavItem) => (item.end || item.to === "/" ? path === item.to : path === item.to || path.startsWith(`${item.to}/`));
+const containsPath = (path: string, item: NavItem): boolean => (item.children ? item.children.some((c) => containsPath(path, c)) : pathMatches(path, item));
 
 const rank = (r?: string) => ({ admin: 3, editor: 2, operator: 1 })[r ?? ""] ?? 0;
 export const roleAtLeast = (role: string | undefined, min?: string) => !min || rank(role) >= rank(min);
@@ -39,6 +54,19 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
     }
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Submenus start folded, groups start open; the page you are on always stays visible.
+  const [folded, setFolded] = useState(readFolded);
+  const isFolded = (key: string, def: boolean) => folded[key] ?? def;
+  const toggleFold = (key: string, def: boolean) =>
+    setFolded((f) => {
+      const next = { ...f, [key]: !(f[key] ?? def) };
+      try {
+        localStorage.setItem(FOLD_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   const [infoOpen, setInfoOpen] = useState(false);
   const location = useLocation();
   const toggleCollapsed = () => {
@@ -56,6 +84,25 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
     await refresh();
   };
   const mini = collapsed && !mobileOpen;
+  const navLink = (item: NavItem, sub: boolean) => (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      onClick={() => setMobileOpen(false)}
+      title={mini ? t(item.label) : undefined}
+      className={({ isActive }) =>
+        cx(
+          "group relative flex items-center gap-3 rounded-md font-medium transition",
+          sub ? "py-1.5 text-[13px]" : "py-2 text-[13.5px]",
+          mini ? "justify-center px-0" : sub ? "px-2.5" : "px-3",
+          isActive ? "bg-brand text-white shadow-md shadow-brand/30" : "text-sidebar-fg/80 hover:bg-white/5 hover:text-white",
+        )
+      }
+    >
+      <item.icon className={cx("shrink-0", sub ? "size-4" : "size-[18px]")} />
+      {!mini && <span className="truncate">{t(item.label)}</span>}
+    </NavLink>
+  );
 
   const sidebar = (
     <aside
@@ -73,38 +120,82 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
         )}
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
         {nav
           .filter((g) => roleAtLeast(user?.role, g.minRole))
-          .map((g) => ({ ...g, items: g.items.filter((i) => roleAtLeast(user?.role, i.minRole)) }))
-          .map((group, gi) => (
-          <div key={gi}>
-            {group.label && !mini && <p className="mb-2 px-3 text-[11px] font-semibold tracking-wider text-white/35 uppercase">{t(group.label)}</p>}
-            {group.label && mini && <div className="mx-3 mb-2 border-t border-white/10" />}
-            <ul className="space-y-1">
-              {group.items.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    onClick={() => setMobileOpen(false)}
-                    title={mini ? t(item.label) : undefined}
-                    className={({ isActive }) =>
-                      cx(
-                        "group relative flex items-center gap-3 rounded-md py-2 text-[13.5px] font-medium transition",
-                        mini ? "justify-center px-0" : "px-3",
-                        isActive ? "bg-brand text-white shadow-md shadow-brand/30" : "text-sidebar-fg/80 hover:bg-white/5 hover:text-white",
-                      )
-                    }
+          .map((g) => ({
+            ...g,
+            items: g.items
+              .filter((i) => roleAtLeast(user?.role, i.minRole))
+              .map((i) => (i.children ? { ...i, children: i.children.filter((c) => roleAtLeast(user?.role, c.minRole)) } : i))
+              .filter((i) => !i.children || i.children.length > 0),
+          }))
+          .filter((g) => g.items.length > 0)
+          .map((group, gi) => {
+            const groupKey = `group:${group.label ?? gi}`;
+            const here = group.items.some((i) => containsPath(location.pathname, i));
+            const groupOpen = mini || !group.label || here || !isFolded(groupKey, false);
+            return (
+              <div key={gi}>
+                {group.label && !mini && (
+                  <button
+                    onClick={() => !here && toggleFold(groupKey, false)}
+                    className={cx("group/g mb-1.5 flex w-full items-center gap-1 rounded px-3 py-0.5 text-left text-[11px] font-semibold tracking-wider text-white/35 uppercase", !here && "hover:text-white/70")}
+                    aria-expanded={groupOpen}
                   >
-                    <item.icon className="size-[18px] shrink-0" />
-                    {!mini && <span className="truncate">{t(item.label)}</span>}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+                    <span className="flex-1">{t(group.label)}</span>
+                    {!here && <ChevronDown className={cx("size-3.5 opacity-0 transition group-hover/g:opacity-100", !groupOpen && "-rotate-90 opacity-100")} />}
+                  </button>
+                )}
+                {group.label && mini && <div className="mx-3 mb-2 border-t border-white/10" />}
+                {groupOpen && (
+                  <ul className="space-y-1">
+                    {group.items.map((item) =>
+                      item.children ? (
+                        mini ? (
+                          item.children.map((c) => <li key={c.to}>{navLink(c, false)}</li>)
+                        ) : (
+                          <li key={item.to}>
+                            {(() => {
+                              const subKey = `sub:${item.to}`;
+                              const inside = containsPath(location.pathname, item);
+                              const open = inside || !isFolded(subKey, true);
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => !inside && toggleFold(subKey, true)}
+                                    aria-expanded={open}
+                                    className={cx(
+                                      "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13.5px] font-medium transition",
+                                      inside ? "text-white" : "text-sidebar-fg/80 hover:bg-white/5 hover:text-white",
+                                    )}
+                                  >
+                                    <item.icon className="size-[18px] shrink-0" />
+                                    <span className="flex-1 truncate">{t(item.label)}</span>
+                                    <span className="rounded-full bg-white/8 px-1.5 text-[10.5px] font-semibold text-white/50">{item.children.length}</span>
+                                    <ChevronDown className={cx("size-4 shrink-0 text-white/40 transition", !open && "-rotate-90")} />
+                                  </button>
+                                  {open && (
+                                    <ul className="mt-1 ml-[21px] space-y-0.5 border-l border-white/10 pl-2">
+                                      {item.children.map((c) => (
+                                        <li key={c.to}>{navLink(c, true)}</li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </li>
+                        )
+                      ) : (
+                        <li key={item.to}>{navLink(item, false)}</li>
+                      ),
+                    )}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
       </nav>
 
       <div className="space-y-1 border-t border-white/5 p-3">
