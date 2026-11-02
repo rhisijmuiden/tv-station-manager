@@ -37,6 +37,9 @@ param(
   [string]$ManagementUrl = "",
   # Address used in the RTMP push URL shown to remote contributors. Default: this machine's first IPv4 address.
   [string]$PublicHost = "",
+  # Render HTML graphics (overlay, beeldkrant, webcams) on the graphics card: auto (on when an NVIDIA/AMD/Intel GPU
+  # with a vendor driver is present), on, off. Default: the choice of the previous install, else auto.
+  [ValidateSet("", "auto", "on", "off")][string]$HtmlGpu = "",
   [string]$CasparVersion = "2.4",
   [string]$MediaMtxVersion = "latest",
   [switch]$SkipAgent
@@ -78,6 +81,7 @@ if (-not $MediaPath -and $old) { $MediaPath = $old.mediaPath }
 if (-not $VideoMode -and $old) { $VideoMode = if ($old.videoMode) { $old.videoMode } elseif ($old.outputs) { @($old.outputs)[0].format } else { "" } }
 if (-not $VideoMode) { $VideoMode = "1080i5000" }
 if (-not $Keyer) { $Keyer = if ($old -and $old.keyer) { $old.keyer } else { "default" } }
+if (-not $HtmlGpu) { $HtmlGpu = if ($old -and $old.htmlGpu) { $old.htmlGpu } else { "auto" } }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
 function Get-Release([string]$repo, [scriptblock]$pick) {
@@ -164,6 +168,13 @@ if ($old -and $old.casparVersion -eq $casparTag -and (Test-Path (Join-Path $casp
   Write-Host "Installed CasparCG $casparTag to $casparDir"
 }
 
+# A real GPU with its vendor driver (not the Basic Display / Remote Display adapter). CasparCG mixes on it anyway
+# (OpenGL); this decides whether CEF (HTML producer) renders on it too instead of in software on the CPU.
+$gpu = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "OK" -and $_.Name -match "(?i)nvidia|geforce|quadro|rtx|radeon|amd|intel.*(graphics|arc)" } | Select-Object -First 1
+$htmlOnGpu = $HtmlGpu -eq "on" -or ($HtmlGpu -eq "auto" -and $gpu)
+if ($gpu) { Write-Host "Graphics card: $($gpu.Name) (driver $($gpu.DriverVersion))" } else { Warn "No graphics card with a vendor driver found: CasparCG needs OpenGL 4.5 (install the GPU driver)." }
+Write-Host "HTML graphics render on: $(if ($htmlOnGpu) { 'GPU' } else { 'CPU' }) (-HtmlGpu $HtmlGpu)"
+
 $consumers = ""
 $outs = @()
 for ($i = 1; $i -le $Outputs; $i++) {
@@ -207,7 +218,7 @@ $consumers  </channels>
     </tcp>
   </controllers>
   <html>
-    <enable-gpu>false</enable-gpu>
+    <enable-gpu>$(if ($htmlOnGpu) { "true" } else { "false" })</enable-gpu>
   </html>
 </configuration>
 "@
@@ -338,6 +349,7 @@ $studioJson = [ordered]@{
   mediaPath = if ($MediaPath) { $MediaPath } else { $null }
   videoMode = $VideoMode
   keyer = $Keyer
+  htmlGpu = $HtmlGpu
   outputs = $outs
 } | ConvertTo-Json -Depth 4
 Write-Utf8 (Join-Path $data "studio.json") $studioJson
@@ -421,6 +433,7 @@ Write-Host ""
 Write-Host "Studio node ready." -ForegroundColor Green
 Write-Host "  CasparCG $casparTag, $Outputs channel(s) at ${VideoMode}: channel N plays to DeckLink output N."
 Write-Host "  Media folder:  $mediaDir"
+Write-Host "  HTML graphics: $(if ($htmlOnGpu) { "GPU ($($gpu.Name))" } else { 'CPU (software)' })"
 if ($ingestAuth -eq "management") {
   Write-Host "  RTMP/SRT:      stream keys are checked by $ManagementUrl (management node -> Remote sources)"
 } elseif ($PublicHost) {
