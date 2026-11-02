@@ -1635,7 +1635,7 @@
       },
       "week": {
         "title": "Weekplanning",
-        "intro": "Sleep een blok uit de lijst op een dag en uur. Klik op een blok om te kiezen op welke dagen het terugkomt. Verslepen = verplaatsen.",
+        "intro": "Sleep een blok uit de lijst op een dag en uur. Klik op een blok om te kiezen op welke dagen het terugkomt. Verslepen = verplaatsen, aan de onderrand trekken = langer of korter.",
         "advanced": "Geavanceerd weekbord",
         "active": "De weekplanning stuurt het kanaal",
         "activeOn": "Wat je hier plant gaat vanzelf de lucht in (de komende 14 dagen).",
@@ -1665,7 +1665,9 @@
         "dragHint": "Sleep naar de week",
         "readOnly": "Redacteuren kunnen de planning aanpassen.",
         "noBlocks": "Nog geen blokken. Maak er eerst een.",
-        "withStart": "met vaste start"
+        "withStart": "met vaste start",
+        "resized": "Nu {{time}}, op alle dagen van deze reeks.",
+        "resizeHint": "Sleep de onderrand om het blok langer of korter te maken"
       },
       "live": {
         "button": "Live plannen",

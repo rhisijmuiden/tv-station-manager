@@ -24,7 +24,9 @@ De uurbalk boven de lijst laat alle drie zien. Items waarbij het logo uit beeld 
 
 ## Weekplanning
 
-- Sleep een blok uit de lijst rechts op een dag en uur. Verslepen in het rooster = verplaatsen.
+- Sleep een blok uit de lijst rechts op een dag en uur. Verslepen in het rooster = verplaatsen. Trek aan de onderrand
+  om het blok langer of korter te maken (hele uren, tot het volgende blok of middernacht; alle dagen van de reeks
+  volgen).
 - Klik op een blok: met de dagknoppen zet je het op meer dagen (zelfde tijd, zelfde blok), de lengte kan 1, 2 of 3 uur
   zijn, *Alleen <datum>* opent de rundown van die ene datum.
 - Tijdvakken met een uurklok of categorie van het geavanceerde weekbord staan hier ook, en pas je daar aan.
