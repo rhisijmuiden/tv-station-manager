@@ -32,7 +32,7 @@ import {
   type ClockItemDef,
   type ClockLayout,
 } from "./hourclock.js";
-import { audioIn, BlockCycleError, entryLeaves, expandBlock, type Leaf, type Loader } from "./timeline.js";
+import { audioIn, BlockCycleError, DEFAULT_LINEUP_MS, entryLeaves, expandBlock, type Leaf, type Loader } from "./timeline.js";
 
 const COLOR = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
@@ -471,7 +471,7 @@ const slotBase = z.object({
   inEpg: z.boolean().default(true),
 });
 const fillItemIn = z.object({
-  type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto"]),
+  type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup"]),
   autoRule: autoRuleSchema.nullable().optional(),
   mediaId: z.number().int().nullable().optional(),
   childBlockId: z.number().int().nullable().optional(),
@@ -887,7 +887,7 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
         ...i,
         mediaMissing: !!i.mediaMissing,
         ...(i.type === "auto" ? autoItemInfo(db, i.autoRule, occ.start, { key: `occ:${occ.key}`, path: `b${p.content.blockId}/${idx}` }, picks) : {}),
-        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null)),
+        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "lineup" ? DEFAULT_LINEUP_MS : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null)),
       })),
       windowsMs: p.windows.map((w) => w.end - w.start),
     };

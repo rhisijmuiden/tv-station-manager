@@ -21,7 +21,7 @@ export interface LiveRef {
 }
 export interface BlockItemRow {
   id?: number;
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
@@ -74,7 +74,7 @@ export interface BeeldkrantRef {
 }
 
 export interface Leaf {
-  type: "media" | "live" | "beeldkrant" | "webcam";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup";
   durationMs: number;
   title: string;
   mediaId?: number;
@@ -99,6 +99,8 @@ export interface Leaf {
 }
 
 export const DEFAULT_LIVE_MS = 30 * 60_000;
+/** Default length of a "coming up" slide (the programme of the coming hour). */
+export const DEFAULT_LINEUP_MS = 15_000;
 const MAX_DEPTH = 8;
 
 export class BlockCycleError extends Error {
@@ -161,6 +163,9 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
       // A beeldkrant is silent: without a choice in the block it takes the beeldkrant's own audio setting.
       const bkAudio = audio == null ? (b.audioSourceId ?? null) : audioSourceId;
       out.push({ type: "beeldkrant", durationMs: it.durationMs ?? b.durationMs, title: it.title || b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: block.kind, blockName: block.name, audioSourceId: bkAudio });
+    } else if (it.type === "lineup") {
+      // Full-screen slide with the programmes of the coming hour, generated from the schedule when it goes on air.
+      out.push({ type: "lineup", durationMs: it.durationMs ?? DEFAULT_LINEUP_MS, title: it.title || "", blockKind: block.kind, blockName: block.name, audioSourceId });
     } else if (it.type === "webcam" && it.webcamId != null) {
       const w = loader.webcam?.(it.webcamId);
       if (!w) continue;
@@ -202,7 +207,7 @@ export interface TimelineEvent {
   scheduleId: number | null;
   start: number;
   end: number;
-  type: "media" | "live" | "beeldkrant" | "webcam" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "filler";
   title: string;
   programTitle: string;
   /** Offset into the item when the event starts (only non-zero when the window cuts it). */

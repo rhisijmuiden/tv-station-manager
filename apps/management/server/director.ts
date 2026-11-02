@@ -300,6 +300,15 @@ export class Director {
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "lineup") {
+        // "Coming up" slide: a static page with the programmes of the coming hour, made from the schedule.
+        const p = this.playout(ch);
+        if (!p) throw new Error("no studio node configured for this channel");
+        this.remote.forget(ch.studio_id, ch.caspar_channel);
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, lineupUrl(this.platform, ch.id, ev.start - ev.offsetMs));
+        s.standby = null;
+        await this.stopRtmp(s);
+        await this.switchTo(ch, ch.playout_input);
       } else if (ev.type === "webcam" && ev.leaf?.webcamId) {
         await this.playWebcam(ch, s, ev.leaf.webcamId);
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
@@ -397,7 +406,7 @@ export class Director {
 
   /** The audio source that should sound now: only while the playout node itself is on air (clip, beeldkrant or webcam). */
   private wantedAudio(s: ChannelState, current: TimelineEvent | null) {
-    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam")) return null;
+    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam" && current.type !== "lineup")) return null;
     return current.leaf?.audioSourceId ?? null;
   }
 
@@ -454,7 +463,7 @@ export class Director {
     const g = channelOut(ch).graphics as Graphics;
     const inAd = current?.leaf?.blockKind === "commercial" || current?.leaf?.category === "commercial";
     // A beeldkrant has its own header and clock; the overlay only stays when the beeldkrant asks for it.
-    const onBeeldkrant = (current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay;
+    const onBeeldkrant = ((current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay) || current?.type === "lineup";
     const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
     const nextProgram = upcoming.find((e) => e.scheduleId != null && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
@@ -713,6 +722,9 @@ export function publicUrl(platform: Platform) {
     .find((a) => a && a.family === "IPv4" && !a.internal)?.address;
   return `http://${ip ?? "127.0.0.1"}:${platform.ctx.config.port}`;
 }
+
+/** Page CasparCG plays for a "coming up" slide: `at` is the slide's start, the list shows what starts after it. */
+export const lineupUrl = (platform: Platform, channelId: number, at: number) => `${publicUrl(platform)}/lineup/page.html?channel=${channelId}&at=${Math.round(at)}`;
 
 /** Page CasparCG plays for a beeldkrant: `start` is the wall-clock time of its first page, so a restart shows the right page. */
 export const beeldkrantUrl = (platform: Platform, id: number, start: number) => `${publicUrl(platform)}/beeldkrant/page.html?id=${id}&start=${Math.round(start)}`;

@@ -1,5 +1,5 @@
 import { Badge, Button, Card, Input, cx, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { Clapperboard, Film, Megaphone, MonitorPlay, Newspaper, Pause, Radio, Settings2, Webcam, X } from "lucide-react";
+import { CalendarClock, Clapperboard, Film, Megaphone, MonitorPlay, Newspaper, Pause, Radio, Settings2, Webcam, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -7,7 +7,7 @@ import { errorText, fmtDuration, fmtTime } from "../lib";
 
 export interface NowEv {
   key: string;
-  type: "media" | "live" | "beeldkrant" | "webcam" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "filler";
   title: string;
   programTitle: string;
   startAt: string;
@@ -50,7 +50,7 @@ const ms = (iso: string) => Date.parse(iso);
 
 function typeIcon(e: NowEv) {
   if (e.blockKind === "commercial") return Megaphone;
-  return { media: Film, live: Radio, beeldkrant: Newspaper, webcam: Webcam, filler: Pause }[e.type] ?? Clapperboard;
+  return { media: Film, live: Radio, beeldkrant: Newspaper, webcam: Webcam, lineup: CalendarClock, filler: Pause }[e.type] ?? Clapperboard;
 }
 
 function Bar({ value, className, fill = "bg-brand" }: { value: number; className?: string; fill?: string }) {
@@ -66,7 +66,7 @@ export function NowOnTv({ c, now, preview, onPreviewSaved }: { c: NowChannel; no
   const { t } = useTranslation();
   const [showPreview, setShowPreview] = useState(false);
   const cur = c.current;
-  const label = (e: NowEv) => (e.type === "filler" ? t("mgmt.control.filler") : e.title || e.programTitle);
+  const label = (e: NowEv) => (e.type === "filler" ? t("mgmt.control.filler") : e.title || (e.type === "lineup" ? t("mgmt.lineup.item") : e.programTitle));
 
   const p = c.program;
   const nextItems = p ? p.items.slice(p.index + 1) : c.upcoming;

@@ -183,7 +183,8 @@
         "live": "Live",
         "beeldkrant": "Beeldkrant",
         "webcam": "Webcam",
-        "auto": "Dynamic from folder"
+        "auto": "Dynamic from folder",
+        "lineup": "Slide"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duration (h:mm:ss); empty = from the beeldkrant",
@@ -1516,6 +1517,25 @@
         "random_one": "Random from {{source}}",
         "random_other": "{{count}} random clips from {{source}}"
       }
+    },
+    "lineup": {
+      "item": "Coming up slide",
+      "itemSub": "Programmes of the coming hour, with start times",
+      "add": "Coming up slide",
+      "addHint": "Full-screen slide that shows at what time the programmes of the coming hour start",
+      "duration": "How long the slide is on screen (empty = 0:15)",
+      "settingsTitle": "Coming up slide",
+      "settingsIntro": "A full-screen slide you place in an hour block. It shows at what time the programmes of the coming hour start, made from the schedule.",
+      "previewHint": "Preview with the real schedule of this channel from now. Save to use the settings on air.",
+      "heading": "Heading",
+      "headingHint": "Empty = \"Coming up on\" + channel name (or the Dutch text).",
+      "headingPlaceholder": "Straks op IJmond360",
+      "language": "Language on screen",
+      "minutesAhead": "Look ahead",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "maxRows": "Max. programmes",
+      "howTo": "Add it to a block or a day rundown with \"Coming up slide\" (blocks: in the More list). Only programme files and live items are listed, with the file name as title; commercials, jingles, beeldkrant and webcams are left out."
     }
   }
 }
