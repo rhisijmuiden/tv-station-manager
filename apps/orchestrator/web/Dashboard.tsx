@@ -1,5 +1,5 @@
 import { get, Badge, Card, CardBody, CardHeader, PageHeader, cx } from "@tvsm/ui";
-import { CheckCircle2, Circle, DatabaseBackup, Radio, Server, SlidersHorizontal } from "lucide-react";
+import { CheckCircle2, Circle, DatabaseBackup, Radio, Server, SlidersHorizontal, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 interface Overview {
   nodes: { total: number; online: number; pending: number };
   atem: { total: number; online: number };
+  hyperdecks?: { total: number; online: number; recording: number };
   mailConfigured: boolean;
   backupTargets: number;
   lastBackup: { status: string; startedAt: string; kind: string } | null;
@@ -53,6 +54,21 @@ export function Dashboard() {
             tone={o.atem.online < o.atem.total ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
           />
         </Link>
+        {!!o.hyperdecks?.total && (
+          <Link to="/hyperdeck">
+            <Stat
+              label={t("orch.hyperdeck.dashboard")}
+              value={
+                <span>
+                  {o.hyperdecks.online} <span className="text-sm font-medium text-muted">/ {o.hyperdecks.total} {t("orch.dashboard.online").toLowerCase()}</span>
+                  {o.hyperdecks.recording > 0 && <span className="text-sm font-medium text-danger"> · {o.hyperdecks.recording} {t("orch.hyperdeck.recordingNow")}</span>}
+                </span>
+              }
+              icon={<Video className="size-5" />}
+              tone={o.hyperdecks.online < o.hyperdecks.total ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
+            />
+          </Link>
+        )}
         <Stat
           label={t("orch.dashboard.lastBackup")}
           value={<span className="text-base">{o.lastBackup ? new Date(o.lastBackup.startedAt).toLocaleString() : t("orch.dashboard.none")}</span>}

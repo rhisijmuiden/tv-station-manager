@@ -26,7 +26,7 @@ export interface Card {
   name: string;
   ports: Port[];
 }
-export type DeviceKind = "node" | "atem" | "device";
+export type DeviceKind = "node" | "atem" | "hyperdeck" | "device";
 export const DEVICE_TYPES = ["server", "camera", "converter", "encoder", "recorder", "monitor", "router", "other"] as const;
 export type DeviceType = (typeof DEVICE_TYPES)[number];
 export const CABLES = ["sdi", "hdmi", "fiber", "ip", "other"] as const;
@@ -61,6 +61,11 @@ export const CARD_PRESETS: Record<string, Preset> = {
   camera: { name: "Camera", ports: [sdi("out", "SDI Out")] },
   "bidirectional-converter": { name: "Converter SDI/HDMI", ports: [sdi("in", "SDI In"), hdmi("out", "HDMI Out"), hdmi("in", "HDMI In"), sdi("out", "SDI Out")] },
   "monitor": { name: "Monitor", ports: [sdi("in", "SDI In"), hdmi("in", "HDMI In")] },
+  // Blackmagic HyperDeck recorders / players.
+  "hyperdeck-studio-pro": { name: "HyperDeck Studio Pro", ports: [sdi("in", "SDI In"), hdmi("in", "HDMI In"), sdi("out", "SDI Out A"), sdi("out", "SDI Out B"), sdi("out", "SDI Monitor Out"), hdmi("out", "HDMI Out")] },
+  "hyperdeck-studio-hd-mini": { name: "HyperDeck Studio HD Mini", ports: [sdi("in", "SDI In"), sdi("out", "SDI Out"), hdmi("out", "HDMI Out")] },
+  "hyperdeck-extreme": { name: "HyperDeck Extreme", ports: [sdi("in", "SDI In"), hdmi("in", "HDMI In"), sdi("out", "SDI Out"), sdi("out", "SDI Monitor Out"), hdmi("out", "HDMI Out")] },
+  hyperdeck: { name: "HyperDeck", ports: [sdi("in", "SDI In"), sdi("out", "SDI Out")] },
 };
 
 /** A new card from a preset (or a custom card with `outs` outputs and `ins` inputs). */
