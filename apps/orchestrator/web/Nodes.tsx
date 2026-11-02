@@ -19,6 +19,7 @@ interface StudioStatus {
   outputs: { device: number; channel: number; format: string }[];
   mediaPath: string | null;
   mediaReachable: boolean | null;
+  role?: "playout" | "live" | "studio" | null;
 }
 export interface NodeInfo {
   id: string;
@@ -66,6 +67,14 @@ function StudioPanel({ s, onCommand, approved }: { s: StudioStatus; onCommand: (
               <Badge tone={s.casparcg.connected ? "ok" : "danger"}>{s.casparcg.connected ? t("orch.studio.amcpUp") : t("orch.studio.amcpDown")}</Badge>
             </dd>
           </div>
+          {s.role && (
+            <div className="flex items-center justify-between gap-4 py-2">
+              <dt className="text-muted">{t("orch.studio.installedAs")}</dt>
+              <dd>
+                <Badge tone="brand">{t(`orch.studio.installedAs_${s.role}`)}</Badge>
+              </dd>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-4 py-2">
             <dt className="text-muted">{t("orch.studio.version")}</dt>
             <dd>
@@ -223,7 +232,9 @@ function InstallDialog({ open, onClose, install }: { open: boolean; onClose: () 
 
 function EditDialog({ node, mode, onClose, onDone }: { node: NodeInfo; mode: "approve" | "edit"; onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation();
-  const [f, setF] = useState({ name: node.name, role: node.role === "unassigned" && mode === "approve" ? "studio" : node.role, notes: node.notes });
+  // A studio node reports the role chosen in its installer (-Role tv|ingest|both); propose that one on approval.
+  const installedAs = node.metrics?.studio?.role ?? null;
+  const [f, setF] = useState({ name: node.name, role: node.role === "unassigned" && mode === "approve" ? (installedAs ?? "studio") : node.role, notes: node.notes });
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
@@ -270,6 +281,12 @@ function EditDialog({ node, mode, onClose, onDone }: { node: NodeInfo; mode: "ap
             </Select>
           )}
         </Field>
+        {installedAs && (
+          <p className="-mt-2 text-xs text-muted">
+            {t("orch.studio.installedAsHint", { role: t(`orch.studio.installedAs_${installedAs}`) })}
+            {f.role !== installedAs && <> {t("orch.studio.installedAsDiffers")}</>}
+          </p>
+        )}
         <Field label={`${t("orch.nodes.notes")} (${t("common.optional")})`}>
           {(id) => <Textarea id={id} className="font-sans text-sm" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />}
         </Field>

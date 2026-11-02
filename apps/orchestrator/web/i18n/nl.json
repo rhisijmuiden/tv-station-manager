@@ -105,7 +105,13 @@
       "svc_stopped": "Gestopt",
       "svc_missing": "Niet geïnstalleerd",
       "svc_start_pending": "Starten",
-      "svc_stop_pending": "Stoppen"
+      "svc_stop_pending": "Stoppen",
+      "installedAs": "Geïnstalleerd als",
+      "installedAs_playout": "TV-node",
+      "installedAs_live": "Ingest-server",
+      "installedAs_studio": "TV-node + ingest",
+      "installedAsHint": "De installer heeft deze node ingericht als: {{role}}.",
+      "installedAsDiffers": "De gekozen rol wijkt daarvan af."
     },
     "atem": {
       "title": "ATEM-mixers",

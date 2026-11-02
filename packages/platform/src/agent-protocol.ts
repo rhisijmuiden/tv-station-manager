@@ -30,6 +30,9 @@ export interface NodeMetrics {
   studio?: StudioStatus;
 }
 
+/** What a studio node was installed as (install-studio.ps1 -Role tv|ingest|both). */
+export type StudioRole = "playout" | "live" | "studio";
+
 export interface StudioStatus {
   casparcg: {
     /** Windows service state, e.g. "running", "stopped", "missing". */
@@ -49,6 +52,8 @@ export interface StudioStatus {
   outputs: { device: number; channel: number; format: string }[];
   mediaPath: string | null;
   mediaReachable: boolean | null;
+  /** Role chosen in the installer; the orchestrator proposes it when the node is approved. Older agents leave it out. */
+  role?: StudioRole | null;
 }
 
 export interface EnrollRequest extends NodeFacts {}

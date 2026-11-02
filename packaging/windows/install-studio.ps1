@@ -40,6 +40,10 @@ param(
   # Render HTML graphics (overlay, beeldkrant, webcams) on the graphics card: auto (on when an NVIDIA/AMD/Intel GPU
   # with a vendor driver is present), on, off. Default: the choice of the previous install, else auto.
   [ValidateSet("", "auto", "on", "off")][string]$HtmlGpu = "",
+  # What this node does: tv (TV node: plays the schedule), ingest (ingest server: plays live RTMP/SRT streams from
+  # events), both (one node does both). Reported to the orchestrator, which proposes the matching role when you
+  # approve the node. Default: the choice of the previous install, else tv.
+  [ValidateSet("", "tv", "ingest", "both")][string]$Role = "",
   [string]$CasparVersion = "2.4",
   [string]$MediaMtxVersion = "latest",
   [switch]$SkipAgent
@@ -82,6 +86,9 @@ if (-not $VideoMode -and $old) { $VideoMode = if ($old.videoMode) { $old.videoMo
 if (-not $VideoMode) { $VideoMode = "1080i5000" }
 if (-not $Keyer) { $Keyer = if ($old -and $old.keyer) { $old.keyer } else { "default" } }
 if (-not $HtmlGpu) { $HtmlGpu = if ($old -and $old.htmlGpu) { $old.htmlGpu } else { "auto" } }
+$roleMap = @{ tv = "playout"; ingest = "live"; both = "studio" }
+if (-not $Role -and $old -and $old.role) { $Role = ($roleMap.GetEnumerator() | Where-Object { $_.Value -eq $old.role } | Select-Object -First 1).Key }
+if (-not $Role) { $Role = "tv" }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
 function Get-Release([string]$repo, [scriptblock]$pick) {
@@ -350,6 +357,7 @@ $studioJson = [ordered]@{
   videoMode = $VideoMode
   keyer = $Keyer
   htmlGpu = $HtmlGpu
+  role = $roleMap[$Role]
   outputs = $outs
 } | ConvertTo-Json -Depth 4
 Write-Utf8 (Join-Path $data "studio.json") $studioJson
@@ -441,6 +449,6 @@ if ($ingestAuth -eq "management") {
   Write-Host "  SRT push:      srt://${PublicHost}:8890?streamid=publish:live/<name>:publish:$publishPass"
 }
 Write-Host "Next, in the management node:"
-Write-Host "  1. Devices -> Studio nodes: add $(if ($PublicHost) { $PublicHost } else { 'this machine' }), port 5250."
+Write-Host "  1. Devices -> Studio nodes: add $(if ($PublicHost) { $PublicHost } else { 'this machine' }), port 5250, role $(@{ tv = 'playout'; ingest = 'live'; both = 'both' }[$Role])."
 Write-Host "  2. Channels: pick the CasparCG channel per TV channel and the ATEM input each DeckLink output is cabled to."
 Write-Host "  3. Remote sources: add a source per contributor (studio node, DeckLink output, ATEM input) and send them the connection details."

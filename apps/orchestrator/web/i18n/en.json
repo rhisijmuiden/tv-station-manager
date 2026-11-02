@@ -105,7 +105,13 @@
       "svc_stopped": "Stopped",
       "svc_missing": "Not installed",
       "svc_start_pending": "Starting",
-      "svc_stop_pending": "Stopping"
+      "svc_stop_pending": "Stopping",
+      "installedAs": "Installed as",
+      "installedAs_playout": "TV node",
+      "installedAs_live": "Ingest server",
+      "installedAs_studio": "TV node + ingest",
+      "installedAsHint": "The installer set this node up as: {{role}}.",
+      "installedAsDiffers": "The role you picked is different."
     },
     "atem": {
       "title": "ATEM switchers",

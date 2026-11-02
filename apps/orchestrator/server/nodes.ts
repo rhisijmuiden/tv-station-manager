@@ -93,6 +93,7 @@ const metricsSchema = z.object({
       outputs: z.array(z.object({ device: z.number().int(), channel: z.number().int(), format: z.string().max(40) })).max(16),
       mediaPath: z.string().max(1000).nullable(),
       mediaReachable: z.boolean().nullable(),
+      role: z.enum(["playout", "live", "studio"]).nullable().optional().catch(null),
     })
     .optional()
     // A malformed studio block must never cost the node its heartbeat.

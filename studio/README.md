@@ -23,9 +23,12 @@ A studio node is a Windows PC with a Blackmagic DeckLink card (4 SDI outputs, up
    `-ManagementUrl` (where the ingest server checks stream keys; default `http://<first -ManagementHost>:8080`),
    `-PublicHost` (address shown in the RTMP push URL), `-HtmlGpu auto` (HTML graphics such as the overlay, beeldkrant and
    webcam pages render on the graphics card when an NVIDIA/AMD/Intel driver is installed; `off` renders them in software
-   on the CPU; a rerun keeps the previous choice), `-CasparVersion 2.4`, `-MediaMtxVersion latest`, `-SkipAgent`.
+   on the CPU; a rerun keeps the previous choice), `-Role tv` (what the node does: `tv` = TV node that plays the
+   schedule, `ingest` = ingest server for live RTMP/SRT streams from events, `both`; a rerun keeps the previous choice),
+   `-CasparVersion 2.4`, `-MediaMtxVersion latest`, `-SkipAgent`.
    The script asks for the share password and stores it encrypted for this machine (DPAPI).
-3. Approve the node in the orchestrator (**Nodes**) and give it the role **studio**. The node page then shows
+3. Approve the node in the orchestrator (**Nodes**). The approval dialog proposes the role chosen with `-Role`
+   (tv = **playout**, ingest = **live**, both = **studio**). The node page then shows
    CasparCG, the DeckLink outputs, incoming streams and whether the media share is reachable.
 
 Running the installer again updates CasparCG/MediaMTX and rewrites the configuration (the old `casparcg.config` is
