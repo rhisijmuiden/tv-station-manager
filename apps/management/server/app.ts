@@ -1,5 +1,6 @@
 import type { Platform, PlatformOptions } from "@tvsm/platform";
 import { join } from "node:path";
+import { registerAudio } from "./audio.js";
 import { registerContent } from "./content.js";
 import { MANAGEMENT_MIGRATIONS } from "./db.js";
 import { DeviceHub, registerDevices } from "./devices.js";
@@ -9,9 +10,12 @@ import { registerEpgAndGraphics } from "./epg.js";
 import { registerMedia } from "./media.js";
 import { OrchestratorLink, registerOrchestratorLink } from "./orchestrator.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
+import { registerPreview } from "./preview.js";
 import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
 import { RssFeeds, registerRss } from "./rss.js";
+import { registerSwitching } from "./switching.js";
+import { Webcams, registerWebcams } from "./webcams.js";
 import { WeekPlanner, registerWeek } from "./weekplan.js";
 
 export interface ManagementHandles {
@@ -21,6 +25,7 @@ export interface ManagementHandles {
   outputs: StreamOutputs;
   planner: WeekPlanner;
   rss: RssFeeds;
+  webcams: Webcams;
   recorder: Recorder;
   orchestrator: OrchestratorLink;
 }
@@ -51,16 +56,23 @@ export function managementOptions(
       const recorder = new Recorder(platform, remote, () => changed());
       const outputs = new StreamOutputs(platform, hub, remote);
       const rss = new RssFeeds(platform, changed);
+      const webcams = new Webcams(platform, changed);
       registerMedia(server, platform, changed);
       registerDevices(server, platform, hub, remote);
       registerContent(server, platform, changed);
+      registerAudio(server, platform, changed);
       registerEpgAndGraphics(server, platform, changed);
       registerWeek(server, platform, planner);
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
+      registerWebcams(server, platform, webcams, changed);
       registerRecordings(server, platform, recorder);
       registerOrchestratorLink(server, orchestrator);
+      registerPreview(server, platform);
+      registerSwitching(server, platform, { hub, director, remote, recorder });
+      // A remote stream taken live by hand goes off air: its recording is finished (library, repeats).
+      director.overrideEnded.push((_channelId, liveSourceId) => recorder.liveEnded(liveSourceId));
 
       server.get("/api/management/overview", async () => {
         const { db } = platform.ctx;
@@ -84,6 +96,7 @@ export function managementOptions(
         remote.start();
         planner.start();
         rss.start();
+        webcams.start();
         recorder.start();
         orchestrator.start();
       }
@@ -92,12 +105,13 @@ export function managementOptions(
         recorder.stop();
         orchestrator.stop();
         rss.stop();
+        webcams.stop();
         director.stop();
         remote.stop();
         outputs.stop();
         await hub.close();
       });
-      opts.onReady?.({ hub, director, remote, planner, outputs, rss, recorder, orchestrator });
+      opts.onReady?.({ hub, director, remote, planner, outputs, rss, webcams, recorder, orchestrator });
     },
   };
 }

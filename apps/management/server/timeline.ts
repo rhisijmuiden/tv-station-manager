@@ -20,42 +20,60 @@ export interface LiveRef {
   kind: "atem" | "rtmp";
 }
 export interface BlockItemRow {
-  type: "media" | "block" | "live" | "beeldkrant";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
   beeldkrantId?: number | null;
+  webcamId?: number | null;
   durationMs: number | null;
   title: string | null;
+  /** Audio under this item: null = follow the block, "none" = no audio, "<id>" = that audio source. */
+  audio?: AudioSetting;
 }
 export interface BlockRef {
   id: number;
   name: string;
   kind: "program" | "commercial";
   items: BlockItemRow[];
+  /** Audio under the whole block (nested blocks follow it unless they set their own). */
+  audio?: AudioSetting;
 }
+/** Stored audio choice: null/undefined = follow the parent, "none" = no audio, "<id>" = an audio source. */
+export type AudioSetting = string | null;
 export interface Loader {
   block(id: number): BlockRef | undefined;
   media(id: number): MediaRef | undefined;
   live(id: number): LiveRef | undefined;
   /** Full-screen RSS news pages; `durationMs` is the default length (one pass of the pages, or a fixed time). */
   beeldkrant?(id: number): BeeldkrantRef | undefined;
+  /** Webcams and external streams; `durationMs` is the default length set on the webcam. */
+  webcam?(id: number): WebcamRef | undefined;
+}
+export interface WebcamRef {
+  id: number;
+  name: string;
+  durationMs: number;
+  showOverlay: boolean;
 }
 export interface BeeldkrantRef {
   id: number;
   name: string;
   durationMs: number;
   showOverlay: boolean;
+  /** Audio under the beeldkrant when the block or item does not choose one. */
+  audioSourceId?: number | null;
 }
 
 export interface Leaf {
-  type: "media" | "live" | "beeldkrant";
+  type: "media" | "live" | "beeldkrant" | "webcam";
   durationMs: number;
   title: string;
   mediaId?: number;
   liveSourceId?: number;
   beeldkrantId?: number;
-  /** Beeldkrant: the channel overlay (logo, clock, ticker) stays on top. */
+  webcamId?: number;
+  /** Beeldkrant / webcam: the channel overlay (logo, clock, ticker) stays on top. */
   showOverlay?: boolean;
   /** Path relative to the media source root, e.g. "Programmas/Journaal.mp4". */
   path?: string;
@@ -66,6 +84,8 @@ export interface Leaf {
   blockName: string;
   /** Problems the editor should see (missing file, unknown duration). */
   warning?: "missing" | "no_duration";
+  /** Audio source mixed under this item (radio stream, line input), null = none. */
+  audioSourceId?: number | null;
 }
 
 export const DEFAULT_LIVE_MS = 30 * 60_000;
@@ -77,15 +97,26 @@ export class BlockCycleError extends Error {
   }
 }
 
+/** The nearest choice wins: an item's own setting, else its block's, else what the parent block passed down. */
+export const pickAudio = (own: AudioSetting | undefined, inherited: AudioSetting | undefined): AudioSetting => (own == null || own === "" ? (inherited ?? null) : own);
+/** Audio source id of a setting ("none" and "follow" give null). */
+export const audioSourceOf = (a: AudioSetting | undefined): number | null => (a && /^\d+$/.test(a) ? Number(a) : null);
+/** Normalises what the API accepts: null/"" = follow, "none", or a source id. */
+export const audioIn = (a: string | number | null | undefined): AudioSetting => (a == null || a === "" ? null : a === "none" ? "none" : Number.isInteger(Number(a)) && Number(a) > 0 ? String(Number(a)) : null);
+
 /** Flattens a block. Throws BlockCycleError when blocks contain each other. */
-export function expandBlock(loader: Loader, blockId: number, stack: number[] = []): Leaf[] {
+export function expandBlock(loader: Loader, blockId: number, stack: number[] = [], inheritedAudio: AudioSetting = null, forcedAudio = false): Leaf[] {
   if (stack.includes(blockId) || stack.length > MAX_DEPTH) throw new BlockCycleError(blockId);
   const block = loader.block(blockId);
   if (!block) return [];
   const out: Leaf[] = [];
+  // A choice on the item that holds this block wins over the block's own setting.
+  const blockAudio = forcedAudio ? inheritedAudio : pickAudio(block.audio, inheritedAudio);
   for (const it of block.items) {
+    const audio = pickAudio(it.audio, blockAudio);
+    const audioSourceId = audioSourceOf(audio);
     if (it.type === "block" && it.childBlockId != null) {
-      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId]));
+      out.push(...expandBlock(loader, it.childBlockId, [...stack, blockId], audio, forcedAudio || (it.audio != null && it.audio !== "")));
     } else if (it.type === "media" && it.mediaId != null) {
       const m = loader.media(it.mediaId);
       if (!m) continue;
@@ -101,15 +132,23 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
         blockKind: block.kind,
         blockName: block.name,
         warning: m.missing ? "missing" : dur == null ? "no_duration" : undefined,
+        audioSourceId,
       });
     } else if (it.type === "live" && it.liveSourceId != null) {
       const l = loader.live(it.liveSourceId);
       if (!l) continue;
-      out.push({ type: "live", durationMs: it.durationMs ?? DEFAULT_LIVE_MS, title: it.title || l.name, liveSourceId: l.id, blockKind: block.kind, blockName: block.name });
+      // Live pictures come with their own sound: nothing is mixed under them.
+      out.push({ type: "live", durationMs: it.durationMs ?? DEFAULT_LIVE_MS, title: it.title || l.name, liveSourceId: l.id, blockKind: block.kind, blockName: block.name, audioSourceId: null });
     } else if (it.type === "beeldkrant" && it.beeldkrantId != null) {
       const b = loader.beeldkrant?.(it.beeldkrantId);
       if (!b) continue;
-      out.push({ type: "beeldkrant", durationMs: it.durationMs ?? b.durationMs, title: it.title || b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: block.kind, blockName: block.name });
+      // A beeldkrant is silent: without a choice in the block it takes the beeldkrant's own audio setting.
+      const bkAudio = audio == null ? (b.audioSourceId ?? null) : audioSourceId;
+      out.push({ type: "beeldkrant", durationMs: it.durationMs ?? b.durationMs, title: it.title || b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: block.kind, blockName: block.name, audioSourceId: bkAudio });
+    } else if (it.type === "webcam" && it.webcamId != null) {
+      const w = loader.webcam?.(it.webcamId);
+      if (!w) continue;
+      out.push({ type: "webcam", durationMs: it.durationMs ?? w.durationMs, title: it.title || w.name, webcamId: w.id, showOverlay: w.showOverlay, blockKind: block.kind, blockName: block.name, audioSourceId });
     }
   }
   return out;
@@ -145,7 +184,7 @@ export interface TimelineEvent {
   scheduleId: number | null;
   start: number;
   end: number;
-  type: "media" | "live" | "beeldkrant" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "filler";
   title: string;
   programTitle: string;
   /** Offset into the item when the event starts (only non-zero when the window cuts it). */
@@ -224,3 +263,34 @@ export function at(events: TimelineEvent[], t: number) {
 
 /** CasparCG clip name: path relative to the media folder, forward slashes, without extension. */
 export const casparClip = (path: string) => path.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\.[^./]+$/, "");
+
+export interface EntryInfo {
+  /** Week-schedule occurrence the entry belongs to (all parts of one hour block share it). */
+  group: string | null;
+  inEpg: boolean;
+}
+
+/**
+ * The programme on air at `t` (the "hour block"): every event of the current schedule entry, or of all entries of the
+ * same week-schedule occurrence (programme windows plus the fixed parts of the hour clock), with the filler gaps between
+ * them. `index` is the position of the current event. Null while filler plays outside any programme.
+ */
+export function programAt(events: TimelineEvent[], t: number, info: (scheduleId: number) => EntryInfo | undefined, maxItems = 60) {
+  const current = events.find((e) => e.start <= t && t < e.end);
+  if (!current || current.scheduleId == null) return null;
+  const group = info(current.scheduleId)?.group ?? null;
+  const same = (e: TimelineEvent) => e.scheduleId != null && (e.scheduleId === current.scheduleId || (group != null && info(e.scheduleId)?.group === group));
+  const own = events.filter(same);
+  const start = own[0]!.start;
+  const end = own[own.length - 1]!.end;
+  let items = events.filter((e) => same(e) || (e.type === "filler" && e.start >= start && e.end <= end));
+  let index = items.indexOf(current);
+  if (items.length > maxItems) {
+    // Long programmes: keep a few items before the current one and the rest after it.
+    const from = Math.max(0, Math.min(index - 3, items.length - maxItems));
+    items = items.slice(from, from + maxItems);
+    index -= from;
+  }
+  const titled = own.find((e) => info(e.scheduleId!)?.inEpg && e.programTitle) ?? own.find((e) => e.programTitle);
+  return { title: titled?.programTitle || current.programTitle || current.title, start, end, items, index };
+}

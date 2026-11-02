@@ -352,4 +352,73 @@ export const MANAGEMENT_MIGRATIONS = [
      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
    );
    CREATE INDEX recordings_started ON recordings(started_at);`,
+  // Switch buttons: simple named buttons for editors that take a live source on air by hand (unplanned live feeds).
+  // recordings.plan holds what the editor chose when going live (record, repeat), overriding the source's settings.
+  `CREATE TABLE switch_buttons (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+     name TEXT NOT NULL,
+     color TEXT NOT NULL DEFAULT '#3B6CFF',
+     live_source_id INTEGER NOT NULL REFERENCES live_sources(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE INDEX switch_buttons_channel ON switch_buttons(channel_id, position);
+   ALTER TABLE recordings ADD COLUMN plan TEXT;`,
+  // Audio under the broadcast ("geluid onder"): a radio stream or a physical input on the studio node, mixed under
+  // what CasparCG plays (e.g. behind the beeldkrant). Chosen per block or per item; NULL = follow the parent,
+  // 'none' = no audio, '<id>' = that audio source.
+  `CREATE TABLE audio_sources (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('stream','soundcard','decklink')),
+     -- stream: http(s)/HLS/Icecast URL; soundcard: Windows recording device name; decklink: device number.
+     address TEXT NOT NULL,
+     -- Studio node that has the physical input (soundcard/decklink); NULL for streams.
+     studio_id INTEGER REFERENCES studio_nodes(id) ON DELETE SET NULL,
+     volume INTEGER NOT NULL DEFAULT 70 CHECK (volume BETWEEN 0 AND 150),
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   ALTER TABLE blocks ADD COLUMN audio TEXT;
+   ALTER TABLE block_items ADD COLUMN audio TEXT;`,
+  // Webcams and external streams (webcam sites, RTSP cameras, HLS, RTMP/SRT, MJPEG, pictures) as items in a programme.
+  // block_items gets a 'webcam' type: SQLite cannot change a CHECK constraint, so the table is rebuilt again.
+  `CREATE TABLE webcams (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('hls','rtsp','rtmp','srt','video','mjpeg','image','page')),
+     url TEXT NOT NULL,
+     -- The web page the stream was found on (e.g. a webcam.nl page), for reference.
+     page_url TEXT,
+     -- Caption, length, sound, relay (JSON, see webcamSettingsSchema in webcamlogic.ts).
+     settings TEXT NOT NULL DEFAULT '{}',
+     -- Last check: online/offline, details of the stream, thumbnail file in <dataDir>/webcams.
+     status TEXT NOT NULL DEFAULT 'unknown' CHECK (status IN ('unknown','online','offline')),
+     info TEXT NOT NULL DEFAULT '{}',
+     last_check_at TEXT,
+     last_error TEXT,
+     thumb_at TEXT,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+
+   CREATE TABLE block_items_new (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL,
+     type TEXT NOT NULL CHECK (type IN ('media','block','live','beeldkrant','webcam')),
+     media_id INTEGER REFERENCES media(id) ON DELETE CASCADE,
+     child_block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+     live_source_id INTEGER REFERENCES live_sources(id) ON DELETE CASCADE,
+     beeldkrant_id INTEGER REFERENCES beeldkranten(id) ON DELETE CASCADE,
+     webcam_id INTEGER REFERENCES webcams(id) ON DELETE CASCADE,
+     duration_ms INTEGER,
+     title TEXT,
+     audio TEXT
+   );
+   INSERT INTO block_items_new (id, block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, duration_ms, title, audio)
+     SELECT id, block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, duration_ms, title, audio FROM block_items;
+   DROP TABLE block_items;
+   ALTER TABLE block_items_new RENAME TO block_items;
+   CREATE INDEX block_items_block ON block_items(block_id, position);`,
 ];

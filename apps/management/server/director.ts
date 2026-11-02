@@ -3,10 +3,13 @@ import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
 import { networkInterfaces } from "node:os";
 import { z } from "zod";
+import { AUDIO_LAYER, audioGain, audioProducer, audioSource } from "./audio.js";
 import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics } from "./content.js";
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
-import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
+import { at, casparClip, compile, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
+import { webcamOf } from "./webcamdb.js";
+import { playPlan } from "./webcamlogic.js";
 
 /**
  * The director ("regisseur"). For every channel with automation on it follows the compiled schedule:
@@ -22,6 +25,8 @@ import { at, casparClip, compile, type TimelineEvent } from "./timeline.js";
  */
 
 export const PLAYOUT_LAYER = 10;
+/** Caption of a webcam ("LIVE · Strand Wijk aan Zee"), just above the playout layer and below the channel overlay. */
+export const CAPTION_LAYER = 11;
 const PRELOAD_MS = 3000;
 const RETRY_MS = 5000;
 const WINDOW_BACK = 6 * 3600_000;
@@ -36,6 +41,8 @@ type Output = { studioId: number; casparChannel: number };
 
 interface ChannelState {
   events: TimelineEvent[];
+  /** Occurrence (hour block) and EPG flag per schedule entry, for the "now on TV" overview. */
+  entries: Map<number, EntryInfo>;
   compiledAt: number;
   currentKey: string | null;
   executedAt: number;
@@ -53,6 +60,11 @@ interface ChannelState {
   liveGfx: (Output & { session: number | undefined; json: string }) | null;
   lastError: string | null;
   lastAlertAt: number;
+  /** Audio source playing under the programme on AUDIO_LAYER (radio stream, line input). */
+  audio: (Output & { sourceId: number; name: string; volume: number; session: number | undefined }) | null;
+  audioError: { sourceId: number; message: string; at: number } | null;
+  /** A webcam caption is on CAPTION_LAYER of the playout channel. */
+  captionOn: boolean;
 }
 
 export class Director {
@@ -86,7 +98,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0 };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false };
       this.states.set(id, s);
     }
     return s;
@@ -97,7 +109,9 @@ export class Director {
     const s = this.state(ch.id);
     const from = now - WINDOW_BACK;
     const to = now + WINDOW_AHEAD;
-    s.events = compile(dbLoader(this.platform.ctx.db), scheduleEntries(this.platform.ctx.db, ch.id, from, to), from, to).events;
+    const entries = scheduleEntries(this.platform.ctx.db, ch.id, from, to);
+    s.events = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
+    s.entries = new Map(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
     s.compiledAt = now;
   }
 
@@ -139,6 +153,7 @@ export class Director {
       }
       await this.preroll(ch, s, current, upcoming, now).catch((e) => this.fail(ch, s, `preroll: ${(e as Error).message}`));
     }
+    await this.syncAudio(ch, s, current, now).catch(() => undefined);
     await this.updateGraphics(ch, s, current, upcoming, now).catch(() => undefined);
   }
 
@@ -244,6 +259,7 @@ export class Director {
     s.executedAt = now;
     const elapsed = now - ev.start + ev.offsetMs;
     try {
+      if (s.captionOn && ev.type !== "webcam") await this.clearCaption(ch, s);
       if (ev.type === "media" && ev.leaf?.path) {
         const p = this.playout(ch);
         if (!p) throw new Error("no studio node configured for this channel");
@@ -263,6 +279,8 @@ export class Director {
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "webcam" && ev.leaf?.webcamId) {
+        await this.playWebcam(ch, s, ev.leaf.webcamId);
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
         const live = this.live(ev.leaf.liveSourceId);
         if (!live) throw new Error("live source was removed");
@@ -298,6 +316,44 @@ export class Director {
     }
   }
 
+  /**
+   * Webcam / external stream on the playout layer, the playout node on air. Video streams play with the FFmpeg
+   * producer (by default relayed by the management node), pictures and web pages with the HTML producer; the caption
+   * goes on the layer above. When the stream does not come in, an "picture not available" card is shown and the
+   * director tries again (RETRY_MS) until it does.
+   */
+  private async playWebcam(ch: ChannelRow, s: ChannelState, webcamId: number) {
+    const p = this.playout(ch);
+    if (!p) throw new Error("no studio node configured for this channel");
+    const cam = webcamOf(this.platform.ctx.db, webcamId);
+    if (!cam) throw new Error("webcam was removed");
+    const base = publicUrl(this.platform);
+    const plan = playPlan(cam, base);
+    this.remote.forget(ch.studio_id, ch.caspar_channel);
+    s.standby = null;
+    await this.stopRtmp(s);
+    await this.switchTo(ch, ch.playout_input);
+    try {
+      if (plan.mode === "video") await p.play(ch.caspar_channel, PLAYOUT_LAYER, plan.url);
+      else await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, plan.url);
+    } catch (e) {
+      await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, `${base}/webcam/page.html?id=${cam.id}&offline=1`).catch(() => undefined);
+      if (s.captionOn) await this.clearCaption(ch, s);
+      throw new Error(`webcam ${cam.name}: ${(e as Error).message}`);
+    }
+    if (plan.captionUrl) {
+      await p.playHtml(ch.caspar_channel, CAPTION_LAYER, plan.captionUrl).catch(() => undefined);
+      s.captionOn = true;
+    } else if (s.captionOn) await this.clearCaption(ch, s);
+  }
+
+  private async clearCaption(ch: ChannelRow, s: ChannelState) {
+    s.captionOn = false;
+    await this.playout(ch)
+      ?.clear(ch.caspar_channel, CAPTION_LAYER)
+      .catch(() => undefined);
+  }
+
   private fail(ch: ChannelRow, s: ChannelState, message: string, ev?: TimelineEvent) {
     const first = s.lastError !== message;
     s.lastError = message;
@@ -316,13 +372,68 @@ export class Director {
     this.platform.ctx.db.prepare("INSERT INTO asrun (channel_id, kind, title, detail, ok) VALUES (?, ?, ?, ?, ?)").run(channelId, kind, title, detail, ok ? 1 : 0);
   }
 
+  // ---- audio under the programme ---------------------------------------------------
+
+  /** The audio source that should sound now: only while the playout node itself is on air (clip, beeldkrant or webcam). */
+  private wantedAudio(s: ChannelState, current: TimelineEvent | null) {
+    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam")) return null;
+    return current.leaf?.audioSourceId ?? null;
+  }
+
+  /**
+   * Keeps AUDIO_LAYER in line with the current item. The same source on consecutive items keeps playing
+   * (no gap between two beeldkrant pages or clips); a CasparCG restart starts it again.
+   */
+  private async syncAudio(ch: ChannelRow, s: ChannelState, current: TimelineEvent | null, now: number) {
+    const wantId = this.wantedAudio(s, current);
+    const src = wantId != null ? audioSource(this.platform.ctx.db, wantId) : undefined;
+    const p = this.playout(ch);
+    const info = p?.info();
+    const cur = s.audio;
+    // A physical input only exists on its own studio node.
+    const wrongNode = src && src.kind !== "stream" && src.studio_id !== ch.studio_id;
+    const want = src && !wrongNode && p && info?.connected ? src : undefined;
+    if (wrongNode && s.audioError?.sourceId !== src.id) this.audioFailed(ch, s, src.id, "input is on another studio node than this channel");
+    if (cur && (!want || cur.sourceId !== want.id || cur.studioId !== ch.studio_id || cur.casparChannel !== ch.caspar_channel || cur.session !== info?.session)) {
+      s.audio = null;
+      // After a CasparCG restart the layer is gone already.
+      if (cur.session === this.hub.playout(cur.studioId)?.info().session) await this.hub.playout(cur.studioId)?.clear(cur.casparChannel, AUDIO_LAYER).catch(() => undefined);
+    }
+    if (!want || !p?.playAudio) return;
+    if (s.audio) {
+      if (s.audio.volume !== want.volume) {
+        s.audio.volume = want.volume;
+        await p.volume?.(ch.caspar_channel, AUDIO_LAYER, audioGain(want.volume));
+      }
+      return;
+    }
+    if (s.audioError?.sourceId === want.id && now - s.audioError.at < RETRY_MS) return;
+    try {
+      const { producer, loop } = audioProducer(want);
+      await p.playAudio(ch.caspar_channel, AUDIO_LAYER, producer, audioGain(want.volume), loop);
+      s.audio = { studioId: ch.studio_id!, casparChannel: ch.caspar_channel, sourceId: want.id, name: want.name, volume: want.volume, session: info?.session };
+      if (s.audioError) this.asrun(ch.id, "audio", want.name, "Audio under the programme plays again", true);
+      s.audioError = null;
+    } catch (e) {
+      this.audioFailed(ch, s, want.id, (e as Error).message, want.name);
+    }
+  }
+
+  private audioFailed(ch: ChannelRow, s: ChannelState, sourceId: number, message: string, name?: string) {
+    const first = s.audioError?.sourceId !== sourceId || s.audioError.message !== message;
+    s.audioError = { sourceId, message, at: this.now() };
+    if (!first) return;
+    this.platform.ctx.log.warn({ channel: ch.name, err: message }, "audio under the programme failed");
+    this.asrun(ch.id, "audio", name ?? `Audio ${sourceId}`, message, false);
+  }
+
   // ---- graphics overlay -------------------------------------------------------
 
   graphicsData(ch: ChannelRow, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {
     const g = channelOut(ch).graphics as Graphics;
     const inAd = current?.leaf?.blockKind === "commercial" || current?.leaf?.category === "commercial";
     // A beeldkrant has its own header and clock; the overlay only stays when the beeldkrant asks for it.
-    const onBeeldkrant = current?.type === "beeldkrant" && !current.leaf?.showOverlay;
+    const onBeeldkrant = (current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay;
     const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
     const nextProgram = upcoming.find((e) => e.scheduleId != null && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
@@ -427,15 +538,80 @@ export class Director {
       override: s.override,
       current: current ? ev(current) : null,
       upcoming: upcoming.slice(0, 8).map(ev),
+      program: this.programNow(s, now, ev),
       atem: sw ? sw.info() : null,
       playout: p ? p.info() : null,
       onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
       atemLock: this.hub.lock(ch.atem_id),
       standby: s.standby ? { liveSourceId: s.standby.liveSourceId, name: s.standby.name, since: s.standby.since } : null,
+      audio: this.audioStatus(s, current),
       lastError: s.lastError,
       graphics: this.graphicsData(ch, current, upcoming, now),
       asrun: this.platform.ctx.db.prepare("SELECT at, kind, title, detail, ok FROM asrun WHERE channel_id = ? ORDER BY id DESC LIMIT 12").all(ch.id),
     };
+  }
+
+  /** The hour block on air: its items, which one plays now, and the next programme after it. */
+  private programNow<T>(s: ChannelState, now: number, ev: (e: TimelineEvent) => T) {
+    const p = programAt(s.events, now, (id) => s.entries.get(id));
+    if (!p) return null;
+    const next = s.events.find((e) => e.start >= p.end && e.scheduleId != null && e.offsetMs === 0);
+    return {
+      title: p.title,
+      startAt: new Date(p.start).toISOString(),
+      endAt: new Date(p.end).toISOString(),
+      index: p.index,
+      items: p.items.map(ev),
+      next: next ? { title: next.programTitle || next.title, startAt: new Date(next.start).toISOString() } : null,
+    };
+  }
+
+  /** Called when a live source taken by hand goes off air again (back to the schedule, or another source taken). */
+  overrideEnded: ((channelId: number, liveSourceId: number) => void)[] = [];
+
+  /** Live source on air by hand: it stays on air (the schedule waits) until `resume` or another source is taken. */
+  async takeLive(c: ChannelRow, live: LiveRow, by: string) {
+    if (this.hub.lock(c.atem_id)) throw new HttpError(409, "atem_locked");
+    const s = this.state(c.id);
+    const before = s.override;
+    try {
+      await this.takeRemote(s, live);
+      await this.switchTo(c, live.atem_input);
+    } catch (e) {
+      throw new HttpError(502, "live_failed", (e as Error).message);
+    }
+    s.override = { liveSourceId: live.id, name: live.name, since: new Date(this.now()).toISOString() };
+    this.asrun(c.id, "live", live.name, `Taken live by ${by}`, true);
+    if (before && before.liveSourceId !== live.id) this.overrideEnded.forEach((f) => f(c.id, before.liveSourceId));
+  }
+
+  /** Back to the schedule after a live source taken by hand. */
+  async resume(c: ChannelRow, by: string) {
+    const s = this.state(c.id);
+    const before = s.override;
+    s.override = null;
+    s.currentKey = null;
+    s.preloadedKey = null;
+    s.prerolled = null;
+    s.standby = null;
+    await this.stopRtmp(s);
+    this.asrun(c.id, "control", "Back to schedule", by, true);
+    if (before) this.overrideEnded.forEach((f) => f(c.id, before.liveSourceId));
+  }
+
+  /** Live source taken by hand on this channel, if any. */
+  override(channelId: number) {
+    return this.states.get(channelId)?.override ?? null;
+  }
+
+  /** What sounds under the programme now (for the control room and the dashboard). */
+  private audioStatus(s: ChannelState, current: TimelineEvent | null) {
+    const wantId = this.wantedAudio(s, current);
+    if (wantId == null) return null;
+    const src = audioSource(this.platform.ctx.db, wantId);
+    if (!src) return null;
+    const err = s.audioError?.sourceId === wantId ? s.audioError.message : null;
+    return { sourceId: src.id, name: src.name, kind: src.kind, playing: s.audio?.sourceId === wantId, error: err };
   }
 
   register(app: FastifyInstance) {
@@ -457,6 +633,12 @@ export class Director {
       const s = this.state(c.id);
       s.currentKey = null; // re-cue the current item when switching back on
       s.preloadedKey = null;
+      // Manual control: the audio under the programme stops too.
+      if (!on && s.audio) {
+        const a = s.audio;
+        s.audio = null;
+        await this.hub.playout(a.studioId)?.clear(a.casparChannel, AUDIO_LAYER).catch(() => undefined);
+      }
       this.asrun(c.id, "control", on ? "Automation on" : "Automation off", req.user!.username, true);
       return { ok: true };
     });
@@ -467,30 +649,13 @@ export class Director {
       const { liveSourceId } = z.object({ liveSourceId: z.number().int() }).parse(req.body);
       const live = this.live(liveSourceId);
       if (!live) throw new HttpError(404, "not_found");
-      if (this.hub.lock(c.atem_id)) throw new HttpError(409, "atem_locked");
-      const s = this.state(c.id);
-      try {
-        await this.takeRemote(s, live);
-        await this.switchTo(c, live.atem_input);
-      } catch (e) {
-        throw new HttpError(502, "live_failed", (e as Error).message);
-      }
-      s.override = { liveSourceId: live.id, name: live.name, since: new Date().toISOString() };
-      this.asrun(c.id, "live", live.name, `Taken live by ${req.user!.username}`, true);
+      await this.takeLive(c, live, req.user!.username);
       return { ok: true };
     });
 
     app.post("/api/control/:id/resume", async (req) => {
       requireRole(req, "operator");
-      const c = channel(pid(req));
-      const s = this.state(c.id);
-      s.override = null;
-      s.currentKey = null;
-      s.preloadedKey = null;
-      s.prerolled = null;
-      s.standby = null;
-      await this.stopRtmp(s);
-      this.asrun(c.id, "control", "Back to schedule", req.user!.username, true);
+      await this.resume(channel(pid(req)), req.user!.username);
       return { ok: true };
     });
 

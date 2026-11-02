@@ -1,6 +1,7 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, Tv, Video, WandSparkles } from "lucide-react";
+import { AudioLines, Cable, CalendarDays, CalendarRange, Cast, Clapperboard, ClipboardList, Clock3, Film, FolderOpen, LayoutDashboard, Newspaper, Palette, Radio, Rss, Satellite, Tags, ToggleRight, Tv, Video, WandSparkles, Webcam } from "lucide-react";
+import { AudioSourcesPage } from "./pages/AudioSources";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
 import { CategoriesPage } from "./pages/Categories";
@@ -18,6 +19,8 @@ import { RecordingsPage } from "./pages/Recordings";
 import { RemoteSourcesPage } from "./pages/RemoteSources";
 import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
+import { SwitchButtonsPage, SwitchPage } from "./pages/Switch";
+import { WebcamsPage } from "./pages/Webcams";
 import { WeekPage } from "./pages/Week";
 import en from "./i18n/en.json";
 import nl from "./i18n/nl.json";
@@ -34,6 +37,7 @@ mountPlatformApp({
       label: "mgmt.nav.editorial",
       items: [
         { to: "/new-hour", label: "mgmt.nav.newHour", icon: WandSparkles, minRole: "editor" },
+        { to: "/switch", label: "mgmt.nav.switch", icon: ToggleRight, minRole: "operator" },
         { to: "/week", label: "mgmt.nav.week", icon: CalendarRange },
         { to: "/rundowns", label: "mgmt.nav.rundowns", icon: ClipboardList },
         { to: "/blocks", label: "mgmt.nav.blocks", icon: Clapperboard },
@@ -43,6 +47,7 @@ mountPlatformApp({
         { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
         { to: "/ads", label: "mgmt.nav.ads", icon: Film },
         { to: "/beeldkrant", label: "mgmt.nav.beeldkrant", icon: Rss },
+        { to: "/webcams", label: "mgmt.nav.webcams", icon: Webcam },
       ],
     },
     {
@@ -52,6 +57,7 @@ mountPlatformApp({
         { to: "/schedule", label: "mgmt.nav.schedule", icon: CalendarDays },
         { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
         { to: "/remote", label: "mgmt.nav.remote", icon: Satellite },
+        { to: "/audio", label: "mgmt.nav.audio", icon: AudioLines },
         { to: "/outputs", label: "mgmt.nav.outputs", icon: Cast },
       ],
     },
@@ -62,13 +68,17 @@ mountPlatformApp({
         { to: "/graphics", label: "mgmt.nav.graphics", icon: Palette, minRole: "editor" },
         { to: "/channels", label: "mgmt.nav.channels", icon: Tv, minRole: "admin" },
         { to: "/devices", label: "mgmt.nav.devices", icon: Cable, minRole: "admin" },
+        { to: "/switch-buttons", label: "mgmt.nav.switchButtons", icon: ToggleRight, minRole: "admin" },
       ],
     },
   ],
   routes: [
     { path: "/", element: <Dashboard /> },
     { path: "/control", element: <ControlPage /> },
+    { path: "/switch", element: <SwitchPage /> },
+    { path: "/switch-buttons", element: <SwitchButtonsPage /> },
     { path: "/remote", element: <RemoteSourcesPage /> },
+    { path: "/audio", element: <AudioSourcesPage /> },
     { path: "/recordings", element: <RecordingsPage /> },
     { path: "/outputs", element: <OutputsPage /> },
     { path: "/schedule", element: <SchedulePage /> },
@@ -86,6 +96,7 @@ mountPlatformApp({
     { path: "/media", element: <MediaPage /> },
     { path: "/beeldkrant", element: <BeeldkrantPage /> },
     { path: "/beeldkrant/:id", element: <BeeldkrantPage /> },
+    { path: "/webcams", element: <WebcamsPage /> },
     { path: "/epg", element: <EpgPage /> },
     { path: "/graphics", element: <GraphicsPage /> },
     { path: "/channels", element: <ChannelsPage /> },
