@@ -474,4 +474,6 @@ export const MANAGEMENT_MIGRATIONS = [
    DROP TABLE block_items;
    ALTER TABLE block_items_new RENAME TO block_items;
    CREATE INDEX block_items_block ON block_items(block_id, position);`,
+  // "Rest of the hour" of a block: what plays after its material until the next whole hour (beeldkrant:<id> / webcam:<id>).
+  `ALTER TABLE blocks ADD COLUMN fill TEXT;`,
 ];

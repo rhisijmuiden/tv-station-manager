@@ -466,7 +466,7 @@ export class Director {
     const onBeeldkrant = ((current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay) || current?.type === "lineup";
     const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
-    const nextProgram = upcoming.find((e) => e.scheduleId != null && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
+    const nextProgram = upcoming.find((e) => e.scheduleId != null && !e.fill && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
     const untilNext = nextProgram ? nextProgram.start - now : Infinity;
     const upNextVisible = g.upNext.enabled && !hidden && untilNext <= g.upNext.secondsBeforeEnd * 1000 && untilNext > (g.upNext.secondsBeforeEnd - g.upNext.durationSeconds) * 1000;
     return {
@@ -585,7 +585,7 @@ export class Director {
   private programNow<T>(s: ChannelState, now: number, ev: (e: TimelineEvent) => T) {
     const p = programAt(s.events, now, (id) => s.entries.get(id));
     if (!p) return null;
-    const next = s.events.find((e) => e.start >= p.end && e.scheduleId != null && e.offsetMs === 0);
+    const next = s.events.find((e) => e.start >= p.end && e.scheduleId != null && !e.fill && e.offsetMs === 0);
     return {
       title: p.title,
       startAt: new Date(p.start).toISOString(),

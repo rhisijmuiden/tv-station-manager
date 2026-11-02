@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { indicatorClass, payloadItems, useDropList, type DragPayload } from "../components/dnd";
 import { WithMediaBin } from "../components/MediaBin";
 import { AudioSelect, useAudioSources } from "../components/AudioSelect";
+import { FillSelect, useFillChoices } from "../components/FillSelect";
 import { MediaPicker } from "../components/MediaPicker";
 import { AutoClipsDialog, autoLabel, useAutoPreviews, type AutoInfo, type AutoRule } from "../components/AutoClips";
 import { categoryTone, errorText, fmtDuration, LINEUP_MS, lineupItem, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
@@ -33,7 +34,7 @@ interface Item {
   warning?: string | null;
 }
 interface Detail {
-  block: BlockSummary & { audio?: string | null };
+  block: BlockSummary & { audio?: string | null; fill?: string | null };
   items: (Item & { autoSourceName?: string | null; mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string; webcamName?: string })[];
 }
 const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
@@ -47,7 +48,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
-  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null, audio: null as string | null });
+  const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null, audio: null as string | null, fill: null as string | null });
   const { categories } = useCategories();
   const [items, setItems] = useState<Item[]>([]);
   const [picker, setPicker] = useState(false);
@@ -62,17 +63,18 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const { sources: audioSources } = useAudioSources();
   const hasAudio = !!audioSources?.length;
   const webcams = useGet<{ webcams: { id: number; name: string; durationMs: number }[] }>("/api/webcams");
+  const fillChoices = useFillChoices();
 
   useEffect(() => {
     setMsg(null);
     setDirty(false);
     if (id === "new") {
-      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null, audio: null });
+      setMeta({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null, audio: null, fill: null });
       setItems([]);
       return;
     }
     void get<Detail>(`/api/blocks/${id}`).then((d) => {
-      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null, audio: d.block.audio ?? null });
+      setMeta({ name: d.block.name, color: d.block.color, genre: d.block.genre, description: d.block.description, categoryId: d.block.categoryId ?? null, audio: d.block.audio ?? null, fill: d.block.fill ?? null });
       setItems(
         d.items.map((i) => ({
           type: i.type,
@@ -210,6 +212,11 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
         {hasAudio && (
           <Field label={t("mgmt.audio.blockLabel")} hint={t("mgmt.audio.blockHint")}>
             {(fid) => <AudioSelect id={fid} scope="block" sources={audioSources} value={meta.audio} onChange={(audio) => (setMeta({ ...meta, audio }), setDirty(true))} />}
+          </Field>
+        )}
+        {kind === "program" && (
+          <Field label={t("mgmt.fill.label")} hint={fillChoices.loaded && !fillChoices.beeldkranten.length ? t("mgmt.fill.noBeeldkrant") : t("mgmt.fill.hint")}>
+            {(fid) => <FillSelect id={fid} value={meta.fill} choices={fillChoices} onChange={(fill) => (setMeta({ ...meta, fill }), setDirty(true))} />}
           </Field>
         )}
         <Field label={t("mgmt.blocks.description")} hint={t("mgmt.blocks.descriptionHint")}>

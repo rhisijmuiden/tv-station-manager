@@ -3,7 +3,7 @@ import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { lineupSchema } from "./lineuplogic.js";
-import { audioIn, BlockCycleError, compile, DEFAULT_LINEUP_MS, expandBlock, type BlockRef, type Loader, type MediaRef, type ScheduleEntry } from "./timeline.js";
+import { audioIn, BlockCycleError, fillIn, compile, DEFAULT_LINEUP_MS, expandBlock, type BlockRef, type Loader, type MediaRef, type ScheduleEntry } from "./timeline.js";
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
 import { webcamRef } from "./webcamdb.js";
@@ -78,7 +78,7 @@ export function dbLoader(db: Db): Loader {
   return {
     block(id) {
       if (!blocks.has(id)) {
-        const b = db.prepare("SELECT id, name, kind, audio FROM blocks WHERE id = ?").get(id) as { id: number; name: string; kind: "program" | "commercial"; audio: string | null } | undefined;
+        const b = db.prepare("SELECT id, name, kind, audio, fill FROM blocks WHERE id = ?").get(id) as { id: number; name: string; kind: "program" | "commercial"; audio: string | null; fill: string | null } | undefined;
         blocks.set(
           id,
           b && {
@@ -390,6 +390,8 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     categoryId: z.number().int().nullable().optional(),
     items: z.array(itemIn).max(2000).default([]),
     audio: z.union([z.string().max(12), z.number().int()]).nullable().optional(),
+    /** Rest of the hour after the material: "beeldkrant:<id>", "webcam:<id>", or null for the channel filler. */
+    fill: z.string().max(40).nullable().optional(),
   });
 
   const blockSummary = (loader: Loader, b: Record<string, unknown>) => {
@@ -404,7 +406,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       cycle = e instanceof BlockCycleError;
     }
     const itemCount = (db.prepare("SELECT COUNT(*) AS n FROM block_items WHERE block_id = ?").get(Number(b.id)) as { n: number }).n;
-    return { id: b.id, name: b.name, kind: b.kind, color: b.color, description: b.description, genre: b.genre, categoryId: b.category_id ?? null, audio: b.audio ?? null, updatedAt: b.updated_at, itemCount, durationMs, warnings, cycle };
+    return { id: b.id, name: b.name, kind: b.kind, color: b.color, description: b.description, genre: b.genre, categoryId: b.category_id ?? null, audio: b.audio ?? null, fill: b.fill ?? null, updatedAt: b.updated_at, itemCount, durationMs, warnings, cycle };
   };
 
   app.get("/api/blocks", async (req) => {
@@ -492,7 +494,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     requireRole(req, "editor");
     const b = blockIn.parse(req.body);
     const id = tx(() => {
-      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio));
+      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), fillIn(b.fill));
       const id = Number(r.lastInsertRowid);
       saveItems(id, b.items);
       return id;
@@ -545,8 +547,9 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const b = blockIn.parse(req.body);
     tx(() => {
       const r = db
-        .prepare("UPDATE blocks SET name = ?, kind = ?, color = ?, description = ?, genre = ?, category_id = ?, audio = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?")
-        .run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), id);
+        .prepare("UPDATE blocks SET name = ?, kind = ?, color = ?, description = ?, genre = ?, category_id = ?, audio = ?, fill = CASE WHEN ? THEN ? ELSE fill END, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?")
+        // Callers that do not send `fill` keep the block's "rest of the hour" choice.
+        .run(b.name, b.kind, b.color, b.description, b.genre, b.categoryId ?? null, audioIn(b.audio), b.fill === undefined ? 0 : 1, fillIn(b.fill), id);
       if (!r.changes) throw new HttpError(404, "not_found");
       saveItems(id, b.items);
     });
@@ -558,7 +561,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const src = db.prepare("SELECT * FROM blocks WHERE id = ?").get(pid(req)) as Record<string, string> | undefined;
     if (!src) throw new HttpError(404, "not_found");
     const id = tx(() => {
-      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio) VALUES (?, ?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null, src.audio ?? null);
+      const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null, src.audio ?? null, src.fill ?? null);
       const id = Number(r.lastInsertRowid);
       db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
       return id;
@@ -612,6 +615,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
           inEpg: e.inEpg,
           overrunMs: e.overrunMs,
           gapAfterMs: e.gapAfterMs,
+          fillMs: e.fillMs,
           warnings: e.warnings,
           origin: origins.get(e.id)?.origin ?? "manual",
           weekSlotId: origins.get(e.id)?.week_slot_id ?? null,

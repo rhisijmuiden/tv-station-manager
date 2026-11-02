@@ -408,13 +408,14 @@ export function registerWebcams(app: FastifyInstance, platform: Platform, cams: 
     const { force } = z.object({ force: z.coerce.boolean().optional() }).parse(req.query);
     const own = blockOf(id);
     // Used anywhere else than in its own block (or its own block is planned)?
-    const used = (db.prepare("SELECT COUNT(*) AS n FROM block_items WHERE webcam_id = ? AND block_id != ?").get(id, own?.id ?? -1) as { n: number }).n;
+    const used = (db.prepare("SELECT (SELECT COUNT(*) FROM block_items WHERE webcam_id = ? AND block_id != ?) + (SELECT COUNT(*) FROM blocks WHERE fill = ?) AS n").get(id, own?.id ?? -1, `webcam:${id}`) as { n: number }).n;
     const planned = own ? (db.prepare("SELECT COUNT(*) AS n FROM block_items WHERE child_block_id = ?").get(own.id) as { n: number }).n + (db.prepare("SELECT COUNT(*) AS n FROM schedule WHERE block_id = ?").get(own.id) as { n: number }).n : 0;
     if ((used || planned) && !force) throw new HttpError(409, "webcam_in_use", String(used + planned));
     db.exec("BEGIN");
     try {
       if (own) db.prepare("DELETE FROM blocks WHERE id = ?").run(own.id);
       db.prepare("DELETE FROM webcams WHERE id = ?").run(id);
+      db.prepare("UPDATE blocks SET fill = NULL WHERE fill = ?").run(`webcam:${id}`);
       db.exec("COMMIT");
     } catch (e) {
       db.exec("ROLLBACK");

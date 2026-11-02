@@ -41,6 +41,8 @@ export interface BlockRef {
   items: BlockItemRow[];
   /** Audio under the whole block (nested blocks follow it unless they set their own). */
   audio?: AudioSetting;
+  /** What fills the rest of the hour when the block's material ends early ("beeldkrant:<id>", "webcam:<id>"); null = the channel filler. */
+  fill?: string | null;
 }
 /** Stored audio choice: null/undefined = follow the parent, "none" = no audio, "<id>" = an audio source. */
 export type AudioSetting = string | null;
@@ -175,6 +177,49 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
   return out;
 }
 
+/** Parses a stored "rest of the hour" choice: a beeldkrant or webcam, or null (the channel filler). */
+export function parseFill(fill: string | null | undefined): { type: "beeldkrant" | "webcam"; id: number } | null {
+  const m = /^(beeldkrant|webcam):(\d+)$/.exec(fill ?? "");
+  return m ? { type: m[1] as "beeldkrant" | "webcam", id: Number(m[2]) } : null;
+}
+/** Normalises what the API accepts for a block's "rest of the hour" setting. */
+export const fillIn = (fill: string | null | undefined): string | null => {
+  const f = parseFill(fill);
+  return f ? `${f.type}:${f.id}` : null;
+};
+
+/**
+ * The "rest of the hour" choice of a block: its own, else the one of the first nested block that has one
+ * (an editor's rundown for a date holds the planned hour block as its first item).
+ */
+export function blockFill(loader: Loader, blockId: number): string | null {
+  const b = loader.block(blockId);
+  if (!b) return null;
+  if (parseFill(b.fill)) return b.fill!;
+  for (const it of b.items) {
+    if (it.type !== "block" || it.childBlockId == null || it.childBlockId === blockId) continue;
+    const child = loader.block(it.childBlockId);
+    if (child && parseFill(child.fill)) return child.fill!;
+  }
+  return null;
+}
+
+/** The leaf that plays a "rest of the hour" choice, or undefined when it no longer exists. */
+export function fillLeaf(loader: Loader, fill: string | null | undefined, blockName: string): Leaf | undefined {
+  const f = parseFill(fill);
+  if (f?.type === "beeldkrant") {
+    const b = loader.beeldkrant?.(f.id);
+    if (b) return { type: "beeldkrant", durationMs: 0, title: b.name, beeldkrantId: b.id, showOverlay: b.showOverlay, blockKind: "program", blockName, audioSourceId: b.audioSourceId ?? null };
+  } else if (f?.type === "webcam") {
+    const w = loader.webcam?.(f.id);
+    if (w) return { type: "webcam", durationMs: 0, title: w.name, webcamId: w.id, showOverlay: w.showOverlay, blockKind: "program", blockName, audioSourceId: null };
+  }
+  return undefined;
+}
+
+/** The next whole hour after `t` (station time is a whole number of hours from UTC). */
+export const nextHour = (t: number) => Math.floor(t / 3600_000) * 3600_000 + 3600_000;
+
 export const blockDuration = (loader: Loader, blockId: number) => expandBlock(loader, blockId).reduce((s, l) => s + l.durationMs, 0);
 
 export interface ScheduleEntry {
@@ -213,6 +258,8 @@ export interface TimelineEvent {
   /** Offset into the item when the event starts (only non-zero when the window cuts it). */
   offsetMs: number;
   leaf?: Leaf;
+  /** Fills the rest of the hour after the programme's material (the block's "rest of the hour" choice). */
+  fill?: boolean;
 }
 
 export interface CompiledEntry extends ScheduleEntry {
@@ -221,6 +268,8 @@ export interface CompiledEntry extends ScheduleEntry {
   contentEnd: number;
   /** End on air: content end or the next entry's start, whichever is first. */
   end: number;
+  /** Time after the content filled by the block's "rest of the hour" choice (beeldkrant / webcam). */
+  fillMs: number;
   overrunMs: number;
   gapAfterMs: number;
   warnings: number;
@@ -228,7 +277,9 @@ export interface CompiledEntry extends ScheduleEntry {
 
 /**
  * Compiles schedule entries (any order) into on-air events between `from` and `to`.
- * Gaps become "filler" events.
+ * Gaps become "filler" events. When the entry's block has a "rest of the hour" choice (a beeldkrant or webcam), the gap
+ * after its content plays that until the next entry or the next whole hour, whichever is first; the rest is filler.
+ * Entries of one week-schedule occurrence share the choice (the fixed parts of the clock follow the hour block).
  */
 export function compile(loader: Loader, entries: ScheduleEntry[], from: number, to: number) {
   const sorted = [...entries].sort((a, b) => a.start - b.start || a.id - b.id);
@@ -241,6 +292,14 @@ export function compile(loader: Loader, entries: ScheduleEntry[], from: number, 
   };
   if (sorted.length === 0) filler(from, to);
   else if (sorted[0]!.start > from) filler(from, sorted[0]!.start);
+
+  const fills = new Map<number, string | null>();
+  for (const e of sorted) fills.set(e.id, blockFill(loader, e.blockId));
+  const groupFill = new Map<string, string>();
+  for (const e of sorted) {
+    const f = fills.get(e.id);
+    if (e.group && f && !groupFill.has(e.group)) groupFill.set(e.group, f);
+  }
 
   sorted.forEach((entry, i) => {
     const nextStart = sorted[i + 1]?.start ?? Number.POSITIVE_INFINITY;
@@ -263,17 +322,26 @@ export function compile(loader: Loader, entries: ScheduleEntry[], from: number, 
       events.push({ key: `${entry.id}:${idx}`, scheduleId: entry.id, start, end: Math.min(onAirEnd, to), type: leaf.type, title: leaf.title, programTitle, offsetMs: start - s, leaf });
     });
     const end = Math.min(cursor, nextStart);
+    // Rest of the hour: the block's choice from the end of the content to the next entry or the next whole hour.
+    const fill = fills.get(entry.id) ?? (entry.group ? groupFill.get(entry.group) : undefined);
+    const fLeaf = cursor < nextStart ? fillLeaf(loader, fill, programTitle) : undefined;
+    const fillEnd = fLeaf ? Math.min(nextStart, nextHour(cursor)) : cursor;
+    if (fLeaf && fillEnd > from && cursor < to) {
+      const start = Math.max(cursor, from);
+      events.push({ key: `fill:${entry.id}`, scheduleId: entry.id, start, end: Math.min(fillEnd, to), type: fLeaf.type, title: fLeaf.title, programTitle, offsetMs: start - cursor, leaf: { ...fLeaf, durationMs: fillEnd - cursor }, fill: true });
+    }
     compiled.push({
       ...entry,
       programTitle,
       contentEnd: cursor,
       end,
       overrunMs: Number.isFinite(nextStart) ? Math.max(0, cursor - nextStart) : 0,
-      gapAfterMs: Number.isFinite(nextStart) ? Math.max(0, nextStart - cursor) : 0,
+      gapAfterMs: Number.isFinite(nextStart) ? Math.max(0, nextStart - fillEnd) : 0,
+      fillMs: fillEnd - cursor,
       warnings: leaves.filter((l) => l.warning).length,
     });
     // Gap until the next entry (or until the end of the window after the last entry).
-    filler(cursor, Math.min(nextStart, Number.isFinite(nextStart) ? nextStart : to));
+    filler(fillEnd, Math.min(nextStart, Number.isFinite(nextStart) ? nextStart : to));
   });
   events.sort((a, b) => a.start - b.start);
   return { events, entries: compiled };

@@ -303,6 +303,29 @@ test("beeldkrant: WordPress and RSS feeds, pages, planning and playout on Caspar
   await h.director.tick();
   assert.equal(playout.calls.filter((c) => c.startsWith("html 1-10 ")).length, before + 1);
 
+  // Rest of the hour: a short block whose beeldkrant fills the hour after its material, then the next hour starts.
+  const short = (await api("POST", "/api/blocks", { name: "Kort", items: [{ type: "beeldkrant", beeldkrantId: bk.body.id, durationMs: 60_000 }], fill: `beeldkrant:${bk.body.id}` })).body;
+  assert.equal((await api("GET", `/api/blocks/${short.id}`)).body.block.fill, `beeldkrant:${bk.body.id}`);
+  const t1 = t0 + 3600_000;
+  await api("POST", "/api/schedule", { channelId: ch.id, startAt: new Date(t1).toISOString(), blockId: short.id, title: "Kort" });
+  await api("POST", "/api/schedule", { channelId: ch.id, startAt: new Date(t1 + 3600_000).toISOString(), blockId: longer.id, title: "Volgend uur" });
+  const sched = (await api("GET", `/api/schedule?channel=${ch.id}&from=${new Date(t1).toISOString()}&to=${new Date(t1 + 7200_000).toISOString()}`)).body.entries;
+  const kort = sched.find((e: { title: string }) => e.title === "Kort");
+  assert.equal(kort.fillMs, 59 * 60_000);
+  assert.equal(kort.gapAfterMs, 0);
+  h.director.now = () => t1 + 30 * 60_000;
+  h.director.invalidate();
+  await h.director.tick();
+  assert.match(playout.calls.filter((c) => c.startsWith("html 1-10 ")).at(-1)!, new RegExp(`/beeldkrant/page\\.html\\?id=${bk.body.id}&start=${t1 + 60_000}$`));
+  const filling = (await api("GET", "/api/control")).body.channels[0];
+  assert.equal(filling.current.type, "beeldkrant");
+  assert.equal(filling.program.title, "Kort");
+  assert.equal(filling.program.next.title, "Volgend uur");
+  // Unknown choices are dropped; a beeldkrant chosen to fill counts as in use.
+  assert.equal((await api("PUT", `/api/blocks/${short.id}`, { name: "Kort", items: [], fill: "rubbish" })).status, 200);
+  assert.equal((await api("GET", `/api/blocks/${short.id}`)).body.block.fill, null);
+  await api("PUT", `/api/blocks/${short.id}`, { name: "Kort", items: [], fill: `beeldkrant:${bk.body.id}` });
+
   // Deleting a feed takes its pages out; deleting a used beeldkrant needs force.
   await api("DELETE", `/api/rss/feeds/${atom.id}`);
   assert.equal((await api("GET", `/api/beeldkranten/${bk.body.id}`)).body.pageCount, 2);

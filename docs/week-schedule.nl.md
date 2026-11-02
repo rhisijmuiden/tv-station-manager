@@ -7,6 +7,16 @@ De management node plant het lineaire kanaal per week.
 - **Weekschema** (Planning → Weekschema): terugkerende slots per kanaal en weekdag, bijv. "ma–vr 18:00–20:00 Sport". Een slot heeft een categorie (redacteuren stellen per datum de rundown samen, of die wordt automatisch uit de categorie gekozen) of een vast blok (elke week hetzelfde tv-blok). Elk slot volgt de standaard uurklok van het kanaal, een andere klok, of geen klok.
 - **Redactie** (Planning → Redactie): per week elk slot op elke datum met de status (vast blok, redacteur, automatisch, leeg), hoe vol het is en wat niet past. Open er een om de rundown samen te stellen; de tijdlijn laat live zien waar elk item start. Items worden nooit gesplitst: past een item niet meer in een venster, dan schuift het door naar het volgende.
 
+## Als het uur niet vol is
+
+Een uurblok kan kiezen wat er speelt als het materiaal op is voordat het uur voorbij is: **Als het uur niet vol is** in stap 2 van *Nieuwe uurprogrammering* en in de editor van een uurblok (een beeldkrant, een webcam, of leeg voor de opvulling van het kanaal).
+
+- Na de laatste clip speelt de gekozen beeldkrant (of webcam) tot het volgende hele uur, of tot het volgende programma als dat eerder begint; daarna gaat het schema gewoon verder. Hij loopt nooit over het hele uur heen: daarna speelt de opvulling van het kanaal zoals voorheen.
+- Met een uurklok volgen ook de gaten tussen de programmavakken en de vaste onderdelen (bijvoorbeeld een reclameblok dat korter is dan de gereserveerde tijd) de keuze van het uurblok, zodat het hele uur op de beeldkrant blijft.
+- Een rundown die een redacteur voor een datum maakt volgt het uurblok dat erin zit; een blok zonder keuze houdt de opvulling van het kanaal.
+- De uurweergave in de wizard laat het opgevulde stuk zien, het uitzendschema toont "Opgevuld mm:ss" in plaats van een gat, en *Nu op tv* toont de beeldkrant als deel van het uurblok.
+- Een beeldkrant of webcam die hier gekozen is, telt als "in gebruik" bij verwijderen; na verwijderen vallen de blokken terug op de opvulling van het kanaal.
+
 ## Publiceren
 
 Met "Weekschema actief" zet de node de komende 14 dagen (instelling `week.days`) om in gewone regels in het uitzendschema (origin `week`), elke 15 minuten en na elke wijziging. De regisseur, het uitzendschema en de EPG spelen ze af zoals elke andere regel:
