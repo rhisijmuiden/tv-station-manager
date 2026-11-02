@@ -55,6 +55,8 @@ interface ChannelState {
   /** A live item on another node is current but its stream is not playing: the playout node stays on air. */
   standby: { liveSourceId: number; name: string; since: string; input: number | null } | null;
   graphicsLoaded: boolean;
+  /** CasparCG connection the current item was played on; a new one (restart) starts from a clean server. */
+  playoutSession: number | undefined;
   graphicsJson: string | null;
   /** Graphics overlay on the live node's output. */
   liveGfx: (Output & { session: number | undefined; json: string }) | null;
@@ -98,7 +100,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, playoutSession: undefined, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false };
       this.states.set(id, s);
     }
     return s;
@@ -135,6 +137,7 @@ export class Director {
 
   private async step(ch: ChannelRow, s: ChannelState, now: number) {
     const { current, upcoming } = at(s.events, now);
+    this.checkPlayoutSession(ch, s);
     if (s.override) {
       const live = this.live(s.override.liveSourceId);
       if (live) await this.switchTo(ch, live.atem_input).catch((e) => this.fail(ch, s, `override: ${(e as Error).message}`));
@@ -159,6 +162,24 @@ export class Director {
 
   private playout(ch: ChannelRow) {
     return this.hub.playout(ch.studio_id);
+  }
+
+  /**
+   * CasparCG came back with empty layers (service restart, crash, reconnect): play the current item again (at its
+   * offset), preload the next one and add the overlay again. A restart shorter than one tick is not seen as a
+   * disconnect, so compare the connection session instead of waiting for `connected` to drop.
+   */
+  private checkPlayoutSession(ch: ChannelRow, s: ChannelState) {
+    const info = this.playout(ch)?.info();
+    if (!info?.connected) return;
+    if (s.playoutSession !== undefined && info.session !== s.playoutSession) {
+      s.currentKey = null;
+      s.preloadedKey = null;
+      s.graphicsLoaded = false;
+      s.captionOn = false;
+      this.asrun(ch.id, "control", "CasparCG reconnected", "Current item and overlay played again", true);
+    }
+    s.playoutSession = info.session;
   }
   private live(id: number) {
     return this.remote.live(id);
