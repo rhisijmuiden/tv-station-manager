@@ -19,6 +19,8 @@ interface Entry {
   inEpg: boolean;
   overrunMs: number;
   gapAfterMs: number;
+  /** Time after the content filled by the block's "rest of the hour" choice. */
+  fillMs?: number;
   warnings: number;
   origin: "manual" | "week";
   weekSlotId: number | null;
@@ -201,6 +203,7 @@ export function SchedulePage() {
                   </Badge>
                 )}
                 {e.overrunMs > 0 && <Badge tone="danger">{t("mgmt.schedule.overrun", { d: fmtDuration(e.overrunMs) })}</Badge>}
+                {!!e.fillMs && <Badge tone="brand">{t("mgmt.fill.badgeAny", { d: fmtDuration(e.fillMs) })}</Badge>}
                 {e.gapAfterMs > 0 && <Badge tone="warn">{t("mgmt.schedule.gap", { d: fmtDuration(e.gapAfterMs) })}</Badge>}
                 <span className="w-16 text-right font-mono text-xs text-muted">{fmtDuration(Date.parse(e.endAt) - Date.parse(e.startAt))}</span>
                 {e.origin === "week" ? (

@@ -1110,7 +1110,8 @@
       "chosen": "{{n}} keer per dag:",
       "clearTimes": "Wissen",
       "selfClash": "Sommige gekozen tijden lopen in elkaar over. Kies tijden die minstens één programmalengte uit elkaar liggen.",
-      "dynamicHint": "Bouw het uur op uit mappen: bijvoorbeeld een reclame uit Reclames, een bumper, een programma-item, weer een bumper."
+      "dynamicHint": "Bouw het uur op uit mappen: bijvoorbeeld een reclame uit Reclames, een bumper, een programma-item, weer een bumper.",
+      "fillRow": "Rest van het uur"
     },
     "rec": {
       "title": "Opnames",
@@ -1548,6 +1549,15 @@
       "minutes_other": "{{count}} minuten",
       "maxRows": "Max. programma's",
       "howTo": "Zet hem in een blok of dagindeling met \"Straks-slide\" (blokken: in de lijst Meer). Alleen programmabestanden en live-items komen erop, met de bestandsnaam als titel; reclame, jingles, beeldkrant en webcams worden overgeslagen."
+    },
+    "fill": {
+      "label": "Als het uur niet vol is",
+      "hint": "Speelt na de laatste clip tot het volgende hele uur; daarna begint het volgende programma gewoon zoals gepland.",
+      "channel": "Opvulling van het kanaal (standaard)",
+      "restShort": "{{name}} tot het hele uur",
+      "noBeeldkrant": "Nog geen beeldkrant? Maak er een onder Mediabronnen → Beeldkrant.",
+      "fills": "Er is nog {{d}} vrij; {{name}} vult dat tot het volgende uur.",
+      "badgeAny": "Opgevuld {{d}}"
     }
   }
 }

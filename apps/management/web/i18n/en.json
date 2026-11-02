@@ -1110,7 +1110,8 @@
       "chosen": "{{n}} time(s) per day:",
       "clearTimes": "Clear",
       "selfClash": "Some chosen times run into each other. Choose times at least one programme length apart.",
-      "dynamicHint": "Build the hour from folders: e.g. an ad from Ads, a bumper, a programme item, a bumper again."
+      "dynamicHint": "Build the hour from folders: e.g. an ad from Ads, a bumper, a programme item, a bumper again.",
+      "fillRow": "Rest of the hour"
     },
     "rec": {
       "title": "Recordings",
@@ -1548,6 +1549,15 @@
       "minutes_other": "{{count}} minutes",
       "maxRows": "Max. programmes",
       "howTo": "Add it to a block or a day rundown with \"Coming up slide\" (blocks: in the More list). Only programme files and live items are listed, with the file name as title; commercials, jingles, beeldkrant and webcams are left out."
+    },
+    "fill": {
+      "label": "When the hour is not full",
+      "hint": "Plays after the last clip until the next whole hour; then the next programme starts as planned.",
+      "channel": "Channel filler (default)",
+      "restShort": "{{name}} until the hour",
+      "noBeeldkrant": "No beeldkrant yet? Make one under Media sources → Beeldkrant.",
+      "fills": "{{d}} is still free; {{name}} fills it until the next hour.",
+      "badgeAny": "Filled {{d}}"
     }
   }
 }

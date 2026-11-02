@@ -343,9 +343,11 @@ export function registerRss(app: FastifyInstance, platform: Platform, rss: RssFe
     requireRole(req, "editor");
     const id = pid(req);
     const { force } = z.object({ force: z.coerce.boolean().optional() }).parse(req.query);
-    const used = (db.prepare("SELECT COUNT(*) AS n FROM block_items WHERE beeldkrant_id = ?").get(id) as { n: number }).n;
+    // In blocks, or chosen to fill the rest of the hour after a block.
+    const used = (db.prepare("SELECT (SELECT COUNT(*) FROM block_items WHERE beeldkrant_id = ?) + (SELECT COUNT(*) FROM blocks WHERE fill = ?) AS n").get(id, `beeldkrant:${id}`) as { n: number }).n;
     if (used && !force) throw new HttpError(409, "beeldkrant_in_use", String(used));
     db.prepare("DELETE FROM beeldkranten WHERE id = ?").run(id);
+    db.prepare("UPDATE blocks SET fill = NULL WHERE fill = ?").run(`beeldkrant:${id}`);
     onChange();
     return { ok: true };
   });
