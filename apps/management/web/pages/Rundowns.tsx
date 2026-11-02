@@ -51,12 +51,14 @@ interface Detail {
   items: RawItem[];
 }
 interface RawItem {
-  type: "media" | "block" | "live" | "beeldkrant";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
   beeldkrantId?: number | null;
   beeldkrantName?: string | null;
+  webcamId?: number | null;
+  webcamName?: string | null;
   durationMs: number | null;
   title: string | null;
   mediaName?: string | null;
@@ -68,11 +70,12 @@ interface RawItem {
   effectiveDurationMs: number | null;
 }
 interface Item {
-  type: "media" | "block" | "live" | "beeldkrant";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
   mediaId?: number | null;
   childBlockId?: number | null;
   liveSourceId?: number | null;
   beeldkrantId?: number | null;
+  webcamId?: number | null;
   durationMs?: number | null;
   title?: string | null;
   label: string;
@@ -86,9 +89,10 @@ const toItem = (i: RawItem): Item => ({
   childBlockId: i.childBlockId,
   liveSourceId: i.liveSourceId,
   beeldkrantId: i.beeldkrantId ?? null,
+  webcamId: i.webcamId ?? null,
   durationMs: i.durationMs,
   title: i.title,
-  label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.liveName || "",
+  label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.type === "webcam" ? i.webcamName || "" : i.liveName || "",
   sub: i.type === "media" ? i.mediaPath : null,
   effectiveDurationMs: i.effectiveDurationMs,
   warning: i.type === "media" ? (i.mediaMissing ? "missing" : i.effectiveDurationMs == null ? "no_duration" : null) : null,
@@ -271,7 +275,7 @@ function OccurrenceEditor({ slotId, date }: { slotId: number; date: string }) {
     }
   };
   const save = (ready: boolean) =>
-    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
+    run(() => put(`/api/week/occurrences/${slotId}/${date}`, { ready, items: (items ?? []).map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, durationMs, title })) }), ready ? t("mgmt.rundowns.savedReady") : t("common.saved"));
   const ownFromBlock = async (extra: Item[] = [], at?: number) => {
     const own = occ?.blockId ? (await get<{ items: RawItem[] }>(`/api/blocks/${occ.blockId}`)).items.map(toItem) : [];
     const pos = at ?? own.length;

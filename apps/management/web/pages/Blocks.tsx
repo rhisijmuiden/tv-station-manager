@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowUp, Clapperboard, Copy, Film, GripVertical, Newspaper, Plus, Radio, Save, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Clapperboard, Copy, Film, GripVertical, Newspaper, Plus, Radio, Save, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -9,11 +9,12 @@ import { MediaPicker } from "../components/MediaPicker";
 import { categoryTone, errorText, fmtDuration, parseDuration, useCategories, useGet, type BlockSummary, type LiveSource } from "../lib";
 
 interface Item {
-  type: "media" | "block" | "live" | "beeldkrant";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam";
   mediaId?: number | null;
   childBlockId?: number | null;
   liveSourceId?: number | null;
   beeldkrantId?: number | null;
+  webcamId?: number | null;
   durationMs?: number | null;
   title?: string | null;
   // display
@@ -25,7 +26,7 @@ interface Item {
 }
 interface Detail {
   block: BlockSummary;
-  items: (Item & { mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string })[];
+  items: (Item & { mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string; webcamName?: string })[];
 }
 const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
 
@@ -45,6 +46,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const programs = useGet<{ blocks: BlockSummary[] }>("/api/blocks?kind=program");
   const live = useGet<{ sources: LiveSource[] }>("/api/live-sources");
   const beeldkranten = useGet<{ beeldkranten: { id: number; name: string; durationMs: number }[] }>("/api/beeldkranten");
+  const webcams = useGet<{ webcams: { id: number; name: string; durationMs: number }[] }>("/api/webcams");
 
   useEffect(() => {
     setMsg(null);
@@ -63,9 +65,10 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
           childBlockId: i.childBlockId,
           liveSourceId: i.liveSourceId,
           beeldkrantId: i.beeldkrantId,
+          webcamId: i.webcamId,
           durationMs: i.durationMs,
           title: i.title,
-          label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.liveName || "",
+          label: i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.type === "webcam" ? i.webcamName || "" : i.liveName || "",
           sub: i.type === "media" ? i.mediaPath : undefined,
           category: i.mediaCategory,
           effectiveDurationMs: i.effectiveDurationMs,
@@ -107,7 +110,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
 
   const save = async () => {
     setMsg(null);
-    const body = { ...meta, kind, items: items.map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, durationMs, title })) };
+    const body = { ...meta, kind, items: items.map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, durationMs, title }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, durationMs, title })) };
     try {
       const r = id === "new" ? await post<{ id: number }>("/api/blocks", body) : await put<{ id: number }>(`/api/blocks/${id}`, body);
       setDirty(false);
@@ -238,6 +241,23 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                 ))}
               </Select>
             )}
+            {kind === "program" && !!webcams.data?.webcams.length && (
+              <Select
+                className="h-8 w-auto! text-[13px]"
+                value=""
+                onChange={(e) => {
+                  const w = webcams.data?.webcams.find((x) => x.id === Number(e.target.value));
+                  if (w) change([...items, { type: "webcam", webcamId: w.id, label: w.name, durationMs: null, effectiveDurationMs: w.durationMs }]);
+                }}
+              >
+                <option value="">{t("mgmt.blocks.addWebcam")}</option>
+                {webcams.data?.webcams.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({fmtDuration(w.durationMs)})
+                  </option>
+                ))}
+              </Select>
+            )}
           </div>
           <ol {...dnd.listProps} className={cx("divide-y divide-line rounded-md border transition", dnd.indicator != null ? "border-brand/60" : "border-line")}>
             {items.map((it, i) => {
@@ -247,8 +267,8 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                 <li key={i} {...dnd.rowProps(i, it.title || it.label)} className={cx("flex cursor-grab items-center gap-3 px-3 py-2 text-sm active:cursor-grabbing", indicatorClass(dnd.indicator, i, items.length))}>
                   <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
                   <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(start)}</span>
-                  <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "live" ? "bg-onair/12 text-onair" : it.type === "block" ? "bg-warn/15 text-warn" : it.type === "beeldkrant" ? "bg-ok/12 text-ok" : "bg-brand/10 text-brand")}>
-                    {it.type === "live" ? <Radio className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : it.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : <Clapperboard className="size-3.5" />}
+                  <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "live" ? "bg-onair/12 text-onair" : it.type === "block" ? "bg-warn/15 text-warn" : it.type === "beeldkrant" ? "bg-ok/12 text-ok" : it.type === "webcam" ? "bg-[#0EA5A4]/12 text-[#0EA5A4]" : "bg-brand/10 text-brand")}>
+                    {it.type === "live" ? <Radio className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : it.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : it.type === "webcam" ? <WebcamIcon className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{it.title || it.label}</span>
@@ -257,16 +277,17 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                   {it.warning && <AlertTriangle className="size-4 shrink-0 text-warn" aria-label={t(`mgmt.warnings.${it.warning}`)} />}
                   {it.category && <Badge tone={categoryTone(it.category)}>{t(`mgmt.categories.${it.category}`)}</Badge>}
                   {it.type === "beeldkrant" && <Badge tone="ok">{t("mgmt.blocks.types.beeldkrant")}</Badge>}
-                  {it.type === "beeldkrant" ? (
+                  {it.type === "webcam" && <Badge tone="brand">{t("mgmt.blocks.types.webcam")}</Badge>}
+                  {it.type === "beeldkrant" || it.type === "webcam" ? (
                     <Input
                       className="h-8 w-24! text-right font-mono text-xs"
                       defaultValue={it.durationMs != null ? fmtDuration(it.durationMs) : ""}
                       placeholder={fmtDuration(it.effectiveDurationMs)}
-                      title={t("mgmt.blocks.beeldkrantDuration")}
+                      title={t(it.type === "webcam" ? "mgmt.blocks.webcamDuration" : "mgmt.blocks.beeldkrantDuration")}
                       onBlur={(e) => {
                         const ms = e.target.value.trim() ? parseDuration(e.target.value) : null;
                         if (ms === it.durationMs) return;
-                        const auto = beeldkranten.data?.beeldkranten.find((b) => b.id === it.beeldkrantId)?.durationMs ?? it.effectiveDurationMs;
+                        const auto = (it.type === "webcam" ? webcams.data?.webcams.find((w) => w.id === it.webcamId)?.durationMs : beeldkranten.data?.beeldkranten.find((b) => b.id === it.beeldkrantId)?.durationMs) ?? it.effectiveDurationMs;
                         change(items.map((x, j) => (j === i ? { ...x, durationMs: ms, effectiveDurationMs: ms ?? auto } : x)));
                       }}
                     />

@@ -1,5 +1,5 @@
 import { Card, Input, Select, cx } from "@tvsm/ui";
-import { AlertTriangle, Check, Film, FolderOpen, GripVertical, Library, PanelRightClose, PanelRightOpen, Plus, Search } from "lucide-react";
+import { AlertTriangle, Check, Film, FolderOpen, GripVertical, Library, PanelRightClose, PanelRightOpen, Plus, Search, Webcam } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { fmtDuration, useCategories, useGet, type BlockSummary, type MediaItem } from "../lib";
@@ -50,7 +50,7 @@ export function WithMediaBin({ children, onAdd, categoryId, blocks = true, hint,
 function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { onAdd?: (p: LibraryPayload) => void; categoryId?: number | null; blocks: boolean; hint?: ReactNode; onClose: () => void }) {
   const { t } = useTranslation();
   const { categories } = useCategories();
-  const [tab, setTab] = useState<"media" | "blocks">("media");
+  const [tab, setTab] = useState<"media" | "blocks" | "webcams">("media");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [theme, setTheme] = useState(categoryId ? String(categoryId) : "");
@@ -64,6 +64,9 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
   const params = new URLSearchParams({ limit: "300", ...(query ? { q: query } : {}), ...(folder ? { folder } : {}), ...(theme ? { categoryId: theme } : {}) });
   const media = useGet<{ items: MediaItem[]; total: number; folders: string[] }>(tab === "media" ? `/api/media?${params}` : null);
   const blockList = useGet<{ blocks: BlockSummary[] }>(tab === "blocks" ? "/api/blocks" : null);
+  // Webcams and streams: each one is dragged as its own block (made when the webcam is saved).
+  const camList = useGet<{ webcams: { id: number; name: string; kind: string; status: string; thumbnailUrl: string | null; block: BlockSummary | null }[] }>(tab === "webcams" ? "/api/webcams" : null);
+  const cams = (camList.data?.webcams ?? []).filter((w) => !!w.block && (!query || w.name.toLowerCase().includes(query.toLowerCase())));
   const catById = useMemo(() => new Map((categories ?? []).map((c) => [c.id, c])), [categories]);
   const blocks = (blockList.data?.blocks ?? []).filter((b) => !query || b.name.toLowerCase().includes(query.toLowerCase()));
   const selected = (m: MediaItem) => sel.some((x) => x.id === m.id);
@@ -86,7 +89,7 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
       </div>
       {showBlocks && (
         <div className="flex gap-1 border-b border-line px-3 pt-2">
-          {(["media", "blocks"] as const).map((k) => (
+          {(["media", "blocks", "webcams"] as const).map((k) => (
             <button key={k} onClick={() => setTab(k)} className={cx("-mb-px border-b-2 px-3 pb-2 text-[13px] font-medium transition", tab === k ? "border-brand text-brand" : "border-transparent text-muted hover:text-fg")}>
               {t(`mgmt.bin.tab_${k}`)}
             </button>
@@ -208,6 +211,27 @@ function MediaBin({ onAdd, categoryId, blocks: showBlocks, hint, onClose }: { on
               )}
             </li>
           ))}
+        {tab === "webcams" &&
+          cams.map((w) => (
+            <li key={w.id} draggable onDragStart={(e) => startDrag(e, { kind: "block", block: w.block! }, w.name)} className="group flex cursor-grab items-center gap-2 px-3 py-2 text-[13px] transition hover:bg-surface-2/70 active:cursor-grabbing">
+              <GripVertical className="size-3.5 shrink-0 text-muted/60" />
+              <span className="relative grid h-8 w-14 shrink-0 place-items-center overflow-hidden rounded bg-surface-2 text-muted">
+                {w.thumbnailUrl ? <img src={w.thumbnailUrl} alt="" className="absolute inset-0 size-full object-cover" /> : <Webcam className="size-3.5" />}
+                <span className={cx("absolute top-0.5 left-0.5 size-1.5 rounded-full", w.status === "online" ? "bg-emerald-400" : w.status === "offline" ? "bg-red-500" : "bg-zinc-400")} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{w.name}</span>
+                <span className="block truncate text-[11px] text-muted">{t(`mgmt.cams.kinds.${w.kind}`)}</span>
+              </span>
+              <span className="font-mono text-[11px] text-muted">{fmtDuration(w.block!.durationMs)}</span>
+              {onAdd && (
+                <button onClick={() => onAdd({ kind: "block", block: w.block! })} className="rounded p-0.5 text-muted transition hover:bg-brand/10 hover:text-brand" aria-label={t("common.add")}>
+                  <Plus className="size-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        {tab === "webcams" && camList.data && !cams.length && <li className="px-4 py-10 text-center text-[13px] text-muted">{t("mgmt.bin.noWebcams")}</li>}
         {tab === "media" && media.data && !media.data.items.length && <li className="px-4 py-10 text-center text-[13px] text-muted">{t("mgmt.media.none")}</li>}
         {tab === "blocks" && blockList.data && !blocks.length && <li className="px-4 py-10 text-center text-[13px] text-muted">{t("mgmt.blocks.none")}</li>}
       </ul>
