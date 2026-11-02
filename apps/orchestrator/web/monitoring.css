@@ -1,0 +1,24 @@
+/* Monitoring block diagram: animated control / signal lines between the blocks. */
+.tvsm-mon-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tvsm-mon-flow {
+  stroke-dasharray: 6 8;
+  animation: tvsm-mon-flow 1.2s linear infinite;
+}
+.tvsm-mon-dotted {
+  stroke-dasharray: 2 6;
+}
+@keyframes tvsm-mon-flow {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tvsm-mon-flow {
+    animation: none;
+  }
+}
