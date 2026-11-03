@@ -1,6 +1,6 @@
-import "@tvsm/ui/styles.css";
+import "./styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { AudioLines, Cable, CalendarDays, CalendarRange, Cast, ClipboardList, Clock3, Layers, LayoutGrid, Library, MonitorPlay, Newspaper, Radio, Rss, SlidersHorizontal, Tags, ToggleRight, Tv, WandSparkles, Wrench } from "lucide-react";
+import { Activity, AudioLines, Cable, CalendarDays, CalendarRange, Cast, ClipboardList, Clock3, Layers, LayoutGrid, Library, MonitorPlay, Newspaper, Radio, Rss, SlidersHorizontal, Tags, ToggleRight, Tv, WandSparkles, Wrench } from "lucide-react";
 import { AudioSourcesPage } from "./pages/AudioSources";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
@@ -13,6 +13,7 @@ import { DevicesPage } from "./pages/Devices";
 import { EpgPage } from "./pages/Epg";
 import { GraphicsPage } from "./pages/Graphics";
 import { MediaPage } from "./pages/Media";
+import { OrchestratorMonitoringPage } from "./pages/Monitoring";
 import { NewHourPage } from "./pages/NewHour";
 import { OutputsPage } from "./pages/Outputs";
 import { RecordingsPage } from "./pages/Recordings";
@@ -26,10 +27,13 @@ import { WeekPlanPage } from "./pages/WeekPlan";
 import { LibraryTabs } from "./components/LibraryTabs";
 import en from "./i18n/en.json";
 import nl from "./i18n/nl.json";
+// The monitoring page is the orchestrator's own (read-only here), so its texts come along.
+import orchEn from "../../orchestrator/web/i18n/en.json";
+import orchNl from "../../orchestrator/web/i18n/nl.json";
 
 mountPlatformApp({
   appName: "TV Station Manager",
-  translations: { en, nl },
+  translations: { en: { ...en, orch: orchEn.orch }, nl: { ...nl, orch: orchNl.orch } },
   nav: [
     {
       // The editors' work in three ideas: what can go on air (library), hour blocks, and the week they are planned in.
@@ -49,6 +53,7 @@ mountPlatformApp({
         { to: "/schedule", label: "mgmt.nav.schedule", icon: CalendarDays },
         { to: "/epg", label: "mgmt.nav.epg", icon: Newspaper },
         { to: "/outputs", label: "mgmt.nav.outputs", icon: Cast },
+        { to: "/monitoring", label: "mgmt.nav.monitoring", icon: Activity },
       ],
     },
     {
@@ -115,6 +120,7 @@ mountPlatformApp({
     { path: "/graphics", element: <GraphicsPage /> },
     { path: "/channels", element: <ChannelsPage /> },
     { path: "/devices", element: <DevicesPage /> },
+    { path: "/monitoring", element: <OrchestratorMonitoringPage /> },
   ],
 });
 // Keeps the icon import list honest for tree shaking.

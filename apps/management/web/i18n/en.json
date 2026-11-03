@@ -28,7 +28,8 @@
       "switchButtons": "Switch buttons",
       "audio": "Audio",
       "webcams": "Webcams & streams",
-      "mediaSources": "Media sources"
+      "mediaSources": "Media sources",
+      "monitoring": "Monitoring"
     },
     "categories": {
       "program": "Programme",
@@ -389,7 +390,8 @@
       "orchLastOk": "Last checked {{at}}",
       "orchUnmatched": "Not known in the orchestrator under the same address, so they can never be locked from there: {{names}}",
       "locked": "Locked",
-      "lockedBy": "by {{by}}"
+      "lockedBy": "by {{by}}",
+      "orchMonitoringHint": "The same address and token also show the orchestrator's monitoring here (On air > Monitoring), even with the lock link switched off."
     },
     "errors": {
       "generic": "Something went wrong.",
@@ -1756,6 +1758,20 @@
       "text": "Changes to the hour on air go on air at {{time}}, so the programme playing now is not restarted.",
       "applyNow": "Apply now",
       "confirm": "Put the changes on air now? The item playing may restart."
+    },
+    "mon": {
+      "intro": "Live status of the whole station, straight from the orchestrator. Read-only: devices are added and checked in the orchestrator.",
+      "fromOrchestrator": "From the orchestrator",
+      "orchestrator_not_linked": "This node is not linked to the orchestrator yet",
+      "orchestrator_not_linked_hint": "Enter the orchestrator's address and automation token under Setup > Devices > Orchestrator link. Then this page shows the orchestrator's monitoring, without signing in there.",
+      "orchestrator_token_rejected": "The orchestrator refused the token",
+      "orchestrator_token_rejected_hint": "The automation token was probably renewed in the orchestrator. Copy the new token into the orchestrator link.",
+      "orchestrator_unreachable": "The orchestrator cannot be reached",
+      "orchestrator_unreachable_hint": "Check that the orchestrator is running and that its address in the orchestrator link is right. This page tries again every few seconds.",
+      "orchestrator_outdated": "The orchestrator does not offer monitoring for other nodes yet",
+      "orchestrator_outdated_hint": "Update the orchestrator to the latest version (Info > Check for updates on the orchestrator).",
+      "openLink": "Open orchestrator link",
+      "askAdmin": "Ask an administrator to set up the orchestrator link."
     }
   }
 }

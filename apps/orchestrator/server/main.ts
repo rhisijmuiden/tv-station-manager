@@ -21,7 +21,7 @@ await startPlatform({
     const atem = registerAtem(server, platform);
     const teranex = registerTeranex(server, platform);
     registerDiagram(server, platform, atem.list, teranex.list);
-    registerMonitoring(server, platform, { nodes: nodes.list, atems: atem.list, teranexes: teranex.list });
+    registerMonitoring(server, platform, { nodes: nodes.list, atems: atem.list, teranexes: teranex.list, automationAuthorized: atem.automationAuthorized });
     server.get("/api/orchestrator/overview", async () => ({
       nodes: nodes.counts(),
       atem: atem.counts(),
