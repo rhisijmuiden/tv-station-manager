@@ -28,7 +28,8 @@
       "switchButtons": "Schakelknoppen",
       "audio": "Geluid",
       "webcams": "Webcams & streams",
-      "mediaSources": "Mediabronnen"
+      "mediaSources": "Mediabronnen",
+      "monitoring": "Monitoring"
     },
     "categories": {
       "program": "Programma",
@@ -389,7 +390,8 @@
       "orchLastOk": "Laatst gecontroleerd {{at}}",
       "orchUnmatched": "Niet onder hetzelfde adres bekend in de orchestrator, dus van daaruit nooit vast te zetten: {{names}}",
       "locked": "Vastgezet",
-      "lockedBy": "door {{by}}"
+      "lockedBy": "door {{by}}",
+      "orchMonitoringHint": "Met hetzelfde adres en dezelfde token zie je hier ook de monitoring van de orchestrator (Uitzending > Monitoring), ook als de vergrendel-koppeling uit staat."
     },
     "errors": {
       "generic": "Er ging iets mis.",
@@ -1756,6 +1758,20 @@
       "text": "Wijzigingen aan het uur dat nu loopt gaan om {{time}} in, zodat het programma dat nu speelt niet herstart.",
       "applyNow": "Nu toepassen",
       "confirm": "Wijzigingen nu meteen uitzenden? Het item dat nu speelt kan opnieuw starten."
+    },
+    "mon": {
+      "intro": "Live status van het hele station, rechtstreeks uit de orchestrator. Alleen bekijken: apparaten voeg je toe en controleer je in de orchestrator.",
+      "fromOrchestrator": "Uit de orchestrator",
+      "orchestrator_not_linked": "Deze node is nog niet gekoppeld aan de orchestrator",
+      "orchestrator_not_linked_hint": "Vul het adres en de automatiseringstoken van de orchestrator in bij Inrichting > Apparatuur > Koppeling orchestrator. Daarna toont deze pagina de monitoring van de orchestrator, zonder daar in te loggen.",
+      "orchestrator_token_rejected": "De orchestrator weigert de token",
+      "orchestrator_token_rejected_hint": "Waarschijnlijk is de automatiseringstoken in de orchestrator vernieuwd. Neem de nieuwe token over in de koppeling.",
+      "orchestrator_unreachable": "De orchestrator is niet bereikbaar",
+      "orchestrator_unreachable_hint": "Controleer of de orchestrator draait en of het adres in de koppeling klopt. Deze pagina probeert het om de paar seconden opnieuw.",
+      "orchestrator_outdated": "De orchestrator biedt nog geen monitoring voor andere nodes",
+      "orchestrator_outdated_hint": "Werk de orchestrator bij naar de nieuwste versie (Info > Controleren op updates in de orchestrator).",
+      "openLink": "Koppeling openen",
+      "askAdmin": "Vraag een beheerder om de koppeling met de orchestrator in te stellen."
     }
   }
 }

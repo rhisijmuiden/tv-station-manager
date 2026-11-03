@@ -995,9 +995,13 @@ function DetailPanel({
   history,
   onOpen,
   onRefresh,
+  readOnly,
+  eventsUrl,
 }: {
   i: MonItem | null;
   history: number[];
+  readOnly: boolean;
+  eventsUrl: (deviceId: string) => string;
   onOpen: (i: MonItem) => void;
   onRefresh: () => void;
 }) {
@@ -1016,13 +1020,11 @@ function DetailPanel({
   useEffect(() => {
     setEvents([]);
     if (deviceId)
-      void get<{ events: typeof events }>(
-        `/api/monitoring/devices/${deviceId}`,
-      ).then(
+      void get<{ events: typeof events }>(eventsUrl(deviceId)).then(
         (r) => setEvents(r.events.slice(0, 5)),
         () => undefined,
       );
-  }, [deviceId, changedAt]);
+  }, [deviceId, changedAt, eventsUrl]);
 
   if (!i)
     return (
@@ -1228,7 +1230,9 @@ function DetailPanel({
       )}
 
       <div className="flex flex-wrap gap-2 p-5">
-        <Button onClick={() => onOpen(i)}>{t("orch.mon.open")}</Button>
+        {!readOnly && (
+          <Button onClick={() => onOpen(i)}>{t("orch.mon.open")}</Button>
+        )}
         {deviceId &&
           i.kind === "device" &&
           i.device.checkType !== "manual" &&
@@ -1242,7 +1246,7 @@ function DetailPanel({
               {t("orch.mon.checkNow")}
             </Button>
           )}
-        {inDiagram && (
+        {inDiagram && !readOnly && (
           <Button
             variant="secondary"
             icon={<Network className="size-4" />}
@@ -1279,14 +1283,38 @@ const writePref = (key: string, v: string) => {
   }
 };
 
-export function MonitoringPage() {
+const ownEvents = (id: string) => `/api/monitoring/devices/${id}`;
+
+export interface MonitoringPageProps {
+  /** Overview endpoint; the management node serves the orchestrator's picture at its own path. */
+  endpoint?: string;
+  /** Recent events of a monitored device (`{ events }`). */
+  eventsUrl?: (deviceId: string) => string;
+  /** No adding/editing, checks or links to orchestrator pages (shown on the management node). */
+  readOnly?: boolean;
+  description?: string;
+  /** Extra header content, e.g. where the data comes from. */
+  badge?: ReactNode;
+  /** Shown instead of the page while the first load fails, with the API error code. */
+  renderError?: (code: string) => ReactNode;
+}
+
+export function MonitoringPage({
+  endpoint = "/api/monitoring",
+  eventsUrl = ownEvents,
+  readOnly = false,
+  description,
+  badge,
+  renderError,
+}: MonitoringPageProps = {}) {
   const { t } = useTranslation();
   const text = useIssueText();
   const nav = useNavigate();
   const { user } = useSession();
-  const admin = roleAtLeast(user?.role, "admin");
+  const admin = roleAtLeast(user?.role, "admin") && !readOnly;
   const [o, setO] = useState<Overview | null>(null);
   const [failed, setFailed] = useState(false);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{
     device?: MonDevice;
     block: Block;
@@ -1316,14 +1344,16 @@ export function MonitoringPage() {
 
   const load = useCallback(async () => {
     try {
-      const r = await get<Overview>("/api/monitoring");
+      const r = await get<Overview>(endpoint);
       setO(r);
       setHistory((h) => pushHistory(h, toItems(r)));
       setFailed(false);
-    } catch {
+      setErrorCode(null);
+    } catch (e) {
       setFailed(true);
+      setErrorCode(e instanceof ApiError ? e.code : "error");
     }
-  }, []);
+  }, [endpoint]);
   useEffect(() => {
     void load();
     const id = setInterval(() => void load(), REFRESH_MS);
@@ -1339,10 +1369,13 @@ export function MonitoringPage() {
 
   if (!o)
     return (
-      <PageHeader
-        title={t("orch.mon.title")}
-        description={t("orch.mon.intro")}
-      />
+      <>
+        <PageHeader
+          title={t("orch.mon.title")}
+          description={description ?? t("orch.mon.intro")}
+        />
+        {errorCode && renderError?.(errorCode)}
+      </>
     );
 
   const many = items.length > MANY_ITEMS;
@@ -1378,9 +1411,10 @@ export function MonitoringPage() {
     <div data-wide-page>
       <PageHeader
         title={t("orch.mon.title")}
-        description={t("orch.mon.intro")}
+        description={description ?? t("orch.mon.intro")}
         actions={
           <div className="flex flex-wrap items-center gap-3">
+            {badge}
             <span className="inline-flex items-center gap-2 text-xs text-muted">
               <span
                 className={cx(
@@ -1727,6 +1761,8 @@ export function MonitoringPage() {
             history={current ? (history[current.key] ?? []) : []}
             onOpen={open}
             onRefresh={() => void load()}
+            readOnly={readOnly}
+            eventsUrl={eventsUrl}
           />
         </aside>
       </div>

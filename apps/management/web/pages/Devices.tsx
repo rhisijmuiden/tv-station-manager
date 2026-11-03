@@ -74,6 +74,7 @@ function OrchestratorLinkCard({ atems }: { atems: Atem[] }) {
           </Alert>
         )}
         <Switch checked={form.enabled} onChange={(enabled) => setF({ ...form, enabled })} label={t("mgmt.devices.orchEnabled")} description={t("mgmt.devices.orchEnabledHint")} />
+        <p className="text-xs text-muted">{t("mgmt.devices.orchMonitoringHint")}</p>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label={t("mgmt.devices.orchUrl")}>{(id) => <Input id={id} className="font-mono" placeholder="http://10.40.6.201:8080" value={form.url} onChange={(e) => setF({ ...form, url: e.target.value })} />}</Field>
           <Field label={t("mgmt.devices.orchToken")} hint={d.hasToken ? t("mgmt.devices.orchTokenKept") : t("mgmt.devices.orchTokenHint")}>

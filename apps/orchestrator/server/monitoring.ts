@@ -11,9 +11,9 @@ import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
 import { randomUUID } from "node:crypto";
 import { connect as tcpConnect } from "node:net";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { PublicSwitcher } from "./atem.js";
+import { AUTOMATION_API, type PublicSwitcher } from "./atem.js";
 import type { PublicTeranex } from "./teranex.js";
 import {
   atemIssues,
@@ -182,7 +182,13 @@ const metricSummary = (m: NodeMetrics | null) =>
 export function registerMonitoring(
   app: FastifyInstance,
   platform: Platform,
-  sources: { nodes: () => NodeLike[]; atems: () => PublicSwitcher[]; teranexes?: () => PublicTeranex[] },
+  sources: {
+    nodes: () => NodeLike[];
+    atems: () => PublicSwitcher[];
+    teranexes?: () => PublicTeranex[];
+    /** Checks the automation token; enables the read-only monitoring routes for management nodes. */
+    automationAuthorized?: (req: FastifyRequest) => boolean;
+  },
   probes: Probes = realProbes,
   pollMs = POLL_MS,
 ) {
@@ -314,7 +320,8 @@ export function registerMonitoring(
     };
   };
 
-  app.get("/api/monitoring", async () => {
+  /** The whole monitoring picture; served to signed-in users and, read-only, to management nodes. */
+  const overview = () => {
     const devices = listDevices();
     const nodes = sources.nodes().map((n) => {
       const issues = nodeIssues(n);
@@ -372,7 +379,8 @@ export function registerMonitoring(
     const c = core();
     const all = [c.health, ...nodes.filter((n) => !n.linkedDevice).map((n) => n.health), ...atems.map((a) => a.health), ...teranexes.map((x) => x.health), ...devices.map((d) => d.health)];
     return { checkedAt: new Date().toISOString(), core: c, nodes, atems, teranexes, devices, summary: countHealth(all) };
-  });
+  };
+  app.get("/api/monitoring", async () => overview());
 
   const find = (id: string) => {
     const r = get(id);
@@ -385,10 +393,11 @@ export function registerMonitoring(
     if (b.nodeId && !sources.nodes().some((n) => n.id === b.nodeId)) throw new HttpError(400, "unknown_node");
   };
 
-  app.get("/api/monitoring/devices/:id", async (req) => {
-    const r = find((req.params as { id: string }).id);
+  const deviceDetail = (id: string) => {
+    const r = find(id);
     return { device: toPublic(r), events: db.prepare("SELECT type, message, at FROM monitor_events WHERE device_id = ? ORDER BY id DESC LIMIT 50").all(r.id) };
-  });
+  };
+  app.get("/api/monitoring/devices/:id", async (req) => deviceDetail((req.params as { id: string }).id));
 
   app.post("/api/monitoring/devices", async (req) => {
     requireRole(req, "admin");
@@ -443,5 +452,19 @@ export function registerMonitoring(
     return toPublic(get(r.id)!);
   });
 
-  return { list: listDevices, pollAll };
+  // Read-only copy for management nodes (same automation token as the ATEM lock link), so the tv-manager
+  // can show this picture natively without anyone signing in on the orchestrator.
+  const authorized = sources.automationAuthorized;
+  if (authorized) {
+    app.get(`${AUTOMATION_API}/monitoring`, async (req, reply) => {
+      if (!authorized(req)) return reply.status(401).send({ error: "unauthorized" });
+      return overview();
+    });
+    app.get(`${AUTOMATION_API}/monitoring/devices/:id/events`, async (req, reply) => {
+      if (!authorized(req)) return reply.status(401).send({ error: "unauthorized" });
+      return { events: deviceDetail((req.params as { id: string }).id).events };
+    });
+  }
+
+  return { list: listDevices, pollAll, overview, deviceDetail };
 }

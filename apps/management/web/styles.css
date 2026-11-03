@@ -1,0 +1,5 @@
+@import "@tvsm/ui/styles.css";
+/* The monitoring page is the orchestrator's own component (read-only here); let Tailwind see its classes. */
+@source "../../orchestrator/web/Monitoring.tsx";
+@source "../../orchestrator/web/MonitoringRoom.tsx";
+@source "../../orchestrator/web/monitorView.ts";

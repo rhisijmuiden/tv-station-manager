@@ -122,7 +122,7 @@ test.before(async () => {
       const atem = registerAtem(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, rename: async () => {}, switch: async () => {}, close: async () => {} }) as AtemLink);
       const tx = registerTeranex(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, close: async () => {} }) as TeranexLink);
       registerDiagram(s, pl, atem.list, tx.list);
-      registerMonitoring(s, pl, { nodes: nodes.list, atems: atem.list, teranexes: tx.list }, fakeProbes, 3_600_000);
+      registerMonitoring(s, pl, { nodes: nodes.list, atems: atem.list, teranexes: tx.list, automationAuthorized: atem.automationAuthorized }, fakeProbes, 3_600_000);
     },
   });
 });
@@ -184,4 +184,24 @@ test("monitoring overview: nodes, ATEM, Owncast and manual equipment", async () 
   // Deleting the node keeps the device but drops the link.
   await call("DELETE", `/api/nodes/${en.body.nodeId}`);
   assert.equal((await call("GET", `/api/monitoring/devices/${oc.body.id}`)).body.device.nodeId, null);
+});
+
+test("read-only monitoring for management nodes with the automation token", async () => {
+  const bare = (url: string, token?: string) => p.server.inject({ method: "GET", url, headers: token ? { authorization: `Bearer ${token}` } : {} });
+  assert.equal((await bare("/automation-api/v1/monitoring")).statusCode, 401);
+  assert.equal((await bare("/automation-api/v1/monitoring", "wrong")).statusCode, 401);
+  const { token } = (await call("GET", "/api/automation")).body;
+  const res = await bare("/automation-api/v1/monitoring", token);
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  const viaSession = (await call("GET", "/api/monitoring")).body;
+  assert.deepEqual(body.devices, viaSession.devices);
+  assert.deepEqual(body.summary, viaSession.summary);
+  const dev = body.devices[0];
+  const ev = await bare(`/automation-api/v1/monitoring/devices/${dev.id}/events`, token);
+  assert.equal(ev.statusCode, 200);
+  assert.ok(Array.isArray(JSON.parse(ev.body).events));
+  assert.equal((await bare(`/automation-api/v1/monitoring/devices/${dev.id}/events`)).statusCode, 401);
+  // Write routes stay behind a session.
+  assert.equal((await p.server.inject({ method: "POST", url: `/api/monitoring/devices/${dev.id}/check`, headers: { authorization: `Bearer ${token}` } })).statusCode, 401);
 });
