@@ -34,6 +34,16 @@ An hour block can choose what plays when its material ends before the hour is ov
 
 The logic is in `compile()` in `apps/management/server/timeline.ts` (events with `fill: true`, played by the director like any beeldkrant or webcam item).
 
+## Changes wait for the next hour
+
+A change that touches the hour on air (a block edited, an entry added or moved, the week schedule published again)
+does not restart the playout: the director keeps the timeline it had for that hour and takes the new one at the next
+whole hour in station time (`station.timezone`). Later hours update at once. The pure part is `holdUntil` in
+`server/timeline.ts`; the director keeps `hold` per channel. `/api/control` shows `pending: { from }` per channel, the
+dashboard, week planning and blocks pages show a bar with **Apply now** (`POST /api/control/:id/apply-now`, editor),
+which takes the change on air immediately (the item on air may restart). A timeline older than 5 minutes is never
+held (the director was not running), and manual control (automation off) takes changes directly.
+
 ## Series: one block on several days
 
 Slots with the same start, length, content, clock and title on different weekdays form a series (`seriesKey` in `hourclock.ts`). Clicking a slot on the week board opens the whole series: switch days on or off, change the time or content for all days at once (`PUT /api/week/slots/:id/series`), or tick "only change this day" (the old per-slot `PUT /api/week/slots/:id`). Days that stay keep their rundowns; removed days lose theirs. `DELETE /api/week/slots/:id/series` removes every day.

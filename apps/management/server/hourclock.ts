@@ -253,3 +253,10 @@ export const addDaysIso = (date: string, n: number) => {
 };
 /** 0 = Monday … 6 = Sunday. */
 export const weekdayOf = (date: string) => (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+
+/** Start of the next whole hour in station time (time zones with half-hour offsets included). */
+export function nextStationHour(t: number, tz: string): number {
+  const minuteStart = t - (((t % 60_000) + 60_000) % 60_000);
+  const m = stationDay(t, tz).minute % 60;
+  return minuteStart + (60 - m) * 60_000;
+}

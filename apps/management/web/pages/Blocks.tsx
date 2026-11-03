@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { indicatorClass, payloadItems, useDropList, type DragPayload } from "../components/dnd";
 import { WithMediaBin } from "../components/MediaBin";
+import { PendingChanges } from "../components/PendingChanges";
 import { AudioSelect, useAudioSources } from "../components/AudioSelect";
 import { FillSelect, useFillChoices } from "../components/FillSelect";
 import { MediaPicker } from "../components/MediaPicker";
@@ -484,6 +485,7 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
           )
         }
       />
+      <PendingChanges />
       <div className="mb-4 inline-flex rounded-lg bg-surface-2 p-1">
         {(["program", "commercial"] as const).map((x) => (
           <Link key={x} to={x === "program" ? "/blocks" : "/ads"} className={cx("rounded-md px-3 py-1.5 text-sm font-semibold transition", x === kind ? "bg-surface shadow-sm" : "text-muted hover:text-fg")}>

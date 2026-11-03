@@ -8,7 +8,8 @@ import { AUDIO_LAYER, audioGain, audioProducer, audioSource } from "./audio.js";
 import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics } from "./content.js";
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
-import { at, casparClip, compile, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
+import { nextStationHour } from "./hourclock.js";
+import { at, casparClip, compile, holdUntil, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
 import { webcamOf } from "./webcamdb.js";
 import { playPlan } from "./webcamlogic.js";
 import { tickerHeadlinesFromDb } from "./tickerdb.js";
@@ -35,6 +36,8 @@ const RETRY_MS = 5000;
 const WINDOW_BACK = 6 * 3600_000;
 const WINDOW_AHEAD = 30 * 3600_000;
 const ALERT_EVERY_MS = 5 * 60_000;
+/** A timeline compiled longer ago than this is not what is on air any more: it is not held. */
+const HOLD_STALE_MS = 5 * 60_000;
 /** A live item on another studio node is started this long before it goes on air. */
 export const LIVE_PREROLL_MS = 30_000;
 /** A stream must have been playing on CasparCG this long before the ATEM cuts to it. */
@@ -70,6 +73,14 @@ interface ChannelState {
   audioError: { sourceId: number; message: string; at: number } | null;
   /** A webcam caption is on CAPTION_LAYER of the playout channel. */
   captionOn: boolean;
+  /**
+   * Changes to the hour on air wait for the next whole hour (`until`): the timeline as compiled before the change is
+   * kept until then, so a block edited at 14:30 does not restart the clip playing; it goes on air at 15:00.
+   * `changed` = the picture would change (shown to the editors), otherwise only keys differed (e.g. a republish).
+   */
+  hold: { until: number; events: TimelineEvent[]; entries: Map<number, EntryInfo>; changed: boolean } | null;
+  /** "Apply now" was pressed: the next compile takes the new schedule at once. */
+  applyNow: boolean;
 }
 
 export class Director {
@@ -105,7 +116,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, playoutSession: undefined, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, playoutSession: undefined, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false, hold: null, applyNow: false };
       this.states.set(id, s);
     }
     return s;
@@ -117,9 +128,46 @@ export class Director {
     const from = now - WINDOW_BACK;
     const to = now + WINDOW_AHEAD;
     const entries = scheduleEntries(this.platform.ctx.db, ch.id, from, to);
-    s.events = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
-    s.entries = new Map(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
+    const fresh = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
+    const freshEntries = new Map<number, EntryInfo>(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
+    if (s.hold && (now >= s.hold.until || s.applyNow || !ch.automation)) s.hold = null;
+    // Only a channel that is playing holds its hour; the first compile, manual control, a stale timeline (the
+    // director was not running) and "apply now" take the new schedule at once.
+    if (!s.hold && ch.automation && s.compiledAt > 0 && now - s.compiledAt < HOLD_STALE_MS && !s.applyNow) {
+      const until = nextStationHour(now, this.timeZone());
+      s.hold = { until, events: s.events.filter((e) => e.start < until), entries: s.entries, changed: false };
+    }
+    s.applyNow = false;
+    const r = s.hold ? holdUntil(s.hold.events, fresh, now, s.hold.until) : null;
+    if (s.hold && r?.differs) {
+      if (r.changed && !s.hold.changed) this.asrun(ch.id, "control", "Schedule changed", `Goes on air at ${new Date(s.hold.until).toISOString()} (the hour on air plays on)`, true);
+      s.hold.changed = r.changed;
+      s.events = r.events;
+      s.entries = new Map([...s.hold.entries, ...freshEntries]);
+    } else {
+      s.hold = null;
+      s.events = fresh;
+      s.entries = freshEntries;
+    }
     s.compiledAt = now;
+  }
+
+  private timeZone() {
+    return this.platform.ctx.settings.get<string>("station.timezone", "Europe/Amsterdam");
+  }
+
+  /** Schedule changes waiting for the next hour on this channel, if any. */
+  pending(channelId: number) {
+    const h = this.states.get(channelId)?.hold;
+    return h?.changed && h.until > this.now() ? { from: new Date(h.until).toISOString() } : null;
+  }
+
+  /** Takes the changed schedule on air now instead of at the next hour (the item on air may restart). */
+  applyNow(channelId: number) {
+    const s = this.state(channelId);
+    s.applyNow = true;
+    s.hold = null;
+    this.dirty = true;
   }
 
   async tick() {
@@ -597,6 +645,7 @@ export class Director {
       playout: p ? p.info() : null,
       onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
       atemLock: this.hub.lock(ch.atem_id),
+      pending: this.pending(ch.id),
       standby: s.standby ? { liveSourceId: s.standby.liveSourceId, name: s.standby.name, since: s.standby.since } : null,
       audio: this.audioStatus(s, current),
       lastError: s.lastError,
@@ -704,6 +753,14 @@ export class Director {
       const live = this.live(liveSourceId);
       if (!live) throw new HttpError(404, "not_found");
       await this.takeLive(c, live, req.user!.username);
+      return { ok: true };
+    });
+
+    app.post("/api/control/:id/apply-now", async (req) => {
+      requireRole(req, "editor");
+      const c = channel(pid(req));
+      this.applyNow(c.id);
+      this.asrun(c.id, "control", "Schedule change applied now", req.user!.username, true);
       return { ok: true };
     });
 
