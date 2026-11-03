@@ -261,7 +261,8 @@ test("webcams: inspect a webcam page, test, save, plan and play on CasparCG", as
   await api("POST", "/api/schedule", { channelId: ch.id, startAt: new Date(t0 + 120_000).toISOString(), blockId: blk2.id, title: "Haven" });
   playout.failPlay = true;
   playout.calls = [];
-  h.director.invalidate();
+  // Added to the hour on air: it would wait for the next hour, "apply now" takes it at once.
+  h.director.applyNow(ch.id);
   h.director.now = () => t0 + 121_000;
   await h.director.tick();
   assert.ok(playout.calls.some((c) => c.endsWith(`/webcam/page.html?id=${secret.id}&offline=1`)), playout.calls.join("\n"));

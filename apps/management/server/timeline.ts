@@ -417,3 +417,42 @@ export function programAt(events: TimelineEvent[], t: number, info: (scheduleId:
   const titled = own.find((e) => info(e.scheduleId!)?.inEpg && e.programTitle) ?? own.find((e) => e.programTitle);
   return { title: titled?.programTitle || current.programTitle || current.title, start, end, items, index };
 }
+
+/**
+ * What plays between `from` and `to`: two events with the same signature show the same picture there (keys, schedule
+ * ids and where the event was cut may differ).
+ */
+const eventSig = (e: TimelineEvent, from: number, to: number) => {
+  const l = e.leaf;
+  return [e.type, Math.max(e.start, from), Math.min(e.end, to), e.start - e.offsetMs, e.title, l?.path ?? null, l?.mediaId ?? null, l?.liveSourceId ?? null, l?.beeldkrantId ?? null, l?.webcamId ?? null, l?.audioSourceId ?? null, l?.showOverlay ?? null].join("|");
+};
+
+/**
+ * Changes to the programme on air wait for the next hour. `held` is the timeline as it was compiled before the
+ * change, `fresh` the new one. Until `until` (the next whole hour) the held events stay; from `until` on the fresh
+ * ones take over (an event running across `until` is cut and starts there at the right offset).
+ *
+ * `differs`: something between `now` and `until` would be different (also when only keys changed, e.g. the week
+ * schedule was published again with new rows: that would restart the clip on air too). `changed`: the picture
+ * itself would change, which is what the editors see as "goes on air at <until>".
+ */
+export function holdUntil(held: TimelineEvent[], fresh: TimelineEvent[], now: number, until: number) {
+  const inWindow = (e: TimelineEvent) => e.end > now && e.start < until;
+  const a = held.filter(inWindow).map((e) => ({ key: e.key, sig: eventSig(e, now, until) }));
+  const b = fresh.filter(inWindow).map((e) => ({ key: e.key, sig: eventSig(e, now, until) }));
+  const changed = a.length !== b.length || a.some((x, i) => x.sig !== b[i]!.sig);
+  const differs = changed || a.some((x, i) => x.key !== b[i]!.key);
+  if (!differs) return { events: fresh, differs: false, changed: false };
+  const before = held.filter((e) => e.start < until).map((e) => (e.end > until ? { ...e, end: until } : e));
+  const last = held.find((e) => e.start < until && e.end > until);
+  const after = fresh
+    .filter((e) => e.end > until)
+    .map((e) => {
+      if (e.start >= until) return e;
+      const cut = { ...e, start: until, offsetMs: e.offsetMs + (until - e.start) };
+      // The same item running on across the hour keeps playing; anything else is a new item at the hour.
+      const same = last && last.key === e.key && eventSig(last, until, Infinity) === eventSig(e, until, Infinity);
+      return same ? cut : { ...cut, key: `${e.key}@${until}` };
+    });
+  return { events: [...before, ...after], differs: true, changed };
+}

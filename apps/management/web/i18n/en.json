@@ -1751,6 +1751,11 @@
       "colorLabelText": "Tag text",
       "opacity": "Background opacity",
       "layersHint": "The ticker is part of the base layer of the channel. Over a beeldkrant it is hidden by default: switch \"Ticker\" on for Beeldkrant under Layers below. The beeldkrant then moves its bottom line up so nothing is covered."
+    },
+    "pending": {
+      "text": "Changes to the hour on air go on air at {{time}}, so the programme playing now is not restarted.",
+      "applyNow": "Apply now",
+      "confirm": "Put the changes on air now? The item playing may restart."
     }
   }
 }

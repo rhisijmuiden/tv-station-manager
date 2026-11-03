@@ -2,6 +2,7 @@ import { Alert, Button, Card, CardBody, Dialog, Field, Input, PageHeader, Select
 import { CalendarDays, Clapperboard, Lock, Pencil, Plus, Radio, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { PendingChanges } from "../components/PendingChanges";
 import { Link } from "react-router-dom";
 import { ChannelTabs } from "../components/ChannelPicker";
 import { errorText, fmtDuration, useCategories, useChannels, useChannelSelection, useGet, type BlockSummary, type LiveSource } from "../lib";
@@ -269,6 +270,7 @@ export function WeekPlanPage() {
           </>
         }
       />
+      <PendingChanges />
       {channels && <ChannelTabs channels={channels} value={channel} onChange={setChannel} />}
       {channels && !channels.length && <Alert tone="warn">{t("mgmt.control.noChannelsIntro")}</Alert>}
       {week.data && (

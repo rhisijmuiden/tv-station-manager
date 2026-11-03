@@ -1751,6 +1751,11 @@
       "colorLabelText": "Labeltekst",
       "opacity": "Doorzichtigheid achtergrond",
       "layersHint": "De ticker hoort bij de basislaag van het kanaal. Over een beeldkrant staat hij standaard uit: zet hieronder bij Lagen \"Ticker\" aan voor Beeldkrant. De beeldkrant schuift zijn onderste regel dan omhoog, zodat er niets wordt afgedekt."
+    },
+    "pending": {
+      "text": "Wijzigingen aan het uur dat nu loopt gaan om {{time}} in, zodat het programma dat nu speelt niet herstart.",
+      "applyNow": "Nu toepassen",
+      "confirm": "Wijzigingen nu meteen uitzenden? Het item dat nu speelt kan opnieuw starten."
     }
   }
 }
