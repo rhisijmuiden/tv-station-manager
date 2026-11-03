@@ -67,6 +67,54 @@ test("mail: secrets are encrypted at rest and masked in the API", async () => {
   assert.equal(p.mail.getConfig().auth.password, "s3cret-pass");
 });
 
+test("default-password warning follows the real password and is shown to admins only", async () => {
+  const dRoot = mkdtempSync(join(tmpdir(), "tvsm-default2-"));
+  const saved = { data: process.env.TVSM_DATA_DIR, conf: process.env.TVSM_CONF_DIR };
+  process.env.TVSM_DATA_DIR = join(dRoot, "data");
+  process.env.TVSM_CONF_DIR = join(dRoot, "conf");
+  delete process.env.TVSM_DEFAULT_ADMIN;
+  const d = await createPlatform({ app: { id: "testapp", name: "Test App", defaultPort: 0 } });
+  const as = () => {
+    let c = "";
+    return async (method: string, url: string, payload?: unknown) => {
+      const res = await d.server.inject({ method: method as "GET", url, payload: payload as object, headers: c ? { cookie: c } : {} });
+      const set = res.headers["set-cookie"];
+      if (set) c = String(Array.isArray(set) ? set[0] : set).split(";")[0]!;
+      return { status: res.statusCode, body: res.body ? JSON.parse(res.body) : null };
+    };
+  };
+  try {
+    const admin = as();
+    await admin("POST", "/api/auth/login", { username: "admin", password: "admin" });
+    assert.equal((await admin("POST", "/api/users", { username: "boss", password: "boss password 123", role: "admin", language: "nl" })).status, 200);
+    assert.equal((await admin("POST", "/api/users", { username: "editor1", password: "editor password 1", role: "editor", language: "nl" })).status, 200);
+    const boss = as();
+    await boss("POST", "/api/auth/login", { username: "boss", password: "boss password 123" });
+    const st = (await boss("GET", "/api/auth/status")).body;
+    assert.equal(st.defaultPasswordInUse, true);
+    assert.equal(st.defaultPasswordAccount, "admin");
+    // Editors cannot change it, so they are not nagged.
+    const ed = as();
+    await ed("POST", "/api/auth/login", { username: "editor1", password: "editor password 1" });
+    assert.equal((await ed("GET", "/api/auth/status")).body.defaultPasswordInUse, false);
+    // Another admin resets the password on the Users page: the warning goes away.
+    const adminId = (await boss("GET", "/api/users")).body.users.find((u: { username: string }) => u.username === "admin").id;
+    const u = (await boss("GET", "/api/users")).body.users.find((x: { username: string }) => x.username === "admin");
+    assert.equal((await boss("PUT", `/api/users/${adminId}`, { displayName: null, email: null, role: "admin", language: u.language, password: "a brand new password" })).status, 200);
+    assert.equal((await boss("GET", "/api/auth/status")).body.defaultPasswordInUse, false);
+    // Also when the password is changed outside the app (directly in the database).
+    d.ctx.settings.set("auth.defaultPasswordInUse", true);
+    assert.equal((await boss("GET", "/api/auth/status")).body.defaultPasswordInUse, false);
+    assert.equal(d.ctx.settings.get("auth.defaultPasswordInUse", true), false);
+  } finally {
+    await d.server.close();
+    process.env.TVSM_DEFAULT_ADMIN = "off";
+    process.env.TVSM_DATA_DIR = saved.data;
+    process.env.TVSM_CONF_DIR = saved.conf;
+    rmSync(dRoot, { recursive: true, force: true });
+  }
+});
+
 test("default admin is created on first start and flagged until the password changes", async () => {
   const dRoot = mkdtempSync(join(tmpdir(), "tvsm-default-"));
   const saved = { data: process.env.TVSM_DATA_DIR, conf: process.env.TVSM_CONF_DIR };
