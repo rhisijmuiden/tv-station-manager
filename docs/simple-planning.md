@@ -51,3 +51,7 @@ Stored in the channel's graphics JSON: `layers` (`server/layers.ts`, pure: `laye
 and `hourStart: { enabled, blockId }`. The director applies the rule per on-air event in `graphicsData`.
 
 ![Channel & layers](screenshots/management-channel-layers.png)
+
+## Missing files
+
+When a clip's file is no longer on the share (moved or renamed after the library scan), CasparCG cannot play it. The director tries for 10 seconds, then skips the clip: the rest of the programme moves up and the block's "rest of the hour" choice (or the channel filler) fills the freed time, so the next programme still starts on its own time. The skip is logged in the as-run log ("Skipped: file not found") and mailed as a playout alert.
