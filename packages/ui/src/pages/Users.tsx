@@ -22,7 +22,7 @@ const tone = (r: string) => (r === "admin" ? "danger" : r === "editor" ? "brand"
 
 export function UsersPage() {
   const { t } = useTranslation();
-  const { user: me } = useSession();
+  const { user: me, refresh } = useSession();
   const [users, setUsers] = useState<User[]>([]);
   const [edit, setEdit] = useState<(Partial<User> & { password?: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +39,7 @@ export function UsersPage() {
       else await post("/api/users", { ...body, username: edit.username, authProvider: edit.authProvider ?? "local", password: entra ? undefined : body.password });
       setEdit(null);
       load();
+      void refresh(); // a reset password clears the default-password warning
     } catch (e) {
       const code = e instanceof ApiError ? e.code : "error";
       setError(t(`users.errors.${code}`, { defaultValue: t("users.errors.generic") }));

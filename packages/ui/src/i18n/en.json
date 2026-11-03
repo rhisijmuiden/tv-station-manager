@@ -51,7 +51,7 @@
     "passwordHint": "At least 10 characters.",
     "passwordMismatch": "Passwords do not match",
     "createAccount": "Create account",
-    "defaultPasswordWarning": "You are using the default administrator password. Change it before going live.",
+    "defaultPasswordWarning": "The local account \"{{username}}\" still has the default password. Change it before going live.",
     "changeNow": "Change password",
     "signInMicrosoft": "Sign in with Microsoft",
     "useLocalAccount": "Sign in with a local account instead",

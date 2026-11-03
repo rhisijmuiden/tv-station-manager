@@ -56,19 +56,50 @@ function loadSession(ctx: PlatformContext, token: string | undefined): SessionUs
 }
 
 const DEFAULT_FLAG = "auth.defaultPasswordInUse";
+const DEFAULT_USER = "auth.defaultAdminUser";
+
+function defaultAdminSpec() {
+  const spec = process.env.TVSM_DEFAULT_ADMIN ?? "admin:admin";
+  if (spec === "off") return null;
+  const i = spec.indexOf(":");
+  return { username: i > 0 ? spec.slice(0, i) : "admin", password: i > 0 ? spec.slice(i + 1) : spec };
+}
+
+/** Remembers the last checked hash so the scrypt check runs once per password change, not on every status call. */
+let defaultCheck: { hash: string; isDefault: boolean } | null = null;
+
+/**
+ * Which local account still has the default password, or null.
+ * Checks the real password hash, so the warning also disappears when the password was changed some
+ * other way (admin reset on the Users page, reset on the server) or the account was removed.
+ */
+async function accountWithDefaultPassword(ctx: PlatformContext): Promise<string | null> {
+  if (!ctx.settings.get(DEFAULT_FLAG, false)) return null;
+  const spec = defaultAdminSpec();
+  const username = ctx.settings.get<string | null>(DEFAULT_USER, null) ?? spec?.username ?? "admin";
+  const row = ctx.db.prepare("SELECT password_hash, auth_provider FROM users WHERE username = ?").get(username) as
+    | { password_hash: string; auth_provider: string | null }
+    | undefined;
+  let isDefault = false;
+  if (spec && row && (row.auth_provider ?? "local") === "local") {
+    if (defaultCheck?.hash !== row.password_hash) defaultCheck = { hash: row.password_hash, isDefault: await verifyPassword(spec.password, row.password_hash) };
+    isDefault = defaultCheck.isDefault;
+  }
+  if (!isDefault) ctx.settings.set(DEFAULT_FLAG, false);
+  return isDefault ? username : null;
+}
 
 /**
  * Creates the default administrator on first start (no users yet).
  * TVSM_DEFAULT_ADMIN="user:password" overrides the credentials, "off" disables it (first-run setup page instead).
  */
 export async function ensureDefaultAdmin(ctx: PlatformContext) {
-  const spec = process.env.TVSM_DEFAULT_ADMIN ?? "admin:admin";
-  if (spec === "off" || userCount(ctx) > 0) return;
-  const i = spec.indexOf(":");
-  const username = i > 0 ? spec.slice(0, i) : "admin";
-  const password = i > 0 ? spec.slice(i + 1) : spec;
+  const spec = defaultAdminSpec();
+  if (!spec || userCount(ctx) > 0) return;
+  const { username, password } = spec;
   ctx.db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')").run(username, await hashPassword(password));
   ctx.settings.set(DEFAULT_FLAG, true);
+  ctx.settings.set(DEFAULT_USER, username);
   ctx.log.warn({ username }, "created default administrator account; change its password after the first login");
 }
 
@@ -96,12 +127,17 @@ export function registerAuth(app: FastifyInstance, ctx: PlatformContext, sso = n
     if (!req.user && !PUBLIC_API.has(path)) throw new HttpError(401, "unauthorized");
   });
 
-  app.get("/api/auth/status", async (req) => ({
-    setupRequired: userCount(ctx) === 0,
-    user: req.user ?? null,
-    defaultPasswordInUse: req.user ? ctx.settings.get(DEFAULT_FLAG, false) : undefined,
-    sso: sso.isEnabled() ? { provider: "entra", label: sso.getConfig().buttonLabel || null } : null,
-  }));
+  app.get("/api/auth/status", async (req) => {
+    // Only administrators can do something about it, so only they get the warning.
+    const defaultAccount = req.user?.role === "admin" ? await accountWithDefaultPassword(ctx) : null;
+    return {
+      setupRequired: userCount(ctx) === 0,
+      user: req.user ?? null,
+      defaultPasswordInUse: req.user ? defaultAccount !== null : undefined,
+      defaultPasswordAccount: defaultAccount ?? undefined,
+      sso: sso.isEnabled() ? { provider: "entra", label: sso.getConfig().buttonLabel || null } : null,
+    };
+  });
 
   app.post("/api/auth/setup", async (req, reply) => {
     if (userCount(ctx) > 0) throw new HttpError(409, "already_set_up");

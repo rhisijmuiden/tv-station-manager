@@ -47,7 +47,7 @@ export const roleAtLeast = (role: string | undefined, min?: string) => !min || r
 
 export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; logo: string; logoMark: string; children: ReactNode }) {
   const { t, i18n } = useTranslation();
-  const { info, user, lastCheck, refresh, defaultPasswordInUse } = useSession();
+  const { info, user, lastCheck, refresh, defaultPasswordAccount } = useSession();
   const [theme, setTheme] = useTheme();
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -290,11 +290,12 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
           <img src={logoMark} alt="" className="size-7" />
           <span className="font-semibold">{info?.app.name}</span>
         </header>
-        {defaultPasswordInUse && (
+        {defaultPasswordAccount && (
           <div className="flex flex-wrap items-center gap-3 border-b border-warn/30 bg-warn/15 px-4 py-2.5 text-sm sm:px-8">
             <ShieldAlert className="size-4 shrink-0 text-warn" />
-            <span className="flex-1">{t("auth.defaultPasswordWarning")}</span>
-            <NavLink to="/account" className="font-semibold text-brand hover:underline">
+            <span className="flex-1">{t("auth.defaultPasswordWarning", { username: defaultPasswordAccount })}</span>
+            {/* Signed in as that account: change it on My account; otherwise (e.g. Microsoft sign-in) via Users. */}
+            <NavLink to={user?.username === defaultPasswordAccount && user.authProvider === "local" ? "/account" : "/system/users"} className="font-semibold text-brand hover:underline">
               {t("auth.changeNow")}
             </NavLink>
           </div>
