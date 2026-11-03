@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # Builds tvsm-<app>_<version>_<arch>.deb from apps/<app>/dist.
 # Usage: packaging/debian/build-deb.sh <app> <version> [outdir]
 # The package bundles its own Node.js runtime so it only depends on base Debian 13 packages.
@@ -42,6 +43,28 @@ cp "$DIST/$ENTRY" "$LIB/$ENTRY"
 for extra in "$DIST"/*.cjs; do [[ -f "$extra" ]] && cp "$extra" "$LIB/"; done
 echo "$VERSION" > "$LIB/VERSION"
 cp "$ROOT/branding/$(cat "$ROOT/branding/active-brand" | tr -d "[:space:]")/BRAND.md" "$STAGE/usr/share/doc/$PKG/BRAND.md"
+# Machine-readable copyright file (DEP-5); the full licence text ships next to it.
+cat > "$STAGE/usr/share/doc/$PKG/copyright" <<COPYRIGHT
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: TV Station Manager
+Source: https://github.com/rhisijmuiden/tv-station-manager
+
+Files: *
+Copyright: 2026 TV Station Manager contributors
+License: AGPL-3.0-only
+ This program is free software: you can redistribute it and/or modify it under the terms of the
+ GNU Affero General Public License as published by the Free Software Foundation, version 3.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+ even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the full
+ text in /usr/share/doc/$PKG/LICENSE.
+
+Files: usr/lib/tvsm/$APP/node
+Copyright: Node.js contributors
+License: MIT
+ See https://github.com/nodejs/node/blob/main/LICENSE
+COPYRIGHT
+cp "$ROOT/LICENSE" "$STAGE/usr/share/doc/$PKG/LICENSE"
 
 if [[ "$APP" == agent ]]; then
   # Node agent: root service, CLI wrapper, no web UI and no sudoers rule.

@@ -2,6 +2,7 @@
   TV Station Manager - applies a downloaded agent update on Windows.
   The agent verifies the zip (SHA256SUMS), copies this script next to it in %ProgramData%\TVSM\agent\update and starts
   it as a one-off scheduled task (SYSTEM), because WinSW stops child processes together with the service.
+  SPDX-License-Identifier: AGPL-3.0-only
 #>
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # TV Station Manager installer for Debian 13.
 #   curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/tv-station-manager/production/packaging/install.sh | sudo bash -s -- orchestrator
 #   ... | sudo bash -s -- agent --orchestrator https://orchestrator.example.com

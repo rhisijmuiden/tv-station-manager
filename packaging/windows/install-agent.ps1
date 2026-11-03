@@ -5,6 +5,7 @@
     & $env:TEMP\install-agent.ps1 -Orchestrator https://orchestrator.example.com
   Installs to %ProgramFiles%\TVSM\agent as the Windows service "tvsm-agent" (WinSW, LocalSystem).
   Config lives in %ProgramData%\TVSM\agent\agent.json.
+  SPDX-License-Identifier: AGPL-3.0-only
 #>
 param(
   [string]$Orchestrator = "",

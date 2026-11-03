@@ -195,7 +195,16 @@ export class UpdateService {
       arch: arch(),
       uptimeSeconds: Math.round(process.uptime()),
       systemUptimeSeconds: Math.round(uptime()),
+      // AGPL-3.0 section 13: users of the web interface can get the source of the version they run.
+      license: "AGPL-3.0-only",
+      sourceUrl: this.sourceUrl(),
     };
+  }
+
+  /** Source code of the running version (the release tag) or the repository for development builds. */
+  sourceUrl() {
+    const base = `https://github.com/${this.getSettings().repository}`;
+    return this.ctx.config.packaged ? `${base}/tree/v${this.ctx.config.version}` : base;
   }
 }
 

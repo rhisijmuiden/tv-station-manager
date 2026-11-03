@@ -118,3 +118,20 @@ Werk gaat in een feature-branch, dan een PR naar `test`, daarna wordt `test` sam
 ## Huisstijl
 
 Zie [branding/README.md](branding/README.md): elke huisstijl staat in een eigen map, `branding/active-brand` kiest welke de apps gebruiken.
+
+## Licentie
+
+TV Station Manager is vrije software onder de
+[GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
+
+- Je mag de software gebruiken, bestuderen, aanpassen en delen. Verspreid je hem, of laat je mensen een **aangepaste**
+  versie via het netwerk gebruiken (bijvoorbeeld de webinterface), dan moet je hun de volledige broncode van die versie
+  onder dezelfde licentie aanbieden.
+- Het Info-venster in elke app toont de licentie en linkt naar de broncode van de draaiende versie.
+- De `.deb`-pakketten bevatten de licentie in `/usr/share/doc/tvsm-<app>/` (`copyright`, `LICENSE`); de Windows-zip van
+  de agent bevat `LICENSE.txt`.
+
+Onderdelen van derden houden hun eigen licentie. Alle meegebundelde npm-afhankelijkheden hebben een licentie die
+verenigbaar is met AGPL-3.0 (MIT, ISC, BSD, Apache-2.0, BlueOak-1.0.0, 0BSD, MIT-0, Unlicense; lettertypen onder
+OFL-1.1). Programma's die als los proces naast TVSM draaien horen niet bij dit werk: Node.js (MIT, meegeleverd), WinSW
+(MIT), MediaMTX (MIT), CasparCG Server (GPL-3.0) en FFmpeg/smbclient (geïnstalleerd vanuit Debian).

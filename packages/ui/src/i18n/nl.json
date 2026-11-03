@@ -86,6 +86,8 @@
   },
   "info": {
     "title": "Over deze installatie",
+    "license": "Licentie",
+    "sourceCode": "Broncode",
     "version": "Versie",
     "channel": "Releasekanaal",
     "hostname": "Host",

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # Builds tvsm-agent_<version>_windows-x64.zip: node.exe + agent.mjs + WinSW service wrapper + studio node files.
 # Usage: packaging/windows/build-zip.sh <version> [outdir]
 set -euo pipefail
@@ -30,6 +31,7 @@ cp "$ROOT/packaging/windows/tvsm-agent-service.xml" "$ROOT/packaging/windows/tvs
 mkdir -p "$STAGE/studio/templates"
 cp "$ROOT/studio/windows/start-casparcg.ps1" "$STAGE/studio/"
 cp -r "$ROOT/studio/casparcg-templates/." "$STAGE/studio/templates/"
+cp "$ROOT/LICENSE" "$STAGE/LICENSE.txt"
 echo "$VERSION" > "$STAGE/VERSION"
 mkdir -p "$OUT"
 FILE="$(cd "$OUT" && pwd)/tvsm-agent_${VERSION//[-~]/.}_windows-x64.zip"
