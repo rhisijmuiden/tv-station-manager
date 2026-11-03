@@ -1,7 +1,7 @@
 /**
  * Monitoring helpers shared by the orchestrator server and its web UI (pure: no I/O).
  *
- * Every monitored thing (node, ATEM, HyperDeck, Owncast, extra device) gets a health level plus a list of issues.
+ * Every monitored thing (node, ATEM, Teranex, Owncast, extra device) gets a health level plus a list of issues.
  * Issues are codes with parameters so the UI can translate them (EN/NL).
  */
 
@@ -82,27 +82,29 @@ export function nodeGroup(role: string): "studio" | "management" | "other" {
   return "other";
 }
 
-// ---- ATEM / HyperDeck -----------------------------------------------------------------
+// ---- ATEM / Teranex -----------------------------------------------------------------
 
 export function atemIssues(a: { online: boolean; lastSeenAt: string | null; control?: { mode: string } | null }): Issue[] {
   if (!a.online) return [{ code: "device_offline", level: "down", params: a.lastSeenAt ? { since: a.lastSeenAt } : undefined }];
   return [];
 }
 
-export function hyperdeckIssues(h: {
+export function teranexIssues(x: {
   online: boolean;
   lastSeenAt: string | null;
-  snapshot: { remoteEnabled: boolean | null; transport: { status: string; slotId: number | null }; slots: { id: number; status: string; recordingTime: number }[] } | null;
-}, lowRecordSeconds: number): Issue[] {
-  if (!h.online) return [{ code: "device_offline", level: "down", params: h.lastSeenAt ? { since: h.lastSeenAt } : undefined }];
-  const s = h.snapshot;
+  expectedInput?: string;
+  snapshot: { input: { signalPresent: boolean | null; videoMode: string | null }; genlock: { locked: boolean | null; reference: string | null } } | null;
+}): Issue[] {
+  if (!x.online) return [{ code: "device_offline", level: "down", params: x.lastSeenAt ? { since: x.lastSeenAt } : undefined }];
+  const s = x.snapshot;
   if (!s) return [];
+  // No input = no picture for everything after the converter (broadcast encoder).
+  if (s.input.signalPresent === false) return [{ code: "no_input_signal", level: "down" }];
   const out: Issue[] = [];
-  if (s.remoteEnabled === false) out.push({ code: "remote_disabled", level: "warn" });
-  const mounted = s.slots.filter((x) => x.status === "mounted");
-  if (!mounted.length) out.push({ code: "no_media", level: "warn" });
-  const active = mounted.find((x) => x.id === s.transport.slotId) ?? mounted[0];
-  if (s.transport.status === "record" && active && active.recordingTime < lowRecordSeconds) out.push({ code: "record_time_low", level: "warn", params: { minutes: Math.floor(active.recordingTime / 60) } });
+  const want = (x.expectedInput ?? "").replace(/\s+/g, "").toLowerCase();
+  const got = (s.input.videoMode ?? "").replace(/\s+/g, "").toLowerCase();
+  if (want && got && want !== got) out.push({ code: "input_format", level: "warn", params: { got: s.input.videoMode!, want: x.expectedInput!.trim() } });
+  if (s.genlock.locked === false && s.genlock.reference && !/internal|input|free/i.test(s.genlock.reference)) out.push({ code: "genlock_unlocked", level: "warn" });
   return out;
 }
 

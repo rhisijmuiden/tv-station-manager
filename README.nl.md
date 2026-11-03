@@ -83,10 +83,10 @@ De regisseur van de zender. Log in als hoofdredacteur (rol *Hoofdredacteur*) om 
 
 | Menu | Wat het doet |
 |---|---|
-| Monitoring | Status van nodes, ATEMs, HyperDecks, streamservers en overige apparatuur in één blokschema. Zie [docs/monitoring.md](docs/monitoring.md) |
+| Monitoring | Status van nodes, ATEMs, Teranex-converters, streamservers en overige apparatuur in één blokschema. Zie [docs/monitoring.md](docs/monitoring.md) |
 | Nodes | Nodes goedkeuren die zich via de agent hebben aangemeld en ze een rol geven (management, playout, live) |
 | ATEM-mixers | Overzicht met voorpaneel, ingangsnamen en handmatig schakelen. Zie [docs/atem-inventory.md](docs/atem-inventory.md) |
-| HyperDecks | Overzicht met opnemen, afspelen en stoppen. Zie [docs/hyperdeck.nl.md](docs/hyperdeck.nl.md) |
+| Teranex | Alleen-lezen status van Teranex-converters: ingang, formaat, audio, uitgang, melding bij signaalverlies. Zie [docs/teranex.nl.md](docs/teranex.nl.md) |
 | Aansluitschema | Apparaten, DeckLink-kaarten en kabels naar de ATEM-ingangen, met live tally en een automatiseringsslot per ATEM. Zie [docs/connection-diagram.nl.md](docs/connection-diagram.nl.md) |
 
 Zo speelt het af: per kanaal vertelt de management node CasparCG op de studio node welke clip moet spelen (`PLAY <kanaal>-10 "Map/Clip"`, de volgende clip staat klaar met `LOADBG`), schakelt de ATEM naar de ingang waar de studio node op zit, en werkt de graphics bij met `CG UPDATE`. Zie [studio/README.md](studio/README.md) voor de CasparCG-kant.

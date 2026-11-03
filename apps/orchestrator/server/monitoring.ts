@@ -1,7 +1,7 @@
 /**
  * Monitoring: one status overview of the whole platform.
  *
- * Reads what the orchestrator already knows (nodes via their agent heartbeat, ATEM switchers, HyperDecks) and adds
+ * Reads what the orchestrator already knows (nodes via their agent heartbeat, ATEM switchers, Teranex converters) and adds
  * "monitor devices": Owncast servers (read-only `GET /api/status`), plain HTTP or TCP checks and manual entries for
  * equipment that cannot be checked over the network. A device can be linked to an enrolled node whose agent runs on
  * the same machine (e.g. the Linux box running Owncast), so its CPU/disk and heartbeat show up on the device too.
@@ -14,8 +14,7 @@ import { connect as tcpConnect } from "node:net";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PublicSwitcher } from "./atem.js";
-import type { PublicHyperdeck } from "./hyperdeck.js";
-import { LOW_RECORD_TIME_S } from "./hyperdecklogic.js";
+import type { PublicTeranex } from "./teranex.js";
 import {
   atemIssues,
   BLOCKS,
@@ -24,7 +23,7 @@ import {
   deviceIssues,
   FAILS_BEFORE_DOWN,
   healthOf,
-  hyperdeckIssues,
+  teranexIssues,
   MANUAL_STATUSES,
   nodeGroup,
   nodeIssues,
@@ -183,7 +182,7 @@ const metricSummary = (m: NodeMetrics | null) =>
 export function registerMonitoring(
   app: FastifyInstance,
   platform: Platform,
-  sources: { nodes: () => NodeLike[]; atems: () => PublicSwitcher[]; hyperdecks: () => PublicHyperdeck[] },
+  sources: { nodes: () => NodeLike[]; atems: () => PublicSwitcher[]; teranexes?: () => PublicTeranex[] },
   probes: Probes = realProbes,
   pollMs = POLL_MS,
 ) {
@@ -354,24 +353,25 @@ export function registerMonitoring(
         issues,
       };
     });
-    const hyperdecks = sources.hyperdecks().map((h) => {
-      const issues = hyperdeckIssues(h, LOW_RECORD_TIME_S);
+    const teranexes = (sources.teranexes?.() ?? []).map((x) => {
+      const issues = teranexIssues(x);
       return {
-        id: h.id,
-        name: h.name,
-        host: h.host,
-        location: h.location,
-        online: h.online,
-        lastSeenAt: h.lastSeenAt,
-        model: h.snapshot?.model ?? null,
-        transport: h.online ? (h.snapshot?.transport.status ?? null) : null,
+        id: x.id,
+        name: x.name,
+        host: x.host,
+        location: x.location,
+        online: x.online,
+        lastSeenAt: x.lastSeenAt,
+        model: x.snapshot?.model ?? null,
+        input: x.online && x.snapshot ? { source: x.snapshot.input.videoSource, format: x.snapshot.input.videoMode, signal: x.snapshot.input.signalPresent, audio: x.snapshot.input.audioSource } : null,
+        output: x.online ? (x.snapshot?.output.videoMode ?? null) : null,
         health: healthOf(issues),
         issues,
       };
     });
     const c = core();
-    const all = [c.health, ...nodes.filter((n) => !n.linkedDevice).map((n) => n.health), ...atems.map((a) => a.health), ...hyperdecks.map((h) => h.health), ...devices.map((d) => d.health)];
-    return { checkedAt: new Date().toISOString(), core: c, nodes, atems, hyperdecks, devices, summary: countHealth(all) };
+    const all = [c.health, ...nodes.filter((n) => !n.linkedDevice).map((n) => n.health), ...atems.map((a) => a.health), ...teranexes.map((x) => x.health), ...devices.map((d) => d.health)];
+    return { checkedAt: new Date().toISOString(), core: c, nodes, atems, teranexes, devices, summary: countHealth(all) };
   });
 
   const find = (id: string) => {

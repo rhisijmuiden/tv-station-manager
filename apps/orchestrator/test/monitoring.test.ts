@@ -9,10 +9,11 @@ import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
 import { ATEM_CONTROL_MIGRATIONS, ATEM_MIGRATIONS, registerAtem, type AtemLink } from "../server/atem.ts";
 import { DIAGRAM_MIGRATIONS, registerDiagram } from "../server/diagram.ts";
-import { HYPERDECK_MIGRATIONS, registerHyperdecks, type HyperdeckLink } from "../server/hyperdeck.ts";
+import { HYPERDECK_MIGRATIONS } from "../server/legacy.ts";
 import { MONITOR_MIGRATIONS, realProbes, registerMonitoring, type Probes } from "../server/monitoring.ts";
-import { deviceIssues, hyperdeckIssues, nodeGroup, nodeIssues, owncastBase, parseHostPort, parseOwncast, targetError, worst } from "../server/monitorlogic.ts";
+import { deviceIssues, nodeGroup, teranexIssues, nodeIssues, owncastBase, parseHostPort, parseOwncast, targetError, worst } from "../server/monitorlogic.ts";
 import { NODE_MIGRATIONS, registerNodes } from "../server/nodes.ts";
+import { registerTeranex, TERANEX_MIGRATIONS, type TeranexLink } from "../server/teranex.ts";
 
 const root = mkdtempSync(join(tmpdir(), "tvsm-monitor-"));
 process.env.TVSM_DATA_DIR = join(root, "data");
@@ -40,10 +41,12 @@ test("logic: health levels and node issues", () => {
   assert.equal(nodeGroup("other"), "other");
 });
 
-test("logic: hyperdeck, owncast parsing, targets, device health", () => {
-  const snap = { remoteEnabled: false, transport: { status: "record", slotId: 1 }, slots: [{ id: 1, status: "mounted", recordingTime: 300 }] };
-  assert.deepEqual(hyperdeckIssues({ online: true, lastSeenAt: null, snapshot: snap }, 900).map((i) => i.code), ["remote_disabled", "record_time_low"]);
-  assert.equal(hyperdeckIssues({ online: false, lastSeenAt: null, snapshot: snap }, 900)[0]!.code, "device_offline");
+test("logic: teranex, owncast parsing, targets, device health", () => {
+  const snap = { input: { signalPresent: true as boolean | null, videoMode: "1080p25" }, genlock: { locked: false, reference: "Reference" } };
+  assert.deepEqual(teranexIssues({ online: true, lastSeenAt: null, expectedInput: "1080i50", snapshot: snap }).map((i) => i.code), ["input_format", "genlock_unlocked"]);
+  assert.deepEqual(teranexIssues({ online: true, lastSeenAt: null, expectedInput: "1080 i50", snapshot: { ...snap, input: { signalPresent: true, videoMode: "1080i50" }, genlock: { locked: false, reference: "Internal" } } }), []);
+  assert.deepEqual(teranexIssues({ online: true, lastSeenAt: null, expectedInput: "1080i50", snapshot: { ...snap, input: { signalPresent: false, videoMode: null } } }), [{ code: "no_input_signal", level: "down" }]);
+  assert.equal(teranexIssues({ online: false, lastSeenAt: null, snapshot: snap })[0]!.code, "device_offline");
 
   const o = parseOwncast(OWNCAST, { name: "IJmond360", streamTitle: "Regionieuws" });
   assert.equal(o.viewers, 12);
@@ -113,13 +116,13 @@ const call = async (method: string, url: string, payload?: unknown) => {
 test.before(async () => {
   p = await createPlatform({
     app: { id: "orchestrator", name: "Orch", defaultPort: 0 },
-    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS, ...HYPERDECK_MIGRATIONS, ...MONITOR_MIGRATIONS],
+    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS, ...HYPERDECK_MIGRATIONS, ...MONITOR_MIGRATIONS, ...TERANEX_MIGRATIONS],
     register: (s, pl) => {
       const nodes = registerNodes(s, pl);
       const atem = registerAtem(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, rename: async () => {}, switch: async () => {}, close: async () => {} }) as AtemLink);
-      const hd = registerHyperdecks(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, transport: async () => {}, close: async () => {} }) as HyperdeckLink);
-      registerDiagram(s, pl, atem.list, hd.list);
-      registerMonitoring(s, pl, { nodes: nodes.list, atems: atem.list, hyperdecks: hd.list }, fakeProbes, 3_600_000);
+      const tx = registerTeranex(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, close: async () => {} }) as TeranexLink);
+      registerDiagram(s, pl, atem.list, tx.list);
+      registerMonitoring(s, pl, { nodes: nodes.list, atems: atem.list, teranexes: tx.list }, fakeProbes, 3_600_000);
     },
   });
 });

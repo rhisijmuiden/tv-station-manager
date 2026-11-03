@@ -83,15 +83,16 @@ const overview = (): Overview => ({
       issues: [{ code: "device_offline", level: "down" }],
     },
   ],
-  hyperdecks: [
+  teranexes: [
     {
-      id: "h1",
-      name: "HyperDeck",
+      id: "t1",
+      name: "Teranex AV",
       host: "10.40.5.219",
       location: "Rack",
       online: true,
-      model: "HyperDeck Studio 4K Pro",
-      transport: "stopped",
+      model: "Teranex AV",
+      input: { source: "SDI", format: "1080i50", signal: true, audio: "Embedded" },
+      output: "1080i50",
       health: "ok",
       issues: [],
     },
@@ -151,7 +152,7 @@ test("items land in the layer of the signal path, sorted by name", () => {
   assert.deepEqual(at("management"), ["tv-manager"]);
   assert.deepEqual(at("nodes"), ["CASPARCG01", "CASPARCG02"]);
   assert.deepEqual(at("switchers"), ["ATEM Regie"]);
-  assert.deepEqual(at("recorders"), ["HyperDeck"]);
+  assert.deepEqual(at("converters"), ["Teranex AV"]);
   assert.deepEqual(at("distribution"), ["Owncast"]);
   // pending nodes and extra equipment are infrastructure; a node linked to a device is shown with the device
   assert.deepEqual(at("infrastructure"), ["new-box", "UPS"]);
@@ -176,7 +177,7 @@ test("filters on layer, health and text", () => {
   ]);
   assert.deepEqual(
     names({ layer: "all", health: "all", query: "10.40.5.219" }),
-    ["HyperDeck"],
+    ["Teranex AV"],
   );
   assert.deepEqual(
     names({ layer: "all", health: "all", query: "server room" }),
@@ -194,7 +195,7 @@ test("layer summary and attention list, worst first", () => {
   assert.equal(s.nodes.health, "warn");
   assert.equal(s.switchers.health, "down");
   assert.equal(s.infrastructure.health, "warn");
-  assert.equal(s.recorders.counts.ok, 1);
+  assert.equal(s.converters.counts.ok, 1);
   assert.deepEqual(
     attention(items).map((i) => i.name),
     ["ATEM Regie", "CASPARCG01", "new-box", "Orchestrator", "UPS"],
