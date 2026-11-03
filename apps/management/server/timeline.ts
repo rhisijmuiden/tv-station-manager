@@ -380,6 +380,35 @@ export function compile(loader: Loader, entries: ScheduleEntry[], from: number, 
 }
 
 /** The event on air at `t`, and the ones after it. */
+/**
+ * Skips an item on air from `at` on (its file could not be found): the item ends at `at`, the rest of its programme
+ * (same schedule entry) moves up by the time that was left, and the "rest of the hour" fill of that entry starts that
+ * much earlier. Without such a fill the channel filler covers the time freed at the end, so the next programme still
+ * starts at its own time. Calling it again with the same key and time changes nothing.
+ */
+export function skipEvent(events: TimelineEvent[], key: string, at: number): TimelineEvent[] {
+  const ev = events.find((e) => e.key === key);
+  if (!ev || at >= ev.end || at < ev.start) return events;
+  const shift = ev.end - at;
+  const sid = ev.scheduleId;
+  const later = (e: TimelineEvent) => sid != null && e.scheduleId === sid && e !== ev && e.start >= ev.end;
+  let hasFill = false;
+  let lastEnd = at;
+  const out = events.map((e) => {
+    if (e === ev) return { ...e, end: at };
+    if (!later(e)) return e;
+    if (e.fill) {
+      hasFill = true;
+      return { ...e, start: e.start - shift };
+    }
+    const moved = { ...e, start: e.start - shift, end: e.end - shift };
+    lastEnd = Math.max(lastEnd, moved.end);
+    return moved;
+  });
+  if (!hasFill) out.push({ key: `filler:${lastEnd}`, scheduleId: null, start: lastEnd, end: lastEnd + shift, type: "filler", title: "", programTitle: "", offsetMs: 0 });
+  return out.sort((a, b) => a.start - b.start);
+}
+
 export function at(events: TimelineEvent[], t: number) {
   return { current: events.find((e) => e.start <= t && t < e.end) ?? null, upcoming: events.filter((e) => e.start > t) };
 }

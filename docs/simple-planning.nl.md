@@ -41,3 +41,7 @@ daarboven de ondertitels. Per soort content (video, beeldkrant, webcam, live str
 bepalen drie schakelaars of logo, klok en ticker in beeld blijven. Standaard blijft alles zoals het was: tijdens een
 beeldkrant, webcam, Straks-slide of reclame gaat de basislaag weg; een beeldkrant heeft een eigen logo en audiolijn.
 Een beeldkrant of webcam met *kanaal-overlay tonen* houdt alles in beeld.
+
+## Ontbrekende bestanden
+
+Staat het bestand van een clip niet meer op de share (verplaatst of hernoemd na het inlezen van de bibliotheek), dan kan CasparCG hem niet afspelen. De regisseur probeert het 10 seconden en slaat de clip dan over: de rest van het programma schuift op en de keuze "als het uur niet vol is" van het blok (of de filler van het kanaal) vult de vrijgekomen tijd, zodat het volgende programma op zijn eigen tijd begint. Het overslaan staat in het as-run-log ("Skipped: file not found") en gaat als storingsmail rond.

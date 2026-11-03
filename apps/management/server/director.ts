@@ -9,7 +9,7 @@ import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics }
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
 import { nextStationHour } from "./hourclock.js";
-import { at, casparClip, compile, holdUntil, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
+import { at, casparClip, compile, holdUntil, programAt, skipEvent, type EntryInfo, type TimelineEvent } from "./timeline.js";
 import { webcamOf } from "./webcamdb.js";
 import { playPlan } from "./webcamlogic.js";
 import { tickerHeadlinesFromDb } from "./tickerdb.js";
@@ -33,6 +33,8 @@ export const PLAYOUT_LAYER = 10;
 export const CAPTION_LAYER = 11;
 const PRELOAD_MS = 3000;
 const RETRY_MS = 5000;
+/** A clip whose file CasparCG cannot find is skipped after this long; the rest of its programme moves up. */
+export const SKIP_MISSING_MS = 10_000;
 const WINDOW_BACK = 6 * 3600_000;
 const WINDOW_AHEAD = 30 * 3600_000;
 const ALERT_EVERY_MS = 5 * 60_000;
@@ -53,6 +55,11 @@ interface ChannelState {
   currentKey: string | null;
   executedAt: number;
   failedKey: string | null;
+  /** When the failing item first failed, and whether CasparCG said its file does not exist. */
+  failedSince: number;
+  failedNotFound: boolean;
+  /** Items skipped because their file was missing (key -> time skipped), applied again after every compile. */
+  skips: Map<string, number>;
   preloadedKey: string | null;
   override: { liveSourceId: number; name: string; since: string } | null;
   activeRtmp: (Output & { liveId: number }) | null;
@@ -116,7 +123,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, playoutSession: undefined, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false, hold: null, applyNow: false };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, failedSince: 0, failedNotFound: false, skips: new Map(), preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, playoutSession: undefined, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false, hold: null, applyNow: false };
       this.states.set(id, s);
     }
     return s;
@@ -128,7 +135,9 @@ export class Director {
     const from = now - WINDOW_BACK;
     const to = now + WINDOW_AHEAD;
     const entries = scheduleEntries(this.platform.ctx.db, ch.id, from, to);
-    const fresh = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
+    for (const [key, t] of s.skips) if (t < from) s.skips.delete(key);
+    let fresh = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
+    for (const [key, t] of s.skips) fresh = skipEvent(fresh, key, t);
     const freshEntries = new Map<number, EntryInfo>(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
     if (s.hold && (now >= s.hold.until || s.applyNow || !ch.automation)) s.hold = null;
     // Only a channel that is playing holds its hour; the first compile, manual control, a stale timeline (the
@@ -188,13 +197,23 @@ export class Director {
     }
   }
 
-  private async step(ch: ChannelRow, s: ChannelState, now: number) {
+  private async step(ch: ChannelRow, s: ChannelState, now: number): Promise<void> {
     const { current, upcoming } = at(s.events, now);
     this.checkPlayoutSession(ch, s);
     if (s.override) {
       const live = this.live(s.override.liveSourceId);
       if (live) await this.switchTo(ch, live.atem_input).catch((e) => this.fail(ch, s, `override: ${(e as Error).message}`));
     } else if (current) {
+      if (current.type === "media" && s.failedKey === current.key && s.failedNotFound && now - s.failedSince >= SKIP_MISSING_MS) {
+        // The file is not there: skip it so the picture does not stand still, the rest of the programme moves up.
+        s.skips.set(current.key, now);
+        s.events = skipEvent(s.events, current.key, now);
+        if (s.hold) s.hold.events = skipEvent(s.hold.events, current.key, now);
+        s.failedKey = null;
+        s.lastError = null;
+        this.asrun(ch.id, "media", current.title, `Skipped: file not found (${current.leaf?.path ?? ""})`, false);
+        return this.step(ch, s, now);
+      }
       const changed = current.key !== s.currentKey;
       const retry = s.failedKey === current.key && now - s.executedAt > RETRY_MS;
       if (changed || retry) await this.execute(ch, s, current, now);
@@ -394,8 +413,11 @@ export class Director {
       s.lastError = null;
       this.asrun(ch.id, ev.type, ev.type === "filler" ? "Filler" : ev.title, ev.programTitle || null, true);
     } catch (e) {
+      const message = (e as Error).message;
+      if (s.failedKey !== ev.key) s.failedSince = now;
       s.failedKey = ev.key;
-      this.fail(ch, s, (e as Error).message, ev);
+      s.failedNotFound = /\b404\b|not found/i.test(message);
+      this.fail(ch, s, message, ev);
     }
   }
 
