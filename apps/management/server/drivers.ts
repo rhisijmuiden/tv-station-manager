@@ -7,6 +7,13 @@ import { Atem, Enums } from "atem-connection";
 import { CasparCG } from "casparcg-connection";
 import { EventEmitter } from "node:events";
 
+/**
+ * Template data for CG ADD / CG UPDATE as one AMCP parameter: JSON in double quotes with backslash, $ and " escaped.
+ * casparcg-connection sends a string as it is, and unquoted JSON is cut at the first space and loses its quotes in
+ * CasparCG's parser, so the template got nothing it could read (e.g. a channel name or ticker text with a space).
+ */
+export const cgData = (data: unknown) => `"${JSON.stringify(data ?? {}).replace(/[\\$"]/g, "\\$&")}"`;
+
 export interface SwitcherInput {
   id: number;
   longName: string;
@@ -204,10 +211,10 @@ export class CasparPlayout extends EventEmitter implements PlayoutDriver {
     return this.send(this.c.clear({ channel, layer }));
   }
   cgAdd(channel: number, layer: number, template: string, data: unknown) {
-    return this.send(this.c.cgAdd({ channel, layer, cgLayer: 1, template, playOnLoad: true, data: JSON.stringify(data) }));
+    return this.send(this.c.cgAdd({ channel, layer, cgLayer: 1, template, playOnLoad: true, data: cgData(data) }));
   }
   cgUpdate(channel: number, layer: number, data: unknown) {
-    return this.send(this.c.cgUpdate({ channel, layer, cgLayer: 1, data: JSON.stringify(data) }));
+    return this.send(this.c.cgUpdate({ channel, layer, cgLayer: 1, data: cgData(data) }));
   }
   cgStop(channel: number, layer: number) {
     return this.send(this.c.cgStop({ channel, layer, cgLayer: 1 }));
