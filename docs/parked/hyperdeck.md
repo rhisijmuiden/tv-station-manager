@@ -1,5 +1,13 @@
 # HyperDecks (orchestrator)
 
+> **Parked (2026-11-03).** There is no HyperDeck in the facility: the device at 10.40.5.219 turned out to be a
+> Teranex AV, which the orchestrator now supports instead (see [Teranex](../teranex.md)). HyperDeck support is no longer
+> in `test`/`production`; the complete code (server module, UI page, tests, translations) is kept on the branch
+> [`parked/hyperdeck`](https://github.com/rhisijmuiden/tv-station-manager/tree/parked/hyperdeck) (originally PR #31).
+> To bring it back: restore `apps/orchestrator/server/hyperdeck.ts`, `hyperdecklogic.ts`, `web/Hyperdeck.tsx`,
+> `test/hyperdeck.test.ts`, the `orch.hyperdeck` translations, the menu entry and the diagram / monitoring wiring from
+> that branch. The `hyperdecks` tables still exist (their migration stays in `server/legacy.ts`).
+
 The orchestrator keeps Blackmagic HyperDeck recorders / players in its equipment overview, next to the nodes and the
 ATEM switchers, and lets operators start and stop recordings.
 

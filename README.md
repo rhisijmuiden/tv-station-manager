@@ -83,10 +83,10 @@ The director of the station. Sign in as editor-in-chief (role *Editor-in-chief*)
 
 | Menu | What it does |
 |---|---|
-| Monitoring | Status of nodes, ATEMs, HyperDecks, stream servers and extra equipment in one block diagram. See [docs/monitoring.md](docs/monitoring.md) |
+| Monitoring | Status of nodes, ATEMs, Teranex converters, stream servers and extra equipment in one block diagram. See [docs/monitoring.md](docs/monitoring.md) |
 | Nodes | Approve nodes that registered through the agent and give them a role (management, playout, live) |
 | ATEM switchers | Inventory with front-panel view, input names and manual switching. See [docs/atem-inventory.md](docs/atem-inventory.md) |
-| HyperDecks | Inventory with record, play and stop. See [docs/hyperdeck.md](docs/hyperdeck.md) ([NL](docs/hyperdeck.nl.md)) |
+| Teranex | Read-only status of Teranex converters: input, format, audio, output, signal loss alerts. See [docs/teranex.md](docs/teranex.md) ([NL](docs/teranex.nl.md)) |
 | Connection diagram | Devices, DeckLink cards and cables to the ATEM inputs, with live tally and an automation lock per ATEM. See [docs/connection-diagram.md](docs/connection-diagram.md) ([NL](docs/connection-diagram.nl.md)) |
 
 How it plays out: for every channel the management node tells CasparCG on the studio node to play the clip

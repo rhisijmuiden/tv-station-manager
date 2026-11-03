@@ -38,7 +38,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Tv,
-  Video,
+  Repeat,
   Wrench,
   XCircle,
 } from "lucide-react";
@@ -660,7 +660,7 @@ const LAYER_ICON: Record<LayerId, typeof Tv> = {
   management: Clapperboard,
   nodes: Tv,
   switchers: SlidersHorizontal,
-  recorders: Video,
+  converters: Repeat,
   distribution: Radio,
   infrastructure: HardDrive,
 };
@@ -704,10 +704,10 @@ function useItemSub() {
             {i.atem.model ?? "ATEM"} · <Mono>{i.host}</Mono>
           </>
         );
-      case "hyperdeck":
+      case "teranex":
         return (
           <>
-            {i.deck.model ?? "HyperDeck"} · <Mono>{i.host}</Mono>
+            {i.teranex.model ?? "Teranex"} · <Mono>{i.host}</Mono>
           </>
         );
       case "device":
@@ -739,15 +739,11 @@ function ItemBadge({ i }: { i: MonItem }) {
     ) : (
       <Badge tone="brand">{t("orch.mon.automation")}</Badge>
     );
-  if (i.kind === "hyperdeck")
-    return i.deck.transport === "record" ? (
-      <Badge tone="danger">REC</Badge>
-    ) : i.deck.transport ? (
-      <Badge>
-        {t(`orch.hyperdeck.status_${i.deck.transport}`, {
-          defaultValue: i.deck.transport,
-        })}
-      </Badge>
+  if (i.kind === "teranex")
+    return i.teranex.input?.signal === false ? (
+      <Badge tone="danger">{t("orch.teranex.noSignalShort")}</Badge>
+    ) : i.teranex.input?.format ? (
+      <Badge tone="brand">{i.teranex.input.format}</Badge>
     ) : null;
   const r = i.device.result;
   if (r?.owncast)
@@ -1078,20 +1074,23 @@ function DetailPanel({
       ],
     );
     if (i.atem.location) facts.push([t("orch.mon.location"), i.atem.location]);
-  } else if (i.kind === "hyperdeck") {
+  } else if (i.kind === "teranex") {
+    const x = i.teranex;
     facts.push(
-      [t("orch.mon.address"), i.deck.host],
-      [t("orch.mon.model"), i.deck.model ?? "—"],
+      [t("orch.mon.address"), x.host],
+      [t("orch.mon.model"), x.model ?? "—"],
       [
-        t("orch.mon.transport"),
-        i.deck.transport
-          ? t(`orch.hyperdeck.status_${i.deck.transport}`, {
-              defaultValue: i.deck.transport,
-            })
+        t("orch.teranex.input"),
+        x.input
+          ? x.input.signal === false
+            ? t("orch.teranex.noSignal")
+            : [x.input.source, x.input.format].filter(Boolean).join(" · ") || "—"
           : "—",
       ],
+      [t("orch.teranex.audio"), x.input?.audio ?? "—"],
+      [t("orch.teranex.output"), x.output ?? "—"],
     );
-    if (i.deck.location) facts.push([t("orch.mon.location"), i.deck.location]);
+    if (x.location) facts.push([t("orch.mon.location"), x.location]);
   } else {
     const d = i.device;
     facts.push([t("orch.mon.checkType"), t(`orch.mon.check_${d.checkType}`)]);
@@ -1123,7 +1122,7 @@ function DetailPanel({
     }
   };
   const inDiagram =
-    i.kind === "node" || i.kind === "atem" || i.kind === "hyperdeck";
+    i.kind === "node" || i.kind === "atem" || i.kind === "teranex";
 
   return (
     <div className="divide-y divide-line">
@@ -1359,7 +1358,7 @@ export function MonitoringPage() {
     if (i.kind === "core") nav("/system/backup");
     else if (i.kind === "node") nav("/nodes");
     else if (i.kind === "atem") nav(`/atem/${i.atem.id}`);
-    else if (i.kind === "hyperdeck") nav(`/hyperdeck/${i.deck.id}`);
+    else if (i.kind === "teranex") nav(`/teranex/${i.teranex.id}`);
     else setDialog({ device: i.device, block: i.device.block });
   };
 

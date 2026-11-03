@@ -2,7 +2,7 @@
  * Monitoring page model. Pure (tested in test/monitorView.test.ts), shared by the 2D overview and the 3D room.
  *
  * Everything the orchestrator monitors becomes one `MonItem` in a layer of the signal path:
- * core > management > TV nodes > switchers > recorders > distribution, with infrastructure as a supporting layer.
+ * core > management > TV nodes > switchers > converters > distribution, with infrastructure as a supporting layer.
  * A new kind of equipment only needs a mapping into a layer here; both views pick it up by themselves.
  */
 import type {
@@ -52,7 +52,7 @@ export interface MonAtem {
   health: Health;
   issues: Issue[];
 }
-export interface MonDeck {
+export interface MonTeranex {
   id: string;
   name: string;
   host: string;
@@ -60,7 +60,8 @@ export interface MonDeck {
   online: boolean;
   lastSeenAt?: string | null;
   model: string | null;
-  transport: string | null;
+  input: { source: string | null; format: string | null; signal: boolean | null; audio: string | null } | null;
+  output: string | null;
   health: Health;
   issues: Issue[];
 }
@@ -104,7 +105,8 @@ export interface Overview {
   core: MonCore;
   nodes: MonNode[];
   atems: MonAtem[];
-  hyperdecks: MonDeck[];
+  /** Older servers do not send it. */
+  teranexes?: MonTeranex[];
   devices: MonDevice[];
   summary: Record<Health, number>;
 }
@@ -117,7 +119,7 @@ export const LAYERS = [
   "management",
   "nodes",
   "switchers",
-  "recorders",
+  "converters",
   "distribution",
   "infrastructure",
 ] as const;
@@ -128,7 +130,7 @@ export const SIGNAL_LAYERS: LayerId[] = [
   "management",
   "nodes",
   "switchers",
-  "recorders",
+  "converters",
   "distribution",
 ];
 
@@ -168,14 +170,14 @@ export type MonItem =
     }
   | {
       key: string;
-      kind: "hyperdeck";
+      kind: "teranex";
       layer: LayerId;
       name: string;
       host: string;
       health: Health;
       issues: Issue[];
       metrics: null;
-      deck: MonDeck;
+      teranex: MonTeranex;
     }
   | {
       key: string;
@@ -247,17 +249,17 @@ export function toItems(o: Overview): MonItem[] {
       metrics: null,
       atem: a,
     });
-  for (const h of o.hyperdecks)
+  for (const x of o.teranexes ?? [])
     items.push({
-      key: `hyperdeck:${h.id}`,
-      kind: "hyperdeck",
-      layer: "recorders",
-      name: h.name,
-      host: h.host,
-      health: h.health,
-      issues: h.issues,
+      key: `teranex:${x.id}`,
+      kind: "teranex",
+      layer: "converters",
+      name: x.name,
+      host: x.host,
+      health: x.health,
+      issues: x.issues,
       metrics: null,
-      deck: h,
+      teranex: x,
     });
   for (const d of o.devices)
     items.push({
@@ -297,8 +299,8 @@ export function matches(i: MonItem, f: Filter): boolean {
       ? `${i.node.role} ${i.node.hostname}`
       : i.kind === "atem"
         ? `${i.atem.model ?? ""} ${i.atem.location}`
-        : i.kind === "hyperdeck"
-          ? `${i.deck.model ?? ""} ${i.deck.location}`
+        : i.kind === "teranex"
+          ? `${i.teranex.model ?? ""} ${i.teranex.location} ${i.teranex.input?.format ?? ""}`
           : i.kind === "device"
             ? `${i.device.checkType} ${i.device.location} ${i.device.notes}`
             : "";
@@ -374,7 +376,7 @@ export function sparkPoints(values: number[], w: number, h: number): string {
 /** Rows of platforms in the room, following the signal path. */
 export const ROOM_ROWS: LayerId[][] = [
   ["core", "management", "nodes"],
-  ["switchers", "recorders", "distribution"],
+  ["switchers", "converters", "distribution"],
   ["infrastructure"],
 ];
 export const CELL = 104;
@@ -450,8 +452,8 @@ export const ROOM_LINKS: [LayerId, LayerId][] = [
   ["core", "management"],
   ["management", "nodes"],
   ["nodes", "switchers"],
-  ["switchers", "recorders"],
-  ["switchers", "distribution"],
+  ["switchers", "converters"],
+  ["converters", "distribution"],
   ["core", "infrastructure"],
 ];
 
@@ -459,7 +461,7 @@ export const ROOM_LINKS: [LayerId, LayerId][] = [
 export function boxSize(i: MonItem): [w: number, d: number, h: number] {
   if (i.kind === "core") return [64, 64, 84];
   if (i.kind === "atem") return [86, 46, 22];
-  if (i.kind === "hyperdeck") return [68, 44, 26];
+  if (i.kind === "teranex") return [76, 44, 20];
   if (i.kind === "node")
     return i.layer === "management"
       ? [62, 62, 70]

@@ -4,7 +4,7 @@ Menu **Monitoring** in the orchestrator shows the status of the whole platform o
 monitored is placed in a **layer of the signal path**:
 
 **Core** (orchestrator) > **Management** (director) > **TV nodes** (role studio / playout / live) > **Switchers** (ATEM) >
-**Recorders** (HyperDeck) > **Distribution** (Owncast, web pages), plus **Infrastructure** as a supporting layer
+**Converters** (Teranex) > **Distribution** (Owncast, web pages), plus **Infrastructure** as a supporting layer
 (monitor devices of the blocks Infrastructure and Extra equipment, nodes with role "Other" and nodes waiting for approval).
 
 The page is built to grow with the platform: the signal path bar sums up each layer (count and worst status) and never
@@ -31,7 +31,7 @@ The choice of view and layout is remembered per browser. The page refreshes ever
 |---|---|---|
 | Node | agent heartbeat (`nodes`) | agent does not respond (no heartbeat for 45 s), never reported, waiting for approval, disk ≥ 90 %, memory ≥ 95 %, CPU ≥ 95 %, CasparCG not running, media share not reachable |
 | ATEM | ATEM inventory (`server/atem.ts`) | not reachable; badge shows automation / locked |
-| HyperDeck | HyperDeck inventory (`server/hyperdeck.ts`) | not reachable, remote off, no media, < 15 min left while recording |
+| Teranex | Teranex inventory (`server/teranex.ts`) | not reachable, no input signal (down), input format differs from the expected one, genlock not locked |
 | Orchestrator | platform | mail server not set, no backup location, last backup failed, no successful backup in 8 days |
 | Monitor device | `monitor_devices`, probed every 15 s | see below |
 

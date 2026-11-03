@@ -4,7 +4,7 @@ Menu **Monitoring** in de orchestrator toont de status van het hele platform op 
 staat in een **laag van het signaalpad**:
 
 **Kern** (orchestrator) > **Regie** (regisseur) > **TV-nodes** (rol studio / playout / live) > **Mengtafels** (ATEM) >
-**Recorders** (HyperDeck) > **Distributie** (Owncast, webpagina's), plus **Infrastructuur** als ondersteunende laag
+**Converters** (Teranex) > **Distributie** (Owncast, webpagina's), plus **Infrastructuur** als ondersteunende laag
 (apparaten in de blokken Infrastructuur en Extra apparatuur, nodes met rol "Overig" en nodes die op goedkeuring wachten).
 
 De pagina groeit mee met het platform: de balk Signaalpad vat elke laag samen (aantal en slechtste status) en wordt niet

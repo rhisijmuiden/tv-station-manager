@@ -26,7 +26,7 @@ export interface Card {
   name: string;
   ports: Port[];
 }
-export type DeviceKind = "node" | "atem" | "hyperdeck" | "device";
+export type DeviceKind = "node" | "atem" | "teranex" | "device";
 export const DEVICE_TYPES = ["server", "camera", "converter", "encoder", "recorder", "monitor", "router", "other"] as const;
 export type DeviceType = (typeof DEVICE_TYPES)[number];
 export const CABLES = ["sdi", "hdmi", "fiber", "ip", "other"] as const;
@@ -66,6 +66,11 @@ export const CARD_PRESETS: Record<string, Preset> = {
   "hyperdeck-studio-hd-mini": { name: "HyperDeck Studio HD Mini", ports: [sdi("in", "SDI In"), sdi("out", "SDI Out"), hdmi("out", "HDMI Out")] },
   "hyperdeck-extreme": { name: "HyperDeck Extreme", ports: [sdi("in", "SDI In"), hdmi("in", "HDMI In"), sdi("out", "SDI Out"), sdi("out", "SDI Monitor Out"), hdmi("out", "HDMI Out")] },
   hyperdeck: { name: "HyperDeck", ports: [sdi("in", "SDI In"), sdi("out", "SDI Out")] },
+  // Blackmagic Teranex converters.
+  "teranex-av": { name: "Teranex AV", ports: [sdi("in", "12G-SDI In"), hdmi("in", "HDMI In"), ["in", "Optical In", "Fiber"], sdi("out", "12G-SDI Out A"), sdi("out", "12G-SDI Out B"), hdmi("out", "HDMI Out"), ["out", "Optical Out", "Fiber"]] },
+  "teranex-express": { name: "Teranex Express", ports: [sdi("in", "12G-SDI In"), ["in", "Optical In", "Fiber"], sdi("out", "12G-SDI Out A"), sdi("out", "12G-SDI Out B"), ["out", "Optical Out", "Fiber"]] },
+  "teranex-processor": { name: "Teranex 2D/3D Processor", ports: [sdi("in", "SDI In"), hdmi("in", "HDMI In"), sdi("out", "SDI Out A"), sdi("out", "SDI Out B"), hdmi("out", "HDMI Out")] },
+  teranex: { name: "Teranex", ports: [sdi("in", "SDI In"), sdi("out", "SDI Out")] },
 };
 
 /** A new card from a preset (or a custom card with `outs` outputs and `ins` inputs). */
