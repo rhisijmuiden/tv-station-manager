@@ -87,7 +87,7 @@ export interface Graphics {
   logo: { enabled: boolean; position: Position; file: string | null; opacity: number };
   clock: { enabled: boolean; position: Position };
   upNext: { enabled: boolean; secondsBeforeEnd: number; durationSeconds: number };
-  ticker: { enabled: boolean; text: string };
+  ticker: TickerSettings;
   subtitles: { enabled: boolean; size: "small" | "medium" | "large" };
   hideInCommercials: boolean;
   /** "Coming up" slide (block item type lineup). */
@@ -97,6 +97,45 @@ export interface Graphics {
   /** Which parts of the base layer stay on air per kind of content. */
   layers?: Layers;
 }
+/** News ticker (server/tickerlogic.ts): fixed text and/or RSS headlines. */
+export interface TickerSettings {
+  enabled: boolean;
+  text: string;
+  source: "text" | "rss" | "both";
+  feedIds: number[];
+  maxItems: number;
+  maxAgeHours: number;
+  showTime: boolean;
+  separator: string;
+  label: string;
+  speed: number;
+  fontSize: number;
+  bold: boolean;
+  uppercase: boolean;
+  refreshMinutes: number;
+  colors: { background: string; text: string; accent: string; labelText: string };
+  backgroundOpacity: number;
+}
+export const TICKER_COLORS: TickerSettings["colors"] = { background: "#2A1430", text: "#FFFFFF", accent: "#E92E7F", labelText: "#FFFFFF" };
+export const TICKER_DEFAULTS: TickerSettings = {
+  enabled: false,
+  text: "",
+  source: "text",
+  feedIds: [],
+  maxItems: 10,
+  maxAgeHours: 24,
+  showTime: false,
+  separator: "•",
+  label: "",
+  speed: 120,
+  fontSize: 30,
+  bold: false,
+  uppercase: false,
+  refreshMinutes: 5,
+  colors: TICKER_COLORS,
+  backgroundOpacity: 0.92,
+};
+export const tickerOf = (g: Graphics | undefined | null): TickerSettings => ({ ...TICKER_DEFAULTS, ...(g?.ticker ?? {}), colors: { ...TICKER_COLORS, ...(g?.ticker?.colors ?? {}) } });
 export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "commercial", "filler"] as const;
 export type LayerKind = (typeof LAYER_KINDS)[number];
 export interface LayerRule {

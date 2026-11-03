@@ -75,7 +75,7 @@ The director of the station. Sign in as editor-in-chief (role *Editor-in-chief*)
 
 | Menu | What it does |
 |---|---|
-| Graphics | Per channel logo, clock, up-next bar, subtitles and ticker with a live preview, rendered by the CasparCG template `studio/casparcg-templates/tvsm/overlay.html` |
+| Graphics | Per channel logo, clock, up-next bar, subtitles and a news ticker (fixed text or scrolling RSS headlines, speed/size/colours adjustable, see [docs/ticker.md](docs/ticker.md)) with a live preview, rendered by the CasparCG template `studio/casparcg-templates/tvsm/overlay.html` |
 | Channels / Devices | ATEM switchers (any model), studio nodes (CasparCG AMCP, port 5250) with a playout or live role, live sources and the per-channel wiring. See [docs/two-nodes.md](docs/two-nodes.md) ([NL](docs/two-nodes.nl.md)) |
 | Switch buttons | Set up the buttons on the Switch page: name, colour and live source per channel |
 

@@ -4,6 +4,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { lineupSchema } from "./lineuplogic.js";
 import { layersSchema } from "./layers.js";
+import { tickerHeight, tickerItems, tickerSchema } from "./tickerlogic.js";
+import { tickerHeadlinesFromDb } from "./tickerdb.js";
 import { audioIn, BlockCycleError, fillIn, compile, DEFAULT_LINEUP_MS, expandBlock, type BlockRef, type Loader, type MediaRef, type ScheduleEntry } from "./timeline.js";
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
@@ -22,7 +24,8 @@ export const graphicsSchema = z.object({
   logo: z.object({ enabled: z.boolean().default(true), position: position.default("top-right"), file: z.string().max(200).nullable().default(null), opacity: z.number().min(0.1).max(1).default(0.9) }).default({ enabled: true, position: "top-right", file: null, opacity: 0.9 }),
   clock: z.object({ enabled: z.boolean().default(true), position: position.default("top-left") }).default({ enabled: true, position: "top-left" }),
   upNext: z.object({ enabled: z.boolean().default(true), secondsBeforeEnd: z.number().int().min(5).max(600).default(60), durationSeconds: z.number().int().min(3).max(120).default(12) }).default({ enabled: true, secondsBeforeEnd: 60, durationSeconds: 12 }),
-  ticker: z.object({ enabled: z.boolean().default(false), text: z.string().max(2000).default("") }).default({ enabled: false, text: "" }),
+  /** News ticker: fixed text and/or RSS headlines, see tickerlogic.ts. */
+  ticker: tickerSchema.default(tickerSchema.parse({})),
   /** Subtitles from a .srt/.vtt file next to the clip on the media share. */
   subtitles: z.object({ enabled: z.boolean().default(true), size: z.enum(["small", "medium", "large"]).default("medium") }).default({ enabled: true, size: "medium" }),
   /** No logo, clock or ticker during commercial breaks. */
@@ -393,6 +396,12 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     db.prepare("UPDATE channels SET graphics = ? WHERE id = ?").run(JSON.stringify(g), c.id);
     onChange();
     return channelOut(getChannel(c.id));
+  });
+  /** What the ticker would scroll with these settings right now (preview on the channel page). */
+  app.post("/api/ticker/preview", async (req) => {
+    const t = tickerSchema.parse(req.body ?? {});
+    const headlines = tickerHeadlinesFromDb(db, t, Date.now(), platform.ctx.settings.get("station.timezone", "Europe/Amsterdam"));
+    return { items: tickerItems(t, headlines), headlines: headlines.length, height: tickerHeight(t.fontSize) };
   });
 
   // ---- blocks -------------------------------------------------------------------

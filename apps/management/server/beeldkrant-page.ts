@@ -1,6 +1,7 @@
 /**
  * Full-screen beeldkrant page (1920x1080) played by the CasparCG HTML producer on the studio node:
- *   PLAY <ch>-10 [HTML] "<management>/beeldkrant/page.html?id=<id>&start=<epoch ms>"
+ *   PLAY <ch>-10 [HTML] "<management>/beeldkrant/page.html?id=<id>&start=<epoch ms>[&ticker=<px>]"
+ * `ticker` = height of the channel's news ticker when it stays on air over the beeldkrant: the footer moves up.
  * It fetches `/beeldkrant/<id>/data.json` (settings + pages) every minute and shows page
  * floor((now - start) / secondsPerPage) mod pageCount, so a restart or a second output shows the same page.
  * The clock is corrected with the management node's time (serverTime).
@@ -13,7 +14,7 @@ export const BEELDKRANT_PAGE = `<!doctype html>
 <meta charset="utf-8" />
 <title>Beeldkrant</title>
 <style>
-  :root { --bg: #2A1430; --panel: #713C80; --accent: #E92E7F; --text: #FFFFFF; --scale: 1; --fade: 700ms; }
+  :root { --bg: #2A1430; --panel: #713C80; --accent: #E92E7F; --text: #FFFFFF; --scale: 1; --fade: 700ms; --tk: 0px; --fb: max(44px, calc(var(--tk) + 10px)); }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text);
     font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -29,10 +30,10 @@ export const BEELDKRANT_PAGE = `<!doctype html>
   header .right { margin-left: auto; text-align: right; line-height: 1.05; }
   header .clock { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; }
   header .date { font-size: 24px; opacity: .78; margin-top: 4px; }
-  footer { position: absolute; left: 96px; right: 96px; bottom: 44px; height: 64px; display: flex; align-items: center; gap: 24px; z-index: 5; font-size: 28px; }
+  footer { position: absolute; left: 96px; right: 96px; bottom: var(--fb); height: 64px; display: flex; align-items: center; gap: 24px; z-index: 5; font-size: 28px; }
   footer .text { opacity: .9; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   footer .num { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--text) 12%, transparent); padding: 6px 18px; border-radius: 999px; }
-  #progress { position: absolute; left: 96px; right: 96px; bottom: 124px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 16%, transparent); overflow: hidden; z-index: 5; }
+  #progress { position: absolute; left: 96px; right: 96px; bottom: calc(var(--fb) + 80px); height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 16%, transparent); overflow: hidden; z-index: 5; }
   #progress i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left center; will-change: transform; background: var(--accent); border-radius: 3px; }
 
   .page { position: absolute; inset: 0; opacity: 0; transition: opacity var(--fade) ease, transform var(--fade) cubic-bezier(.2,.8,.2,1); }
@@ -41,7 +42,7 @@ export const BEELDKRANT_PAGE = `<!doctype html>
   body.t-slide .page.on { transform: none; }
   body.t-slide .page.off { transform: translateX(-80px); }
   body.t-none .page { transition: none; }
-  .box { position: absolute; left: 96px; right: 96px; top: 190px; bottom: 160px; display: flex; gap: 64px; align-items: stretch; }
+  .box { position: absolute; left: 96px; right: 96px; top: 190px; bottom: calc(var(--fb) + 116px); display: flex; gap: 64px; align-items: stretch; }
   .photo { position: relative; flex: 0 0 46%; border-radius: 22px; overflow: hidden; background: color-mix(in srgb, var(--panel) 60%, #000); box-shadow: 0 30px 80px rgba(0,0,0,.45); }
   .photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.0); transition: transform linear; }
   .page.on .photo img { transform: scale(1.07); }
@@ -83,6 +84,9 @@ export const BEELDKRANT_PAGE = `<!doctype html>
   var id = q.get("id");
   var preview = q.get("preview") === "1";
   var start = Number(q.get("start")) || Date.now();
+  // The channel's news ticker runs over the bottom of the picture: keep that room free (height in px).
+  var tk = Math.min(200, Math.max(0, Number(q.get("ticker")) || 0));
+  if (tk) document.documentElement.style.setProperty("--tk", tk + "px");
   var skew = 0;
   var data = null;
   var pin = null;
