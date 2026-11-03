@@ -75,7 +75,7 @@ De regisseur van de zender. Log in als hoofdredacteur (rol *Hoofdredacteur*) om 
 
 | Menu | Wat het doet |
 |---|---|
-| Graphics | Per kanaal logo, klok, straks-balk, ondertitels en ticker met live voorbeeld, getoond door de CasparCG-template `studio/casparcg-templates/tvsm/overlay.html` |
+| Graphics | Per kanaal logo, klok, straks-balk, ondertitels en nieuwsticker (vaste tekst of lopende RSS-koppen, snelheid/grootte/kleuren instelbaar, zie [docs/ticker.nl.md](docs/ticker.nl.md)) met live voorbeeld, getoond door de CasparCG-template `studio/casparcg-templates/tvsm/overlay.html` |
 | Kanalen / Apparatuur | ATEM-switchers (elk model), studio nodes (CasparCG AMCP, poort 5250) met rol playout of live, live bronnen en de bekabeling per kanaal. Zie [docs/two-nodes.nl.md](docs/two-nodes.nl.md) |
 | Schakelknoppen | De knoppen van de pagina Schakelen instellen: naam, kleur en live bron per kanaal |
 

@@ -11,6 +11,8 @@ import type { LiveRow, RemoteSources } from "./remote.js";
 import { at, casparClip, compile, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
 import { webcamOf } from "./webcamdb.js";
 import { playPlan } from "./webcamlogic.js";
+import { tickerHeadlinesFromDb } from "./tickerdb.js";
+import { tickerData, tickerHeight } from "./tickerlogic.js";
 
 /**
  * The director ("regisseur"). For every channel with automation on it follows the compiled schedule:
@@ -72,6 +74,8 @@ interface ChannelState {
 
 export class Director {
   private states = new Map<number, ChannelState>();
+  /** RSS headlines of each channel's ticker, re-read every `ticker.refreshMinutes` (or when its settings change). */
+  private tickerCache = new Map<number, { key: string; at: number; headlines: string[] }>();
   private timer: NodeJS.Timeout | null = null;
   private dirty = true;
   private busy = new Set<number>();
@@ -297,7 +301,7 @@ export class Director {
         const p = this.playout(ch);
         if (!p) throw new Error("no studio node configured for this channel");
         this.remote.forget(ch.studio_id, ch.caspar_channel);
-        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, beeldkrantUrl(this.platform, ev.leaf.beeldkrantId, ev.start - ev.offsetMs));
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, beeldkrantUrl(this.platform, ev.leaf.beeldkrantId, ev.start - ev.offsetMs, this.tickerSpace(ch, ev, now)));
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
@@ -476,11 +480,29 @@ export class Director {
       hidden,
       logo: { ...g.logo, enabled: g.logo.enabled && rule.logo, url: g.logo.file ? `${publicUrl(this.platform)}/graphics/${ch.id}/logo?v=${encodeURIComponent(g.logo.file)}` : null },
       clock: { ...g.clock, enabled: g.clock.enabled && rule.clock },
-      ticker: { ...g.ticker, enabled: g.ticker.enabled && rule.ticker },
+      ticker: tickerData(g.ticker, g.ticker.enabled && rule.ticker, this.tickerHeadlines(ch.id, g.ticker, now)),
       now: { title: current?.programTitle || current?.title || "" },
       upNext: { visible: upNextVisible, title: nextProgram?.programTitle ?? "", startAt: nextProgram ? new Date(nextProgram.start).toISOString() : null },
       subtitles: this.subtitlesFor(g, current),
     };
+  }
+
+  /** The ticker's RSS headlines; kept for `refreshMinutes` so the running line does not change on every feed fetch. */
+  tickerHeadlines(channelId: number, t: Graphics["ticker"], now: number): string[] {
+    if (t.source === "text" || !t.feedIds.length) return [];
+    const key = JSON.stringify([t.source, t.feedIds, t.maxItems, t.maxAgeHours, t.showTime]);
+    const c = this.tickerCache.get(channelId);
+    if (c && c.key === key && now - c.at < t.refreshMinutes * 60_000) return c.headlines;
+    const headlines = tickerHeadlinesFromDb(this.platform.ctx.db, t, now, this.platform.ctx.settings.get("station.timezone", "Europe/Amsterdam"));
+    this.tickerCache.set(channelId, { key, at: now, headlines });
+    return headlines;
+  }
+
+  /** Room the beeldkrant page keeps free at the bottom for the channel's ticker (0 = no ticker during this item). */
+  private tickerSpace(ch: ChannelRow, ev: TimelineEvent, now: number) {
+    const g = channelOut(ch).graphics as Graphics;
+    if (!g.enabled || !g.ticker.enabled || !baseLayer(g.layers, ev).ticker) return 0;
+    return tickerData(g.ticker, true, this.tickerHeadlines(ch.id, g.ticker, now)).enabled ? tickerHeight(g.ticker.fontSize) : 0;
   }
 
   /** Cues URL + the wall-clock time of the clip's first frame; the overlay times the cues itself (NTP-synced clocks). */
@@ -729,6 +751,7 @@ export function publicUrl(platform: Platform) {
 export const lineupUrl = (platform: Platform, channelId: number, at: number) => `${publicUrl(platform)}/lineup/page.html?channel=${channelId}&at=${Math.round(at)}`;
 
 /** Page CasparCG plays for a beeldkrant: `start` is the wall-clock time of its first page, so a restart shows the right page. */
-export const beeldkrantUrl = (platform: Platform, id: number, start: number) => `${publicUrl(platform)}/beeldkrant/page.html?id=${id}&start=${Math.round(start)}`;
+export const beeldkrantUrl = (platform: Platform, id: number, start: number, tickerSpace = 0) =>
+  `${publicUrl(platform)}/beeldkrant/page.html?id=${id}&start=${Math.round(start)}${tickerSpace > 0 ? `&ticker=${tickerSpace}` : ""}`;
 
 const sameOutput = (a: Output, b: Output) => a.studioId === b.studioId && a.casparChannel === b.casparChannel;

@@ -3,7 +3,8 @@
   TV Station Manager graphics overlay for CasparCG (HTML template).
   Loaded by the management node with: CG <ch>-<layer> ADD 1 "tvsm/overlay" 1 "<json>"
   and updated with CG UPDATE. Data: { channel, hidden, logo{enabled,position,opacity,url}, clock{enabled,position},
-  ticker{enabled,text}, now{title}, upNext{visible,title,startAt}, subtitles{enabled,url,clipStart,size} }.
+  ticker{enabled,items[],separator,label,speed,fontSize,height,bold,uppercase,colors{background,text,accent,labelText},backgroundOpacity}
+  (older management nodes send ticker{enabled,text}), now{title}, upNext{visible,title,startAt}, subtitles{enabled,url,clipStart,size} }.
   Subtitles: `url` returns { cues: [{ s, e, t }] } (ms from the clip start); `clipStart` is the wall-clock time (epoch ms)
   of the clip's first frame. Studio and management node clocks must be NTP-synced.
   Renders at 1920x1080 with a transparent background; keep it on a layer above the playout layer (10).
@@ -34,9 +35,16 @@
   #subs.small span { font-size: 34px; }
   #subs.medium span { font-size: 42px; }
   #subs.large span { font-size: 52px; }
-  body.ticker-on #subs { bottom: 170px; }
-  #ticker { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(42,20,48,.92); border-top: 4px solid var(--accent); overflow: hidden; }
-  #ticker .run { position: absolute; white-space: nowrap; color: #fff; font-size: 30px; line-height: 60px; will-change: transform; }
+  body.ticker-on #subs { bottom: calc(var(--tk-h, 64px) + 106px); }
+  #ticker { position: absolute; left: 0; right: 0; bottom: 0; height: var(--tk-h, 64px); box-sizing: border-box; background: rgba(42,20,48,.92); border-top: 4px solid var(--tk-accent, var(--accent)); overflow: hidden; display: flex; color: var(--tk-text, #fff); font-size: var(--tk-size, 30px); }
+  #ticker .label { flex: none; display: flex; align-items: center; padding: 0 1em; background: var(--tk-accent, var(--accent)); color: var(--tk-label, #fff); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; position: relative; z-index: 1; }
+  #ticker .label:empty { display: none; }
+  #ticker .lane { position: relative; flex: 1; overflow: hidden; }
+  #ticker .run { position: absolute; top: 0; left: 0; height: 100%; will-change: transform; }
+  #ticker .piece { position: absolute; top: 0; height: 100%; display: flex; align-items: center; white-space: nowrap; }
+  #ticker .piece .sep { color: var(--tk-accent, var(--accent)); padding: 0 .9em; font-weight: 700; }
+  #ticker.bold .piece { font-weight: 700; }
+  #ticker.upper .piece .txt { text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -46,7 +54,7 @@
     <div id="upnext" class="pos-bottom-left fade gone"><span class="tag" id="upnext-tag">Straks</span><span class="title"><span id="upnext-title"></span><span class="time" id="upnext-time"></span></span></div>
   </div>
   <div id="subs" class="medium"><span id="subs-text" style="display:none"></span></div>
-  <div id="ticker" class="fade gone"><div class="run" id="ticker-run"></div></div>
+  <div id="ticker" class="fade gone"><div class="label" id="ticker-label"></div><div class="lane" id="ticker-lane"><div class="run" id="ticker-run"></div></div></div>
 <script>
   var state = {};
   var $ = function (id) { return document.getElementById(id); };
@@ -54,7 +62,6 @@
   function show(el, on) { el.classList.toggle("gone", !on); }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function hhmm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
-  var tickerX = 0, tickerText = null;
   function render() {
     var d = state, hidden = !!d.hidden;
     var logo = $("logo");
@@ -69,11 +76,11 @@
     $("upnext-time").textContent = up.startAt ? hhmm(new Date(up.startAt)) : "";
     show($("upnext"), !hidden && up.visible && !!up.title);
     var t = d.ticker || {};
-    if (t.text !== tickerText) { tickerText = t.text; $("ticker-run").textContent = t.text || ""; tickerX = 1920; }
-    var tickerOn = !hidden && t.enabled && !!t.text;
+    var items = t.items || (t.text ? [t.text] : []);
+    var tickerOn = !hidden && t.enabled && items.length > 0;
+    tickerSet(t, items);
     show($("ticker"), tickerOn);
     tickerRunning = tickerOn;
-    if (tickerOn) tickerW = $("ticker-run").offsetWidth;
     document.body.classList.toggle("ticker-on", tickerOn);
     var sub = d.subtitles || {};
     $("subs").className = sub.size || "medium";
@@ -106,19 +113,79 @@
     el.textContent = text;
     el.style.display = text ? "inline-block" : "none";
   }
+  // ---- ticker ----
+  // The line is a queue of pieces (text + separator) that enter on the right and are removed once they have left on the
+  // left. New headlines start with the next piece, so the line never jumps.
+  var tk = { items: [], next: 0, pieces: [], offset: 0, end: 0, style: null, speed: 120, sep: "•", last: 0 };
+  function rgba(hex, a) {
+    var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
+    return m ? "rgba(" + parseInt(m[1], 16) + "," + parseInt(m[2], 16) + "," + parseInt(m[3], 16) + "," + (a == null ? 0.92 : a) + ")" : "rgba(42,20,48,.92)";
+  }
+  function tickerSet(t, items) {
+    var c = t.colors || {};
+    var style = JSON.stringify([t.fontSize, t.height, t.bold, t.uppercase, t.separator, c, t.backgroundOpacity, t.label]);
+    var el = $("ticker"), root = document.documentElement.style;
+    if (style !== tk.style) {
+      tk.style = style;
+      root.setProperty("--tk-h", (t.height || 64) + "px");
+      root.setProperty("--tk-size", (t.fontSize || 30) + "px");
+      root.setProperty("--tk-text", c.text || "#fff");
+      root.setProperty("--tk-label", c.labelText || "#fff");
+      root.setProperty("--tk-accent", c.accent || "#E92E7F");
+      el.style.background = rgba(c.background || "#2A1430", t.backgroundOpacity);
+      el.classList.toggle("bold", !!t.bold);
+      el.classList.toggle("upper", !!t.uppercase);
+      $("ticker-label").textContent = t.label || "";
+      tk.sep = t.separator == null ? "•" : t.separator;
+      tickerClear();
+    }
+    tk.speed = t.speed || 120;
+    if (JSON.stringify(items) !== JSON.stringify(tk.items)) { tk.items = items.slice(); tk.next = 0; }
+  }
+  function tickerClear() {
+    $("ticker-run").innerHTML = "";
+    tk.pieces = []; tk.offset = 0; tk.end = -1; tk.next = 0;
+  }
+  function tickerFill(laneW) {
+    var run = $("ticker-run");
+    if (tk.end < 0) tk.end = laneW; // first start: enter from the right
+    while (tk.items.length && tk.end - tk.offset < laneW + 40) {
+      if (tk.next >= tk.items.length) tk.next = 0;
+      var p = document.createElement("span");
+      p.className = "piece";
+      var txt = document.createElement("span");
+      txt.className = "txt";
+      txt.textContent = tk.items[tk.next++];
+      p.appendChild(txt);
+      var sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = tk.sep || "\u00a0\u00a0\u00a0";
+      p.appendChild(sep);
+      p.style.left = tk.end + "px";
+      run.appendChild(p);
+      var w = p.offsetWidth || 1;
+      tk.pieces.push({ el: p, x: tk.end, w: w });
+      tk.end += w;
+    }
+  }
+  function tickerFrame(ts) {
+    var dt = tk.last ? Math.min(100, ts - tk.last) : 0;
+    tk.last = ts;
+    var laneW = $("ticker-lane").offsetWidth || 1920;
+    tk.offset += (tk.speed * dt) / 1000;
+    while (tk.pieces.length && tk.pieces[0].x + tk.pieces[0].w < tk.offset) $("ticker-run").removeChild(tk.pieces.shift().el);
+    tickerFill(laneW);
+    $("ticker-run").style.transform = "translateX(" + -tk.offset.toFixed(1) + "px)";
+  }
   // Runs every frame, so it only touches the DOM when something changes: every DOM write makes CEF paint and
   // CasparCG copy a new 1920x1080 frame, which costs CPU even with nothing visible moving.
-  var shownClock = null, tickerW = 0, tickerRunning = false;
-  function frame() {
+  var shownClock = null, tickerRunning = false;
+  function frame(ts) {
     var c = hhmm(new Date());
     if (c !== shownClock) { shownClock = c; $("clock").textContent = c; }
     renderSubs();
-    if (tickerRunning) {
-      var run = $("ticker-run");
-      tickerX -= 3;
-      if (tickerX < -tickerW) tickerX = 1920;
-      run.style.transform = "translateX(" + tickerX + "px)";
-    }
+    if (tickerRunning) tickerFrame(ts);
+    else tk.last = 0;
     requestAnimationFrame(frame);
   }
   function parse(s) { try { return typeof s === "string" ? JSON.parse(s) : (s || {}); } catch (e) { return {}; } }
@@ -132,7 +199,7 @@
   // Preview in a normal browser: overlay.html?demo
   if (location.search.indexOf("demo") >= 0) {
     document.body.style.background = "#334";
-    window.update({ logo: { enabled: true, position: "top-right", url: null }, clock: { enabled: true, position: "top-left" }, ticker: { enabled: true, text: "Welkom bij TV Station Manager  •  Dit is de nieuwsticker" }, upNext: { visible: true, title: "Het Journaal", startAt: new Date(Date.now() + 60000).toISOString() }, subtitles: { enabled: true, url: null, clipStart: Date.now(), size: "medium" } });
+    window.update({ logo: { enabled: true, position: "top-right", url: null }, clock: { enabled: true, position: "top-left" }, ticker: { enabled: true, label: "Nieuws", items: ["Welkom bij TV Station Manager", "Dit is de nieuwsticker met de koppen uit de RSS-feed", "Snelheid, letters en kleuren stel je in bij Kanaal & lagen"], separator: "•", speed: 120, fontSize: 30, height: 64 }, upNext: { visible: true, title: "Het Journaal", startAt: new Date(Date.now() + 60000).toISOString() }, subtitles: { enabled: true, url: null, clipStart: Date.now(), size: "medium" } });
     cues = [{ s: 0, e: 60000, t: "Dit is een voorbeeld van een ondertitel\nover twee regels." }]; cuesUrl = "demo";
   }
 </script>
