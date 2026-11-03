@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
 import { managementOptions, type ManagementHandles } from "../server/app.ts";
-import type { DriverFactory, PlayoutDriver, SwitcherDriver, SwitcherInfo } from "../server/drivers.ts";
+import { cgData, type DriverFactory, type PlayoutDriver, type SwitcherDriver, type SwitcherInfo } from "../server/drivers.ts";
 import { graphicsSchema } from "../server/content.ts";
 import { tickerData, tickerHeadlines, tickerHeight, tickerItems, tickerSchema } from "../server/tickerlogic.ts";
 
@@ -182,4 +182,36 @@ test("ticker: RSS headlines in the overlay, picked up every few minutes, room on
   h.director.invalidate();
   await h.director.tick();
   assert.equal(lastTicker().enabled, false);
+});
+
+// ---- AMCP: template data reaches the overlay in one piece ----------------------------
+
+/** CasparCG's AMCP tokenizer: spaces split, double quotes group (and disappear), a backslash escapes the next character. */
+function amcpTokens(line: string) {
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  let esc = false;
+  for (const c of line) {
+    if (esc) {
+      cur += c === "n" ? "\n" : c;
+      esc = false;
+    } else if (c === "\\") esc = true;
+    else if (c === '"') quoted = !quoted;
+    else if (c === " " && !quoted) {
+      if (cur) out.push(cur);
+      cur = "";
+    } else cur += c;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+test("ticker: CG UPDATE data survives CasparCG's AMCP parser (spaces, quotes, $, new lines)", () => {
+  const data = { channel: "Ijmond 360", ticker: { enabled: true, items: ['Wil en buurtgenoten willen "plantenbakken" terug…', "Prijs $5 \\ stuk", "regel\nnieuw"] } };
+  const tokens = amcpTokens(`CG 1-20 UPDATE 1 ${cgData(data)}`);
+  assert.equal(tokens.length, 5);
+  assert.deepEqual(JSON.parse(tokens[4]!), data);
+  // What was sent before: the raw JSON, cut at the first space.
+  assert.throws(() => JSON.parse(amcpTokens(`CG 1-20 UPDATE 1 ${JSON.stringify(data)}`)[4]!));
 });
