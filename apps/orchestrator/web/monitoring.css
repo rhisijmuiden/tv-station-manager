@@ -1,24 +1,195 @@
-/* Monitoring block diagram: animated control / signal lines between the blocks. */
-.tvsm-mon-line {
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+/* Monitoring: 3D room (MonitoringRoom.tsx). Colours come only from the brand tokens. */
+.tvsm-room {
+  background: var(--tvsm-sidebar);
+  perspective: 2400px; /* PERSPECTIVE and ORIGIN_Y in MonitoringRoom.tsx */
+  perspective-origin: 50% 30%;
 }
-.tvsm-mon-flow {
-  stroke-dasharray: 6 8;
-  animation: tvsm-mon-flow 1.2s linear infinite;
+.tvsm-room-scene {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
 }
-.tvsm-mon-dotted {
-  stroke-dasharray: 2 6;
+.tvsm-room-floor {
+  position: absolute;
+  transform-style: preserve-3d;
+  border-radius: 24px;
+  --grid: color-mix(in srgb, var(--tvsm-primary) 16%, var(--tvsm-sidebar));
+  background-color: color-mix(
+    in srgb,
+    var(--tvsm-primary) 6%,
+    var(--tvsm-sidebar)
+  );
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
-@keyframes tvsm-mon-flow {
-  to {
-    stroke-dashoffset: -28;
+.tvsm-room-platform {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid
+    color-mix(in srgb, var(--tvsm-primary) 35%, var(--tvsm-sidebar));
+  background: color-mix(in srgb, var(--tvsm-primary) 16%, var(--tvsm-sidebar));
+  color: var(--tvsm-sidebar-text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  transform: translateZ(1px);
+}
+.tvsm-room-cable {
+  position: absolute;
+  height: 0;
+  border-top: 4px dashed
+    color-mix(in srgb, var(--tvsm-primary-light) 80%, var(--tvsm-sidebar));
+  transform-origin: 0 0;
+}
+.tvsm-room-cable[data-h="down"] {
+  border-top-color: var(--tvsm-danger);
+}
+.tvsm-room-cable-support {
+  border-top-style: dotted;
+  border-top-color: color-mix(
+    in srgb,
+    var(--tvsm-primary) 45%,
+    var(--tvsm-sidebar)
+  );
+}
+
+/* Health colour per box, swatch and dot. */
+.tvsm-room [data-h] {
+  --c: color-mix(in srgb, var(--tvsm-primary) 55%, var(--tvsm-sidebar));
+  --led: var(--tvsm-success);
+}
+.tvsm-room [data-h="warn"] {
+  --c: var(--tvsm-warning);
+  --led: #fff;
+}
+.tvsm-room [data-h="down"] {
+  --c: var(--tvsm-danger);
+  --led: #fff;
+}
+.tvsm-room [data-h="unknown"] {
+  --c: color-mix(in srgb, var(--tvsm-sidebar-text) 45%, var(--tvsm-sidebar));
+  --led: var(--tvsm-sidebar-text);
+}
+.tvsm-room-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--tvsm-success);
+}
+.tvsm-room-dot[data-h="warn"] {
+  background: var(--tvsm-warning);
+}
+.tvsm-room-dot[data-h="down"] {
+  background: var(--tvsm-danger);
+}
+.tvsm-room-dot[data-h="unknown"] {
+  background: var(--tvsm-sidebar-text);
+}
+.tvsm-room-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--c);
+}
+
+.tvsm-room-box {
+  position: absolute;
+  transform-style: preserve-3d;
+  transform: translateZ(2px);
+}
+.tvsm-room-face {
+  position: absolute;
+  box-sizing: border-box;
+}
+.tvsm-room-s1 {
+  background: color-mix(in srgb, var(--c) 72%, #000);
+}
+.tvsm-room-s2 {
+  background: color-mix(in srgb, var(--c) 58%, #000);
+}
+.tvsm-room-front {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 9px,
+    rgb(0 0 0 / 0.18) 9px 11px
+  );
+}
+.tvsm-room-top {
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: color-mix(in srgb, var(--c) 100%, #fff 8%);
+}
+.tvsm-room-top:focus-visible {
+  outline: 3px solid var(--tvsm-on-air);
+  outline-offset: 2px;
+}
+.tvsm-room-selected {
+  box-shadow:
+    0 0 0 3px var(--tvsm-on-air),
+    0 0 24px var(--tvsm-on-air);
+}
+.tvsm-room-led {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--led);
+  box-shadow: 0 0 6px var(--led);
+}
+.tvsm-room-pill {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--tvsm-sidebar) 92%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--tvsm-primary) 45%, var(--tvsm-sidebar));
+}
+.tvsm-room-pill .tvsm-room-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 0;
+}
+.tvsm-room-pill-selected {
+  background: var(--tvsm-on-air);
+  border-color: var(--tvsm-on-air);
+}
+.tvsm-room-pulse {
+  animation: tvsm-room-pulse 1.3s ease-in-out infinite;
+}
+@keyframes tvsm-room-pulse {
+  50% {
+    filter: brightness(1.45);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tvsm-mon-flow {
+  .tvsm-room-pulse {
     animation: none;
   }
 }
