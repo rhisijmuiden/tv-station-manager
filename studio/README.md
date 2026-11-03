@@ -19,7 +19,7 @@ A studio node is a Windows PC with a Blackmagic DeckLink card (4 SDI outputs, up
    ```
 
    Use `test` instead of `production` in the URL plus `-Channel test` for the test channel. Other options:
-   `-Outputs 4` (DeckLink outputs = CasparCG channels), `-VideoMode 1080i5000` (default; `1080p5000`, `720p5000`, ...; must match the ATEM or receiver; a rerun keeps the previous mode), `-Keyer default` (fill only, so the DeckLink HDMI output shows the programme; `external` for fill + key),
+   `-Outputs 4` (DeckLink outputs = CasparCG channels; a rerun keeps the previous count), `-VideoMode 1080i5000` (default; `1080p5000`, `720p5000`, ...; must match the ATEM or receiver; a rerun keeps the previous mode), `-Keyer default` (fill only, so the DeckLink HDMI output shows the programme; `external` for fill + key),
    `-ManagementUrl` (where the ingest server checks stream keys; default `http://<first -ManagementHost>:8080`),
    `-PublicHost` (address shown in the RTMP push URL), `-HtmlGpu auto` (HTML graphics such as the overlay, beeldkrant and
    webcam pages render on the graphics card when an NVIDIA/AMD/Intel driver is installed; `off` renders them in software

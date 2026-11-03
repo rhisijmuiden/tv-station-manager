@@ -26,6 +26,7 @@ param(
   [string]$MediaPath = "",
   [string]$SmbUser = "",
   [SecureString]$SmbPassword,
+  # Number of CasparCG channels (one per DeckLink output). Default: the count of the previous install, else 4.
   [ValidateRange(1, 8)][int]$Outputs = 4,
   # CasparCG video mode for every channel, e.g. 1080i5000, 1080p5000, 720p5000, 1080p2500. Must match the ATEM / receiver.
   # Default: the mode of the previous install, else 1080i5000.
@@ -90,6 +91,9 @@ if (-not $HtmlGpu) { $HtmlGpu = if ($old -and $old.htmlGpu) { $old.htmlGpu } els
 $roleMap = @{ tv = "playout"; ingest = "live"; both = "studio" }
 if (-not $Role -and $old -and $old.role) { $Role = ($roleMap.GetEnumerator() | Where-Object { $_.Value -eq $old.role } | Select-Object -First 1).Key }
 if (-not $Role) { $Role = "tv" }
+# A rerun keeps the number of channels of the previous install unless -Outputs is given (a node with one DeckLink
+# output must not suddenly get 4 channels that grab inputs of other software).
+if (-not $PSBoundParameters.ContainsKey("Outputs") -and $old -and $old.outputs) { $Outputs = [Math]::Max(1, @($old.outputs).Count) }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
 function Get-Release([string]$repo, [scriptblock]$pick) {
