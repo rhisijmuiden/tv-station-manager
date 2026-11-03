@@ -86,6 +86,8 @@
   },
   "info": {
     "title": "About this installation",
+    "license": "License",
+    "sourceCode": "Source code",
     "version": "Version",
     "channel": "Release channel",
     "hostname": "Host",

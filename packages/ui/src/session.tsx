@@ -24,6 +24,8 @@ export interface SystemInfo {
   node: string;
   arch: string;
   uptimeSeconds: number;
+  license?: string;
+  sourceUrl?: string;
 }
 export interface UpdateCheck {
   current: string;

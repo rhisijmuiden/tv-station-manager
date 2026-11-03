@@ -2,6 +2,7 @@
   "name": "tv-station-manager",
   "private": true,
   "version": "0.1.1",
+  "license": "AGPL-3.0-only",
   "description": "TV Station Manager: orchestrator, management node and studio nodes",
   "packageManager": "pnpm@10.28.0",
   "engines": { "node": ">=22.13" },

@@ -16,6 +16,7 @@
        stream status from the MediaMTX API (TCP 9997, only from the management node).
     4. Opens the firewall (AMCP 5250 and API 9997 for the management node, RTMP 1935, SRT 8890) and disables sleep.
   Settings live in %ProgramData%\TVSM\studio (studio.json, smb.cred, mediamtx.yml).
+  SPDX-License-Identifier: AGPL-3.0-only
 #>
 param(
   [string]$Orchestrator = "",

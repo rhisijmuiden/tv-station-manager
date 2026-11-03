@@ -136,3 +136,20 @@ Work goes into a feature branch, then a PR into `test`, then `test` is merged in
 ## House style
 
 See [branding/README.md](branding/README.md): every house style lives in its own folder, `branding/active-brand` selects the one the apps are built with.
+
+## License
+
+TV Station Manager is free software, licensed under the
+[GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
+
+- You may use, study, change and share it. If you distribute it, or let people use a **modified** version over a
+  network (for example the web interface), you must offer them the complete source code of that version under the
+  same license.
+- The Info dialog in every app shows the license and links to the source code of the running version.
+- The `.deb` packages carry the license in `/usr/share/doc/tvsm-<app>/` (`copyright`, `LICENSE`); the Windows
+  agent zip carries `LICENSE.txt`.
+
+Third-party components keep their own licenses. All bundled npm dependencies use licenses compatible with
+AGPL-3.0 (MIT, ISC, BSD, Apache-2.0, BlueOak-1.0.0, 0BSD, MIT-0, Unlicense; fonts under OFL-1.1). Programs that run
+next to TVSM as separate processes are not part of this work: Node.js (MIT, bundled), WinSW (MIT), MediaMTX (MIT),
+CasparCG Server (GPL-3.0) and FFmpeg/smbclient (installed from Debian).
