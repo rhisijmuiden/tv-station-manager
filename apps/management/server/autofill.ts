@@ -4,6 +4,9 @@
  * - newest: the newest N clips (news block); new clips push the oldest ones out.
  * - rotate: in turn, the clip that was picked longest ago first (ads, bumpers), never twice in one broadcast.
  * - random: a random clip, not the ones picked most recently, never twice in one broadcast.
+ * - mix: the newest clip(s) first, the rest random (an hour of programme items from all week folders: always the
+ *   newest report first, then a few random others). The newest part is decided again for every broadcast, so a clip
+ *   that comes in at 14:30 opens the 15:00 hour.
  * Pure: the database query and the memory of what was picked live in the timeline loader (`content.ts`).
  */
 import { z } from "zod";
@@ -27,7 +30,9 @@ export const autoRuleSchema = z.object({
   /** Stop adding clips once the block part would get longer than this (null = no limit). */
   maxMinutes: z.number().int().min(1).max(240).nullable().default(null),
   /** How clips are picked: newest, in turn (longest not picked first) or random. */
-  pick: z.enum(["newest", "rotate", "random"]).default("newest"),
+  pick: z.enum(["newest", "rotate", "random", "mix"]).default("newest"),
+  /** Mix pick only: how many of the `count` clips are the newest ones (played first); the rest is random. */
+  newestCount: z.number().int().min(1).max(10).default(1),
   /** Play order of the chosen clips (newest pick only). */
   order: z.enum(["newest_first", "oldest_first"]).default("newest_first"),
 });
@@ -80,7 +85,28 @@ export function seeded(seed: string) {
  * without a known length are skipped (they are still being checked). `exclude` holds clips already picked for the same
  * broadcast (no bumper twice in one hour, unless there is nothing else); `seed` makes a random pick repeatable.
  */
-export function pickClips(candidates: AutoCandidate[], rule: AutoRule, asOf: number, opts: { exclude?: ReadonlySet<number>; seed?: string } = {}): number[] {
+/** Mix pick: how many of the picked clips are the newest ones; the rest of the list is the random part. */
+export const mixNewest = (rule: AutoRule) => (rule.pick === "mix" ? Math.min(rule.newestCount, rule.count) : 0);
+
+/** Random order of `pool` from `seed`, with the `backN` most recently picked clips moved to the back. */
+function shuffle(pool: AutoCandidate[], seed: string, backN: number): AutoCandidate[] {
+  const rnd = seeded(seed);
+  const shuffled = [...pool].sort((a, b) => a.id - b.id);
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+  // The most recently picked clips go to the back, so the same one does not come back right away.
+  const recentN = Math.min(backN, Math.max(0, shuffled.length - backN));
+  const recent = new Set([...shuffled].filter((c) => c.lastPickAt != null).sort((a, b) => b.lastPickAt! - a.lastPickAt!).slice(0, recentN).map((c) => c.id));
+  return [...shuffled.filter((c) => !recent.has(c.id)), ...shuffled.filter((c) => recent.has(c.id))];
+}
+
+/**
+ * `keep` (mix pick only): the random part remembered for this broadcast. It is played again as long as every clip in it
+ * is still usable and none of them has become one of the newest; otherwise the random part is picked again.
+ */
+export function pickClips(candidates: AutoCandidate[], rule: AutoRule, asOf: number, opts: { exclude?: ReadonlySet<number>; seed?: string; keep?: readonly number[] } = {}): number[] {
   const minAt = rule.maxAgeDays != null ? asOf - rule.maxAgeDays * DAY : -Infinity;
   const usable = candidates.filter((c) => c.durationMs != null && c.durationMs > 0 && c.addedAt <= asOf && c.addedAt >= minAt);
   const fresh = usable.filter((c) => !opts.exclude?.has(c.id));
@@ -91,16 +117,17 @@ export function pickClips(candidates: AutoCandidate[], rule: AutoRule, asOf: num
     // Longest not picked first; never picked = first of all (newest of those first, so a new ad starts soon).
     ordered = [...pool].sort((a, b) => (a.lastPickAt ?? -Infinity) - (b.lastPickAt ?? -Infinity) || b.addedAt - a.addedAt || a.id - b.id);
   } else if (rule.pick === "random") {
-    const rnd = seeded(opts.seed ?? String(asOf));
-    const shuffled = [...pool].sort((a, b) => a.id - b.id);
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(rnd() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
-    }
-    // The most recently picked clips go to the back, so the same one does not come back right away.
-    const recentN = Math.min(rule.count, Math.max(0, shuffled.length - rule.count));
-    const recent = new Set([...shuffled].filter((c) => c.lastPickAt != null).sort((a, b) => b.lastPickAt! - a.lastPickAt!).slice(0, recentN).map((c) => c.id));
-    ordered = [...shuffled.filter((c) => !recent.has(c.id)), ...shuffled.filter((c) => recent.has(c.id))];
+    ordered = shuffle(pool, opts.seed ?? String(asOf), rule.count);
+  } else if (rule.pick === "mix") {
+    const byAge = [...pool].sort((a, b) => b.addedAt - a.addedAt || b.id - a.id);
+    const n = mixNewest(rule);
+    const newest = byAge.slice(0, n);
+    const rest = byAge.slice(n);
+    const restIds = new Map(rest.map((c) => [c.id, c]));
+    const kept = opts.keep?.length && opts.keep.every((id) => restIds.has(id)) ? opts.keep.map((id) => restIds.get(id)!) : null;
+    const keptSet = new Set(kept?.map((c) => c.id));
+    // Kept clips first in their order, the others random behind them (only used when the count went up).
+    ordered = [...newest, ...(kept ?? []), ...shuffle(rest.filter((c) => !keptSet.has(c.id)), opts.seed ?? String(asOf), rule.count - n)];
   } else {
     ordered = [...pool].sort((a, b) => b.addedAt - a.addedAt || b.id - a.id);
   }

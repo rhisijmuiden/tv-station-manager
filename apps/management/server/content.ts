@@ -10,7 +10,7 @@ import { audioIn, BlockCycleError, fillIn, compile, DEFAULT_LINEUP_MS, expandBlo
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
 import { webcamRef } from "./webcamdb.js";
-import { autoRuleSchema, isoWeek, newestFolders, parseAutoRule, pickClips, ruleReady, type AutoRule } from "./autofill.js";
+import { autoRuleSchema, isoWeek, mixNewest, newestFolders, parseAutoRule, pickClips, ruleReady, type AutoRule } from "./autofill.js";
 import { stationDay } from "./hourclock.js";
 
 // ---- graphics settings (per channel) ------------------------------------------
@@ -215,10 +215,14 @@ export function autoMedia(db: Db, stored: unknown, asOf: number, slot?: { key: s
   // A preview (blocks page) avoids repeats within the block but reads and writes no remembered picks.
   const remember = slot && !slot.preview && rule.pick !== "newest";
   const sig = JSON.stringify(rule);
+  const mix = rule.pick === "mix";
+  // Mix: only the random part is remembered; the newest part is decided again at every compile.
+  let keep: number[] | undefined;
   if (remember) {
     const memo = db.prepare("SELECT media_ids AS ids, rule FROM auto_picks WHERE key = ? AND path = ?").get(slot.key, slot.path) as { ids: string; rule: string } | undefined;
     const ids = memo ? (JSON.parse(memo.ids) as number[]) : [];
-    if (memo && memo.rule === sig && ids.length && ids.every((id) => byId.has(id))) {
+    if (mix && memo && memo.rule === sig) keep = ids;
+    else if (memo && memo.rule === sig && ids.length && ids.every((id) => byId.has(id))) {
       for (const id of ids) used.add(id);
       return out(ids);
     }
@@ -229,14 +233,16 @@ export function autoMedia(db: Db, stored: unknown, asOf: number, slot?: { key: s
     rows.map((r) => ({ id: r.id, durationMs: r.durationMs, addedAt: addedAt(r), lastPickAt: mem.lastPick.get(r.id) ?? (r.lastPickAt ? Date.parse(r.lastPickAt) : null) })),
     rule,
     asOf,
-    { exclude: used, seed: slot ? `${slot.key}|${slot.path}` : String(asOf) },
+    { exclude: used, seed: slot ? `${slot.key}|${slot.path}` : String(asOf), keep },
   );
+  const memoIds = mix ? ids.slice(mixNewest(rule)) : ids;
   for (const id of ids) used.add(id);
   if (remember) {
     for (const id of ids) mem.lastPick.set(id, asOf);
-    if (ids.length && asOf <= Date.now() + PICK_MEMO_AHEAD_MS) {
+    const same = keep != null && JSON.stringify(keep) === JSON.stringify(memoIds);
+    if (ids.length && !same && asOf <= Date.now() + PICK_MEMO_AHEAD_MS) {
       const at = new Date(asOf).toISOString();
-      db.prepare("INSERT OR REPLACE INTO auto_picks (key, path, at, rule, media_ids) VALUES (?, ?, ?, ?, ?)").run(slot.key, slot.path, at, sig, JSON.stringify(ids));
+      db.prepare("INSERT OR REPLACE INTO auto_picks (key, path, at, rule, media_ids) VALUES (?, ?, ?, ?, ?)").run(slot.key, slot.path, at, sig, JSON.stringify(memoIds));
       const st = db.prepare("UPDATE media SET last_pick_at = ? WHERE id = ? AND (last_pick_at IS NULL OR last_pick_at < ?)");
       for (const id of ids) st.run(at, id, at);
       db.prepare("DELETE FROM auto_picks WHERE at < ?").run(new Date(Date.now() - 3 * 86_400_000).toISOString());

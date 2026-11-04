@@ -1481,11 +1481,11 @@
       },
       "chooseCategory": "Kies een categorie…",
       "folder": "Map",
-      "folderHint": "Clips in submappen tellen ook mee.",
+      "folderHint": "Clips in submappen tellen ook mee. Kies de bovenste map (bijv. PROGRAMMA) voor alle programmamappen tegelijk.",
       "subfolders": {
         "label": "Welke clips uit deze map?",
         "all": "Alles in deze map",
-        "allHint": "Alle clips, ook uit submappen.",
+        "allHint": "Alle clips, ook uit alle submappen (bijv. alle weekmappen).",
         "newest": "Alleen de nieuwste submap",
         "newestHint": "Een map per week (wk 44, wk 45 …)? Pakt vanzelf de map van deze week, ook na de jaarwisseling.",
         "now": "Deze week uit: {{folder}}",
@@ -1516,12 +1516,14 @@
       "picks": {
         "rotate": "Om de beurt",
         "random": "Willekeurig",
-        "newest": "Nieuwste"
+        "newest": "Nieuwste",
+        "mix": "Nieuwste + willekeurig"
       },
       "pickHints": {
         "rotate": "Elke clip komt aan de beurt; handig voor reclames en bumpers.",
         "random": "Steeds een andere, niet meteen dezelfde als vorige keer.",
-        "newest": "De nieuwste clips; oude vallen eruit (nieuws)."
+        "newest": "De nieuwste clips; oude vallen eruit (nieuws).",
+        "mix": "Eerst de nieuwste, daarna willekeurige andere. Elk uur opnieuw (programma-items)."
       },
       "countHintSlot": "Nooit twee keer dezelfde clip in één uitzending.",
       "labels": {
@@ -1530,8 +1532,16 @@
         "rotate_one": "Om de beurt uit {{source}}",
         "rotate_other": "{{count}} clips om de beurt uit {{source}}",
         "random_one": "Willekeurig uit {{source}}",
-        "random_other": "{{count}} willekeurige clips uit {{source}}"
-      }
+        "random_other": "{{count}} willekeurige clips uit {{source}}",
+        "mix_one": "Nieuwste uit {{source}}",
+        "mix_other": "{{count}} clips uit {{source}}: nieuwste eerst, rest willekeurig"
+      },
+      "countHintMix": "In totaal, nooit twee keer dezelfde in één uitzending.",
+      "newestCount": "Waarvan nieuwste vooraan",
+      "newestCountHint_one": "Eerst de nieuwste, dan {{rest}} willekeurig.",
+      "newestCountHint_other": "Eerst de {{count}} nieuwste, dan {{rest}} willekeurig.",
+      "tagNewest": "nieuwste",
+      "tagRandom": "willekeurig"
     },
     "lineup": {
       "item": "Straks-slide",

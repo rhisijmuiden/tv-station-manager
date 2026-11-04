@@ -1481,11 +1481,11 @@
       },
       "chooseCategory": "Choose a category…",
       "folder": "Folder",
-      "folderHint": "Clips in subfolders count too.",
+      "folderHint": "Clips in subfolders count too. Pick the top folder (e.g. PROGRAMMA) for all programme folders at once.",
       "subfolders": {
         "label": "Which clips from this folder?",
         "all": "Everything in this folder",
-        "allHint": "All clips, subfolders included.",
+        "allHint": "All clips, including all subfolders (e.g. every week folder).",
         "newest": "Only the newest subfolder",
         "newestHint": "One folder per week (wk 44, wk 45 …)? Picks this week's folder by itself, also after New Year.",
         "now": "This week from: {{folder}}",
@@ -1516,12 +1516,14 @@
       "picks": {
         "rotate": "In turn",
         "random": "Random",
-        "newest": "Newest"
+        "newest": "Newest",
+        "mix": "Newest + random"
       },
       "pickHints": {
         "rotate": "Each clip gets its turn; good for ads and bumpers.",
         "random": "A different one each time, not the last one again.",
-        "newest": "The newest clips; old ones drop out (news)."
+        "newest": "The newest clips; old ones drop out (news).",
+        "mix": "The newest first, then random others. Rebuilt every hour (programme items)."
       },
       "countHintSlot": "Never twice the same clip within one broadcast.",
       "labels": {
@@ -1530,8 +1532,16 @@
         "rotate_one": "In turn from {{source}}",
         "rotate_other": "{{count}} clips in turn from {{source}}",
         "random_one": "Random from {{source}}",
-        "random_other": "{{count}} random clips from {{source}}"
-      }
+        "random_other": "{{count}} random clips from {{source}}",
+        "mix_one": "Newest from {{source}}",
+        "mix_other": "{{count}} clips from {{source}}: newest first, rest random"
+      },
+      "countHintMix": "In total, never the same one twice in one broadcast.",
+      "newestCount": "Of which newest up front",
+      "newestCountHint_one": "The newest first, then {{rest}} random.",
+      "newestCountHint_other": "The {{count}} newest first, then {{rest}} random.",
+      "tagNewest": "newest",
+      "tagRandom": "random"
     },
     "lineup": {
       "item": "Coming up slide",

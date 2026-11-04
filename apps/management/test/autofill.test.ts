@@ -279,3 +279,26 @@ test("only the newest subfolder: a folder per week plays this week's items", asy
   assert.deepEqual(before.folders, [`PROGRAMMA/${last.year} Reportages/${last.name}`]);
   assert.deepEqual(before.rows.map((m) => m.name).sort(), ["oud1", "oud2"]); // oud2 did not exist yet; the pick skips it
 });
+
+test("mix pick: newest first, the rest random, kept random part, newest decided again", () => {
+  const now = Date.parse("2026-11-04T15:00:00Z");
+  const MIN = 60_000;
+  const c = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, addedAt: now - (10 - i) * 3600_000, durationMs: 5 * MIN }));
+  const mix = parseAutoRule({ source: "folder", folder: "PROGRAMMA", pick: "mix", count: 4, newestCount: 1 });
+  const a = pickClips(c, mix, now, { seed: "occ|b1/0" });
+  assert.equal(a.length, 4);
+  assert.equal(a[0], 10);
+  assert.equal(new Set(a).size, 4);
+  assert.deepEqual(pickClips(c, mix, now, { seed: "occ|b1/0" }), a);
+  // A new clip arrives: it opens the hour, the remembered random part stays.
+  const withNew = [...c, { id: 11, addedAt: now - MIN, durationMs: 5 * MIN }];
+  assert.deepEqual(pickClips(withNew, mix, now, { seed: "other", keep: a.slice(1) }), [11, ...a.slice(1)]);
+  // Kept part containing the new newest is picked again, without repeats.
+  const b = pickClips(withNew, mix, now, { seed: "x", keep: [11, a[1]!, a[2]!] });
+  assert.equal(b[0], 11);
+  assert.equal(new Set(b).size, 4);
+  // Two newest up front.
+  assert.deepEqual(pickClips(c, { ...mix, newestCount: 2 }, now, { seed: "s" }).slice(0, 2), [10, 9]);
+  // Clips used elsewhere in the broadcast are skipped, also for the newest part.
+  assert.equal(pickClips(c, mix, now, { seed: "s", exclude: new Set([10]) })[0], 9);
+});
