@@ -13,10 +13,15 @@ uitzending neemt nieuwe clips vanzelf mee.
 
 ## Dynamische onderdelen: een uur opbouwen uit mappen
 
-Hetzelfde onderdeel kan op drie manieren kiezen:
+Hetzelfde onderdeel kan op vier manieren kiezen:
 - **Nieuwste**: de nieuwste clips (zie boven).
 - **Om de beurt**: de clip die het langst niet gekozen is eerst, zodat elke reclame of bumper aan de beurt komt.
 - **Willekeurig**: steeds een andere, niet meteen dezelfde als vorige keer.
+- **Nieuwste + willekeurig**: een aantal clips, de eerste (of de eerste paar) de nieuwste, de rest willekeurig. Kies de
+  bovenste map (bijv. `PROGRAMMA`) met *Alles in deze map*: de nieuwste clip uit alle weekmappen opent het uur, daarna
+  willekeurige andere uit alle mappen. Je hoeft dus niet elke week een weekmap te kiezen. De nieuwste wordt elk uur
+  opnieuw bekeken: een clip die om 14:30 binnenkomt, opent het uur van 15:00. Het willekeurige deel ligt drie uur van
+  tevoren vast.
 
 Voorbeeld uurblok: *reclame om de beurt uit Reclames*, *bumper om de beurt uit Bumpers*, *nieuwste item uit Programma*,
 *willekeurige bumper uit Bumpers*. Binnen één uitzending komt een clip nooit twee keer voor, tenzij de map niets anders

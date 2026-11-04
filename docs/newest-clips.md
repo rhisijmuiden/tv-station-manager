@@ -20,10 +20,15 @@ How it works
 
 ## Dynamic parts: build an hour from folders
 
-The same item can pick in three ways (`pick` in the rule):
+The same item can pick in four ways (`pick` in the rule):
 - **newest**: the newest N clips (above).
 - **rotate** (in turn): the clip picked longest ago first, so every ad or bumper gets its turn.
 - **random**: a seeded random clip, avoiding the most recently picked ones.
+- **mix** (newest + random): `count` clips, the first `newestCount` (default 1) the newest ones, the rest random.
+  Pick the top folder (e.g. `PROGRAMMA`) with *All in this folder*: the newest clip of all week folders below it opens
+  the hour, then random others from every folder. Only the random part is remembered in `auto_picks`; the newest part
+  is decided again at every compile (the director recompiles every minute), so a clip that comes in at 14:30 opens the
+  15:00 hour. When a remembered random clip has become one of the newest, the random part is picked again.
 
 Example hour block: *ad in turn from Reclames*, *bumper in turn from Bumpers*, *newest item from Programma*,
 *random bumper from Bumpers*. Within one broadcast (a week-schedule occurrence, key `occ:<occurrence>`, or a single

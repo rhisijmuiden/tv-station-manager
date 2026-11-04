@@ -1,5 +1,5 @@
 import { Alert, ApiError, Button, Dialog, Field, Input, Select, cx, post } from "@tvsm/ui";
-import { CalendarClock, Dices, Loader2, FolderOpen, FolderTree, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
+import { CalendarClock, Dices, ListStart, Loader2, FolderOpen, FolderTree, Repeat, Sparkles, Tags, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fmtDuration, useCategories, useGet } from "../lib";
@@ -14,7 +14,9 @@ export interface AutoRule {
   count: number;
   maxAgeDays: number | null;
   maxMinutes: number | null;
-  pick: "newest" | "rotate" | "random";
+  pick: "newest" | "rotate" | "random" | "mix";
+  /** Mix pick: how many of the clips are the newest ones (played first); the rest is random. */
+  newestCount: number;
   order: "newest_first" | "oldest_first";
 }
 export interface AutoInfo {
@@ -26,13 +28,13 @@ export interface AutoInfo {
   effectiveDurationMs: number;
 }
 /** A new dynamic slot: one clip from a folder, in turn (the usual hour build-up: ad, bumper, item, bumper). */
-export const defaultRule = (): AutoRule => ({ source: "folder", categoryId: null, folder: "", subfolders: "all", count: 1, maxAgeDays: null, maxMinutes: null, pick: "rotate", order: "newest_first" });
+export const defaultRule = (): AutoRule => ({ source: "folder", categoryId: null, folder: "", subfolders: "all", count: 1, maxAgeDays: null, maxMinutes: null, pick: "rotate", newestCount: 1, order: "newest_first" });
 
 /** One line for the rundown: "Newest 5 clips from News", "In turn from Bumpers". */
 export function autoLabel(t: (k: string, o?: Record<string, unknown>) => string, info: Pick<AutoInfo, "autoRule" | "autoSourceName">) {
   return t(`mgmt.auto.labels.${info.autoRule.pick ?? "newest"}`, { count: info.autoRule.count, source: info.autoSourceName ?? "?" });
 }
-const PICKS = ["rotate", "random", "newest"] as const;
+const PICKS = ["rotate", "random", "newest", "mix"] as const;
 
 /**
  * What the dynamic parts of a block being edited play now, computed together so a clip is not shown twice
@@ -56,6 +58,9 @@ export function useAutoPreviews(rules: (AutoRule | null | undefined)[]) {
   return previews;
 }
 
+/** Rules saved before a field existed get its default. */
+const withDefaults = (rule: AutoRule | null): AutoRule => ({ ...defaultRule(), ...(rule ?? {}) });
+
 const numOrNull = (v: string) => (v.trim() === "" ? null : Math.max(1, Math.round(Number(v))) || null);
 
 /** Dialog where an editor sets up "newest clips": where they come from, how many, how old. Shows what would play now. */
@@ -63,7 +68,7 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
   const { t } = useTranslation();
   const { categories } = useCategories();
   const folders = useGet<{ folders: string[] }>(open ? "/api/media?limit=1" : null);
-  const [r, setR] = useState<AutoRule>(rule ?? defaultRule());
+  const [r, setR] = useState<AutoRule>(withDefaults(rule));
   // Every folder plus the folders above it ("Programma/2026 Reportages" holds no clips itself but its week folders do).
   const allFolders = useMemo(() => {
     const set = new Set<string>();
@@ -80,7 +85,7 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
   const [previewError, setPreviewError] = useState("");
   const [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (open) setR(rule ?? defaultRule());
+    if (open) setR(withDefaults(rule));
   }, [open, rule]);
   const ready = r.source === "category" ? r.categoryId != null : r.folder !== "";
   useEffect(() => {
@@ -209,13 +214,14 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
           )}
           <div>
             <p className="mb-1.5 text-[13px] font-medium">{t("mgmt.auto.how")}</p>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               {PICKS.map((k) => {
-                const Icon = k === "rotate" ? Repeat : k === "random" ? Dices : TrendingUp;
+                const Icon = k === "rotate" ? Repeat : k === "random" ? Dices : k === "mix" ? ListStart : TrendingUp;
                 return (
                   <button
                     key={k}
-                    onClick={() => setR({ ...r, pick: k })}
+                    // An hour of programme items: a few clips, the first one the newest.
+                    onClick={() => setR(k === "mix" && r.pick !== "mix" ? { ...r, pick: k, subfolders: "all", count: Math.max(r.count, 4), newestCount: Math.min(r.newestCount ?? 1, Math.max(r.count, 4)) } : { ...r, pick: k })}
                     className={cx("rounded-md border px-3 py-2.5 text-left transition", r.pick === k ? "border-brand bg-brand/8" : "border-line hover:bg-surface-2")}
                   >
                     <span className={cx("flex items-center gap-2 text-sm", r.pick === k && "font-medium text-brand")}>
@@ -228,10 +234,15 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
               })}
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={t("mgmt.auto.count")} hint={t(r.pick === "newest" ? "mgmt.auto.countHint" : "mgmt.auto.countHintSlot")}>
+          <div className={cx("grid gap-4", r.pick === "mix" ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+            <Field label={t("mgmt.auto.count")} hint={t(r.pick === "newest" ? "mgmt.auto.countHint" : r.pick === "mix" ? "mgmt.auto.countHintMix" : "mgmt.auto.countHintSlot")}>
               {(id) => <Input id={id} type="number" min={1} max={50} value={r.count} onChange={(e) => setR({ ...r, count: Math.min(50, Math.max(1, Math.round(Number(e.target.value)) || 1)) })} />}
             </Field>
+            {r.pick === "mix" && (
+              <Field label={t("mgmt.auto.newestCount")} hint={t("mgmt.auto.newestCountHint", { count: Math.min(r.newestCount, r.count), rest: Math.max(0, r.count - r.newestCount) })}>
+                {(id) => <Input id={id} type="number" min={1} max={10} value={r.newestCount} onChange={(e) => setR({ ...r, newestCount: Math.min(10, Math.max(1, Math.round(Number(e.target.value)) || 1)) })} />}
+              </Field>
+            )}
             <Field label={t("mgmt.auto.maxAge")} hint={t("mgmt.auto.optional")}>
               {(id) => <Input id={id} type="number" min={1} max={365} placeholder="—" value={r.maxAgeDays ?? ""} onChange={(e) => setR({ ...r, maxAgeDays: numOrNull(e.target.value) })} />}
             </Field>
@@ -287,6 +298,11 @@ export function AutoClipsDialog({ open, rule, onClose, onSave }: { open: boolean
                   <li key={c.id} className="flex items-baseline gap-2">
                     <span className="w-4 shrink-0 text-right font-mono text-xs text-muted">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                    {r.pick === "mix" && (
+                      <span className={cx("rounded px-1.5 py-px text-[10px] font-medium", i < r.newestCount ? "bg-brand/10 text-brand" : "bg-surface-2 text-muted")}>
+                        {t(i < r.newestCount ? "mgmt.auto.tagNewest" : "mgmt.auto.tagRandom")}
+                      </span>
+                    )}
                     <span className="font-mono text-xs text-muted">{fmtDuration(c.durationMs)}</span>
                   </li>
                 ))}
