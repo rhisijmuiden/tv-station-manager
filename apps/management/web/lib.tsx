@@ -87,10 +87,79 @@ export interface Graphics {
   logo: { enabled: boolean; position: Position; file: string | null; opacity: number };
   clock: { enabled: boolean; position: Position };
   upNext: { enabled: boolean; secondsBeforeEnd: number; durationSeconds: number };
-  ticker: { enabled: boolean; text: string };
+  ticker: TickerSettings;
   subtitles: { enabled: boolean; size: "small" | "medium" | "large" };
   hideInCommercials: boolean;
+  /** "Coming up" slide (block item type lineup). */
+  lineup?: LineupSettings;
+  /** "Every hour begins with": a block in front of every hour block. */
+  hourStart?: { enabled: boolean; blockId: number | null };
+  /** Which parts of the base layer stay on air per kind of content. */
+  layers?: Layers;
 }
+/** News ticker (server/tickerlogic.ts): fixed text and/or RSS headlines. */
+export interface TickerSettings {
+  enabled: boolean;
+  text: string;
+  source: "text" | "rss" | "both";
+  feedIds: number[];
+  maxItems: number;
+  maxAgeHours: number;
+  showTime: boolean;
+  separator: string;
+  label: string;
+  speed: number;
+  fontSize: number;
+  bold: boolean;
+  uppercase: boolean;
+  refreshMinutes: number;
+  colors: { background: string; text: string; accent: string; labelText: string };
+  backgroundOpacity: number;
+}
+export const TICKER_COLORS: TickerSettings["colors"] = { background: "#2A1430", text: "#FFFFFF", accent: "#E92E7F", labelText: "#FFFFFF" };
+export const TICKER_DEFAULTS: TickerSettings = {
+  enabled: false,
+  text: "",
+  source: "text",
+  feedIds: [],
+  maxItems: 10,
+  maxAgeHours: 24,
+  showTime: false,
+  separator: "•",
+  label: "",
+  speed: 120,
+  fontSize: 30,
+  bold: false,
+  uppercase: false,
+  refreshMinutes: 5,
+  colors: TICKER_COLORS,
+  backgroundOpacity: 0.92,
+};
+export const tickerOf = (g: Graphics | undefined | null): TickerSettings => ({ ...TICKER_DEFAULTS, ...(g?.ticker ?? {}), colors: { ...TICKER_COLORS, ...(g?.ticker?.colors ?? {}) } });
+export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "info", "commercial", "filler"] as const;
+export type LayerKind = (typeof LAYER_KINDS)[number];
+export interface LayerRule {
+  logo: boolean;
+  clock: boolean;
+  ticker: boolean;
+}
+export type Layers = Record<LayerKind, LayerRule>;
+const on = { logo: true, clock: true, ticker: true };
+const off = { logo: false, clock: false, ticker: false };
+/** The server's defaults (server/layers.ts): a beeldkrant, webcam, coming-up slide, info page or commercial hides the base layer. */
+export const LAYER_DEFAULTS: Layers = { media: on, beeldkrant: off, webcam: off, live: on, lineup: off, info: off, commercial: off, filler: on };
+export const layersOf = (g: Graphics | undefined | null): Layers => ({ ...LAYER_DEFAULTS, ...(g?.layers ?? {}) });
+/** The kind of content a block item is, for the layer rules (items of an ad break count as commercials). */
+export const itemLayerKind = (type: string, commercial?: boolean): LayerKind =>
+  commercial ? "commercial" : type === "beeldkrant" || type === "webcam" || type === "live" || type === "lineup" || type === "info" ? type : "media";
+export interface LineupSettings {
+  heading: string;
+  language: "nl" | "en";
+  minutesAhead: number;
+  maxRows: number;
+  colors: { background: string; panel: string; accent: string; text: string };
+}
+export const LINEUP_DEFAULTS: LineupSettings = { heading: "", language: "nl", minutesAhead: 60, maxRows: 7, colors: { background: "#2A1430", panel: "#713C80", accent: "#E92E7F", text: "#FFFFFF" } };
 export interface MediaItem {
   id: number;
   sourceId: number;
@@ -123,6 +192,8 @@ export interface BlockSummary {
   durationMs: number;
   warnings: number;
   cycle: boolean;
+  /** Begins with the channel's fixed hour start. */
+  hourStart?: boolean;
 }
 export interface LiveSource {
   id: number;
@@ -238,3 +309,7 @@ export const parseMinutes = (v: string) => {
 export const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
 /** 0 = Monday … 6 = Sunday for a yyyy-mm-dd date. */
 export const weekdayOfIso = (date: string) => (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+
+/** "Coming up" slide with the programmes of the coming hour (default length as on the server). */
+export const LINEUP_MS = 15_000;
+export const lineupItem = (t: (k: string) => string) => ({ type: "lineup" as const, label: t("mgmt.lineup.item"), sub: t("mgmt.lineup.itemSub"), durationMs: null, effectiveDurationMs: LINEUP_MS });

@@ -13,7 +13,8 @@ import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ChannelRow } from "./content.js";
-import { dbLoader, scheduleEntries } from "./content.js";
+import { autoRuleSchema } from "./autofill.js";
+import { autoItemInfo, dbLoader, newPickMemory, ITEM_COLUMNS, scheduleEntries, writeBlockItems, type ItemIn } from "./content.js";
 import {
   DAY_MIN,
   addDaysIso,
@@ -31,7 +32,7 @@ import {
   type ClockItemDef,
   type ClockLayout,
 } from "./hourclock.js";
-import { audioIn, BlockCycleError, entryLeaves, expandBlock, type Leaf, type Loader } from "./timeline.js";
+import { audioIn, BlockCycleError, DEFAULT_LINEUP_MS, entryLeaves, expandBlock, type Leaf, type Loader } from "./timeline.js";
 
 const COLOR = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
@@ -278,18 +279,9 @@ export class WeekPlanner {
     return Number(r.lastInsertRowid);
   }
 
-  private writeItems(blockId: number, items: { type: "media" | "block" | "live" | "beeldkrant" | "webcam"; mediaId?: number | null; childBlockId?: number | null; liveSourceId?: number | null; beeldkrantId?: number | null; webcamId?: number | null; durationMs?: number | null; title?: string | null; audio?: string | number | null }[]) {
+  private writeItems(blockId: number, items: ItemIn[]) {
     const { db } = this;
-    db.prepare("DELETE FROM block_items WHERE block_id = ?").run(blockId);
-    const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, duration_ms, title, audio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    items.forEach((it, i) => {
-      if (it.type === "media" && !it.mediaId) throw new HttpError(400, "media_required");
-      if (it.type === "block" && !it.childBlockId) throw new HttpError(400, "block_required");
-      if (it.type === "live" && !it.liveSourceId) throw new HttpError(400, "live_source_required");
-      if (it.type === "beeldkrant" && !it.beeldkrantId) throw new HttpError(400, "beeldkrant_required");
-      if (it.type === "webcam" && !it.webcamId) throw new HttpError(400, "webcam_required");
-      ins.run(blockId, i, it.type, it.type === "media" ? it.mediaId! : null, it.type === "block" ? it.childBlockId! : null, it.type === "live" ? it.liveSourceId! : null, it.type === "beeldkrant" ? it.beeldkrantId! : null, it.type === "webcam" ? it.webcamId! : null, it.durationMs ?? null, it.title || null, audioIn(it.audio));
-    });
+    writeBlockItems(db, blockId, items);
     try {
       expandBlock(dbLoader(db), blockId);
     } catch (e) {
@@ -318,7 +310,7 @@ export class WeekPlanner {
     const current =
       content.blockId != null
         ? (this.db
-            .prepare("SELECT type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, webcam_id AS webcamId, duration_ms AS durationMs, title, audio FROM block_items WHERE block_id = ? ORDER BY position, id")
+            .prepare(`SELECT ${ITEM_COLUMNS} FROM block_items WHERE block_id = ? ORDER BY position, id`)
             .all(content.blockId) as unknown as Parameters<WeekPlanner["writeItems"]>[1])
         : [];
     const pos = at == null ? current.length : Math.max(0, Math.min(current.length, at));
@@ -337,7 +329,7 @@ export class WeekPlanner {
     const { fixed, windows } = this.windowsOf(occ);
     let leaves: Leaf[] = [];
     try {
-      leaves = content.blockId != null ? expandBlock(loader, content.blockId) : [];
+      leaves = content.blockId != null ? expandBlock(loader, content.blockId, [], null, false, occ.start, `occ:${occ.key}`) : [];
     } catch {
       leaves = [];
     }
@@ -454,7 +446,8 @@ export class WeekPlanner {
   cleanup() {
     const before = addDaysIso(new Date().toISOString().slice(0, 10), -60);
     this.db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id IN (SELECT block_id FROM week_fills WHERE date < ?)").run(before);
-    this.db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id NOT IN (SELECT block_id FROM week_fills) AND updated_at < ?").run(`${before}T00:00:00.000Z`);
+    // A hidden block that is still planned (e.g. a live event far ahead) stays.
+    this.db.prepare("DELETE FROM blocks WHERE hidden = 1 AND id NOT IN (SELECT block_id FROM week_fills) AND id NOT IN (SELECT block_id FROM schedule WHERE start_at >= ?) AND updated_at < ?").run(new Date().toISOString(), `${before}T00:00:00.000Z`);
   }
 }
 
@@ -479,12 +472,14 @@ const slotBase = z.object({
   inEpg: z.boolean().default(true),
 });
 const fillItemIn = z.object({
-  type: z.enum(["media", "block", "live", "beeldkrant", "webcam"]),
+  type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup", "info"]),
+  autoRule: autoRuleSchema.nullable().optional(),
   mediaId: z.number().int().nullable().optional(),
   childBlockId: z.number().int().nullable().optional(),
   liveSourceId: z.number().int().nullable().optional(),
   beeldkrantId: z.number().int().nullable().optional(),
   webcamId: z.number().int().nullable().optional(),
+  infoPageId: z.number().int().nullable().optional(),
   durationMs: z.number().int().min(0).max(24 * 3600_000).nullable().optional(),
   title: z.string().max(200).nullable().optional(),
   audio: z.union([z.string().max(12), z.number().int()]).nullable().optional(),
@@ -871,14 +866,15 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       }),
     ].sort((a, b) => a.start - b.start);
     const used = p.placements.reduce((s, x) => s + x.take, 0);
+    const picks = newPickMemory();
     const items =
       p.content.blockId != null && p.content.state !== "block"
         ? (db
             .prepare(
-              `SELECT i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.duration_ms AS durationMs, i.title, i.audio,
+              `SELECT i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.info_page_id AS infoPageId, i.auto_rule AS autoRule, i.duration_ms AS durationMs, i.title, i.audio,
                       m.name AS mediaName, m.title AS mediaTitle, m.path AS mediaPath, m.duration_ms AS mediaDurationMs, m.missing AS mediaMissing,
-                      cb.name AS childName, ls.name AS liveName, bk.name AS beeldkrantName, wc.name AS webcamName
-                 FROM block_items i LEFT JOIN media m ON m.id = i.media_id LEFT JOIN blocks cb ON cb.id = i.child_block_id LEFT JOIN live_sources ls ON ls.id = i.live_source_id LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id LEFT JOIN webcams wc ON wc.id = i.webcam_id
+                      cb.name AS childName, ls.name AS liveName, bk.name AS beeldkrantName, wc.name AS webcamName, ip.name AS infoPageName
+                 FROM block_items i LEFT JOIN media m ON m.id = i.media_id LEFT JOIN blocks cb ON cb.id = i.child_block_id LEFT JOIN live_sources ls ON ls.id = i.live_source_id LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id LEFT JOIN webcams wc ON wc.id = i.webcam_id LEFT JOIN info_pages ip ON ip.id = i.info_page_id
                 WHERE i.block_id = ? ORDER BY i.position, i.id`,
             )
             .all(p.content.blockId) as Record<string, unknown>[])
@@ -889,10 +885,11 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       layout: occ.layout,
       parts: parts.map((x) => ({ ...x, startAt: new Date(x.start).toISOString(), endAt: new Date(x.end).toISOString(), items: x.items.map((i) => ({ ...i, startAt: new Date(i.start).toISOString() })) })),
       overflow: occ.layout ? p.leaves.slice(used).map((l) => ({ title: l.title, durationMs: l.durationMs })) : [],
-      items: items.map((i) => ({
+      items: items.map((i, idx) => ({
         ...i,
         mediaMissing: !!i.mediaMissing,
-        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null)),
+        ...(i.type === "auto" ? autoItemInfo(db, i.autoRule, occ.start, { key: `occ:${occ.key}`, path: `b${p.content.blockId}/${idx}` }, picks) : {}),
+        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "lineup" ? DEFAULT_LINEUP_MS : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : i.type === "info" && i.infoPageId ? (loader.infoPage?.(Number(i.infoPageId))?.durationMs ?? null) : null)),
       })),
       windowsMs: p.windows.map((w) => w.end - w.start),
     };

@@ -7,6 +7,8 @@ import { DeviceHub, registerDevices } from "./devices.js";
 import { Director } from "./director.js";
 import { realDrivers, type DriverFactory } from "./drivers.js";
 import { registerEpgAndGraphics } from "./epg.js";
+import { registerLineup } from "./lineup.js";
+import { registerInfoPages } from "./infopages.js";
 import { registerMedia } from "./media.js";
 import { OrchestratorLink, registerOrchestratorLink } from "./orchestrator.js";
 import { registerOutputs, StreamOutputs } from "./outputs.js";
@@ -38,7 +40,7 @@ export function managementOptions(
     app: { id: "management", name: "TV Station Manager", defaultPort: 8080 },
     webDir: opts.webDir,
     migrations: MANAGEMENT_MIGRATIONS,
-    backupSources: (ctx) => ({ graphics: join(ctx.config.dataDir, "graphics") }),
+    backupSources: (ctx) => ({ graphics: join(ctx.config.dataDir, "graphics"), infopages: join(ctx.config.dataDir, "infopages") }),
     register: async (server, platform: Platform) => {
       const hub = new DeviceHub(platform, opts.drivers ?? realDrivers);
       const orchestrator = new OrchestratorLink(platform, opts.fetch);
@@ -70,6 +72,8 @@ export function managementOptions(
       registerRecordings(server, platform, recorder);
       registerOrchestratorLink(server, orchestrator);
       registerPreview(server, platform);
+      registerLineup(server, platform);
+      registerInfoPages(server, platform, changed);
       registerSwitching(server, platform, { hub, director, remote, recorder });
       // A remote stream taken live by hand goes off air: its recording is finished (library, repeats).
       director.overrideEnded.push((_channelId, liveSourceId) => recorder.liveEnded(liveSourceId));

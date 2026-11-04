@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { Socket } from "node:net";
 import { join } from "node:path";
-import type { StudioStatus } from "@tvsm/platform/agent-protocol";
+import type { StudioRole, StudioStatus } from "@tvsm/platform/agent-protocol";
 
 export interface StudioConfig {
   casparDir: string;
@@ -19,7 +19,11 @@ export interface StudioConfig {
   rtmpUrl: string | null;
   mediaPath: string | null;
   outputs: { device: number; channel: number; format: string }[];
+  /** Role chosen in the installer (-Role tv|ingest|both): playout, live or studio (both). */
+  role: StudioRole | null;
 }
+
+const STUDIO_ROLES = ["playout", "live", "studio"] as const;
 
 export function studioConfigPath() {
   if (process.env.TVSM_STUDIO_CONFIG) return process.env.TVSM_STUDIO_CONFIG;
@@ -42,6 +46,7 @@ export function readStudioConfig(): StudioConfig | null {
       rtmpUrl: c.rtmpUrl ?? null,
       mediaPath: c.mediaPath ?? null,
       outputs: Array.isArray(c.outputs) ? c.outputs : [],
+      role: STUDIO_ROLES.includes(c.role as StudioRole) ? (c.role as StudioRole) : null,
     };
   } catch {
     return null;
@@ -209,5 +214,6 @@ export async function studioStatus(cfg: StudioConfig): Promise<StudioStatus> {
     outputs: cfg.outputs,
     mediaPath: cfg.mediaPath,
     mediaReachable,
+    role: cfg.role,
   };
 }

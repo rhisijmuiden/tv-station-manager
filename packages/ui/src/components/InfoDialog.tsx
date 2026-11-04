@@ -118,6 +118,20 @@ export function InfoDialog({ open, onClose, logo }: { open: boolean; onClose: ()
     [t("info.runtime"), <Mono key="n">Node.js {info.node} ({info.arch})</Mono>],
     [t("info.uptime"), formatUptime(info.uptimeSeconds)],
   ];
+  if (info.license)
+    rows.push([
+      t("info.license"),
+      <span key="l" className="inline-flex items-center gap-3">
+        <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noreferrer" className="text-brand hover:underline">
+          {info.license}
+        </a>
+        {info.sourceUrl && (
+          <a href={info.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+            {t("info.sourceCode")} <ExternalLink className="size-3" />
+          </a>
+        )}
+      </span>,
+    ]);
   return (
     <Dialog
       open={open}

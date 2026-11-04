@@ -19,16 +19,36 @@ A studio node is a Windows PC with a Blackmagic DeckLink card (4 SDI outputs, up
    ```
 
    Use `test` instead of `production` in the URL plus `-Channel test` for the test channel. Other options:
-   `-Outputs 4` (DeckLink outputs = CasparCG channels), `-VideoMode 1080i5000` (default; `1080p5000`, `720p5000`, ...; must match the ATEM or receiver; a rerun keeps the previous mode), `-Keyer default` (fill only, so the DeckLink HDMI output shows the programme; `external` for fill + key),
+   `-Outputs 4` (DeckLink outputs = CasparCG channels; a rerun keeps the previous count), `-VideoMode 1080i5000` (default; `1080p5000`, `720p5000`, ...; must match the ATEM or receiver; a rerun keeps the previous mode), `-Keyer default` (fill only, so the DeckLink HDMI output shows the programme; `external` for fill + key),
    `-ManagementUrl` (where the ingest server checks stream keys; default `http://<first -ManagementHost>:8080`),
-   `-PublicHost` (address shown in the RTMP push URL), `-CasparVersion 2.4`, `-MediaMtxVersion latest`, `-SkipAgent`.
+   `-PublicHost` (address shown in the RTMP push URL), `-HtmlGpu auto` (HTML graphics such as the overlay, beeldkrant and
+   webcam pages render on the graphics card when an NVIDIA/AMD/Intel driver is installed; `off` renders them in software
+   on the CPU; a rerun keeps the previous choice), `-Role tv` (what the node does: `tv` = TV node that plays the
+   schedule, `ingest` = ingest server for live RTMP/SRT streams from events, `both`; a rerun keeps the previous choice),
+   `-CasparVersion 2.4`, `-MediaMtxVersion latest`, `-SkipAgent`.
    The script asks for the share password and stores it encrypted for this machine (DPAPI).
-3. Approve the node in the orchestrator (**Nodes**) and give it the role **studio**. The node page then shows
+3. Approve the node in the orchestrator (**Nodes**). The approval dialog proposes the role chosen with `-Role`
+   (tv = **playout**, ingest = **live**, both = **studio**). The node page then shows
    CasparCG, the DeckLink outputs, incoming streams and whether the media share is reachable.
 
 Running the installer again updates CasparCG/MediaMTX and rewrites the configuration (the old `casparcg.config` is
 kept as `casparcg.config.bak`). Agent updates (orchestrator → node → Update agent) also update the overlay template,
 because CasparCG loads it straight from `%ProgramFiles%\TVSM\agent\studio\templates`.
+
+## Graphics card
+
+CasparCG mixes every channel on the GPU (OpenGL 4.5; the log shows `Initialized OpenGL 4.5.0 NVIDIA ...`), so install
+the vendor driver (not the Windows Basic Display driver). Three things still cost CPU and are worth moving:
+
+- **HTML graphics** (overlay, beeldkrant, webcams): CEF renders them on the GPU with `-HtmlGpu auto` (default since
+  this version). Older installs wrote `<html><enable-gpu>false</enable-gpu></html>`; run the installer again.
+- **Stream output** (Owncast, YouTube, ...): pick encoder **NVIDIA NVENC** in the management node (Output → stream)
+  instead of x264. The GTX 1060 and newer encode 1080p in hardware at almost no CPU cost.
+- **File decoding**: CasparCG 2.4 decodes media files in software; there is no setting for hardware decoding.
+  Keep playout files in the channel format (1080i50 files for a 1080i50 channel) to avoid extra scaling/deinterlacing.
+
+Check on the node: `nvidia-smi` shows casparcg.exe as a C+G process, and *Task Manager → Performance → GPU* shows
+3D and Video Encode load.
 
 ## Channel layout
 

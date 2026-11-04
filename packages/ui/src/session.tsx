@@ -24,6 +24,8 @@ export interface SystemInfo {
   node: string;
   arch: string;
   uptimeSeconds: number;
+  license?: string;
+  sourceUrl?: string;
 }
 export interface UpdateCheck {
   current: string;
@@ -44,7 +46,8 @@ interface Session {
   user: SessionUser | null;
   /** Single sign-on offered on the login page, if configured. */
   sso: SsoInfo | null;
-  defaultPasswordInUse: boolean;
+  /** Local account that still has the default password (only reported to administrators). */
+  defaultPasswordAccount: string | null;
   info: SystemInfo | null;
   lastCheck: UpdateCheck | null;
   setLastCheck: (c: UpdateCheck | null) => void;
@@ -54,14 +57,14 @@ interface Session {
 const Ctx = createContext<Session | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Omit<Session, "refresh" | "setLastCheck">>({ status: "loading", user: null, sso: null, defaultPasswordInUse: false, info: null, lastCheck: null });
+  const [state, setState] = useState<Omit<Session, "refresh" | "setLastCheck">>({ status: "loading", user: null, sso: null, defaultPasswordAccount: null, info: null, lastCheck: null });
   const refresh = useCallback(async () => {
-    const s = await get<{ setupRequired: boolean; user: SessionUser | null; defaultPasswordInUse?: boolean; sso?: SsoInfo | null }>("/api/auth/status");
+    const s = await get<{ setupRequired: boolean; user: SessionUser | null; defaultPasswordAccount?: string; sso?: SsoInfo | null }>("/api/auth/status");
     const sso = s.sso ?? null;
     if (s.setupRequired) return setState((p) => ({ ...p, status: "setup", user: null, sso }));
     if (!s.user) return setState((p) => ({ ...p, status: "anonymous", user: null, sso }));
     const [info, upd] = await Promise.all([get<SystemInfo>("/api/system/info"), get<{ lastCheck: UpdateCheck | null }>("/api/system/update")]);
-    setState({ status: "ready", user: s.user, sso, defaultPasswordInUse: !!s.defaultPasswordInUse, info, lastCheck: upd.lastCheck });
+    setState({ status: "ready", user: s.user, sso, defaultPasswordAccount: s.defaultPasswordAccount ?? null, info, lastCheck: upd.lastCheck });
   }, []);
   useEffect(() => {
     void refresh();

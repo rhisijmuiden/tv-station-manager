@@ -9,8 +9,8 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PublicSwitcher } from "./atem.js";
-import type { PublicHyperdeck } from "./hyperdeck.js";
-import { hyperdeckCards } from "./hyperdecklogic.js";
+import type { PublicTeranex } from "./teranex.js";
+import { teranexCards } from "./teranexlogic.js";
 import { atemPorts, CABLES, cardPorts, danglingLinks, DEVICE_TYPES, linkError, type Card, type Link, type ResolvedPort } from "./diagramlogic.js";
 
 export const DIAGRAM_MIGRATIONS = [
@@ -81,7 +81,7 @@ const cardsSchema = z
   .refine((cs) => cs.every((c) => new Set(c.ports.map((p) => p.id)).size === c.ports.length), "duplicate_port");
 const pos = z.number().finite().min(-1e6).max(1e6);
 const newDevice = z.object({
-  kind: z.enum(["node", "atem", "hyperdeck", "device"]),
+  kind: z.enum(["node", "atem", "teranex", "device"]),
   refId: z.string().max(64).optional(),
   name: z.string().trim().max(80).optional(),
   deviceType: z.enum(DEVICE_TYPES).optional(),
@@ -101,11 +101,11 @@ const editLink = z.object({ cable: z.enum(CABLES).optional(), label: z.string().
 
 const toLink = (r: LinkRow): Link => ({ id: r.id, from: { device: r.from_device, port: r.from_port }, to: { device: r.to_device, port: r.to_port }, cable: r.cable as Link["cable"], label: r.label });
 
-/** HyperDecks are stored as `device` rows with this ref prefix (the kind CHECK predates them). */
-const HD = "hyperdeck:";
-const deckId = (d: Pick<DeviceRow, "kind" | "ref_id">) => (d.kind === "device" && d.ref_id?.startsWith(HD) ? d.ref_id.slice(HD.length) : null);
+/** Teranex converters are stored as `device` rows with this ref prefix (the kind CHECK predates them). */
+const TX = "teranex:";
+const teranexId = (d: Pick<DeviceRow, "kind" | "ref_id">) => (d.kind === "device" && d.ref_id?.startsWith(TX) ? d.ref_id.slice(TX.length) : null);
 
-export function registerDiagram(app: FastifyInstance, platform: Platform, atems: () => PublicSwitcher[], hyperdecks: () => PublicHyperdeck[] = () => []) {
+export function registerDiagram(app: FastifyInstance, platform: Platform, atems: () => PublicSwitcher[], teranexes: () => PublicTeranex[] = () => []) {
   const { db } = platform.ctx;
   const devices = () => db.prepare("SELECT * FROM diagram_devices").all() as unknown as DeviceRow[];
   const links = () => (db.prepare("SELECT * FROM diagram_links").all() as unknown as LinkRow[]).map(toLink);
@@ -141,7 +141,7 @@ export function registerDiagram(app: FastifyInstance, platform: Platform, atems:
   app.get("/api/diagram", async () => {
     const sw = new Map(atems().map((a) => [a.id, a]));
     const nd = new Map(nodes().map((n) => [n.id, n]));
-    const hd = new Map(hyperdecks().map((h) => [h.id, h]));
+    const tx = new Map(teranexes().map((x) => [x.id, x]));
     const all = devices();
     const ports = portMap();
     const ls = links();
@@ -149,20 +149,20 @@ export function registerDiagram(app: FastifyInstance, platform: Platform, atems:
       devices: all.map((d) => {
         const a = d.kind === "atem" ? sw.get(d.ref_id ?? "") : undefined;
         const n = d.kind === "node" ? nd.get(d.ref_id ?? "") : undefined;
-        const hid = deckId(d);
-        const h = hid ? hd.get(hid) : undefined;
+        const xid = teranexId(d);
+        const x = xid ? tx.get(xid) : undefined;
         return {
           id: d.id,
-          kind: hid ? ("hyperdeck" as const) : d.kind,
-          refId: hid ?? d.ref_id,
-          name: d.name || a?.name || n?.name || h?.name || "",
+          kind: xid ? ("teranex" as const) : d.kind,
+          refId: xid ?? d.ref_id,
+          name: d.name || a?.name || n?.name || x?.name || "",
           deviceType: d.device_type,
           x: d.x,
           y: d.y,
           cards: JSON.parse(d.cards) as Card[],
           notes: d.notes,
           ports: ports.get(d.id) ?? [],
-          online: a ? a.online : n ? !!n.online : h ? h.online : null,
+          online: a ? a.online : n ? !!n.online : x ? x.online : null,
           node: n ? { role: n.role, hostname: n.hostname } : null,
           atem: a
             ? {
@@ -177,12 +177,13 @@ export function registerDiagram(app: FastifyInstance, platform: Platform, atems:
                 control: a.control,
               }
             : null,
-          hyperdeck: h
+          teranex: x
             ? {
-                host: h.host,
-                model: h.snapshot?.model ?? null,
-                status: h.online ? (h.snapshot?.transport.status ?? null) : null,
-                timecode: h.snapshot?.transport.displayTimecode ?? null,
+                host: x.host,
+                model: x.snapshot?.model ?? null,
+                input: x.online ? (x.snapshot?.input.videoMode ?? null) : null,
+                output: x.online ? (x.snapshot?.output.videoMode ?? null) : null,
+                signal: x.online ? (x.snapshot?.input.signalPresent ?? null) : null,
               }
             : null,
         };
@@ -195,7 +196,7 @@ export function registerDiagram(app: FastifyInstance, platform: Platform, atems:
           .filter((n) => !all.some((d) => d.kind === "node" && d.ref_id === n.id))
           .map((n) => ({ id: n.id, name: n.name, role: n.role })),
         atems: [...sw.values()].filter((a) => !all.some((d) => d.kind === "atem" && d.ref_id === a.id)).map((a) => ({ id: a.id, name: a.name })),
-        hyperdecks: [...hd.values()].filter((h) => !all.some((d) => deckId(d) === h.id)).map((h) => ({ id: h.id, name: h.name, model: h.snapshot?.model ?? null })),
+        teranexes: [...tx.values()].filter((x) => !all.some((d) => teranexId(d) === x.id)).map((x) => ({ id: x.id, name: x.name, model: x.snapshot?.model ?? null })),
       },
     };
   });
@@ -205,14 +206,14 @@ export function registerDiagram(app: FastifyInstance, platform: Platform, atems:
     const b = newDevice.parse(req.body);
     if (b.kind === "node" && !nodes().some((n) => n.id === b.refId)) throw new HttpError(400, "unknown_node");
     if (b.kind === "atem" && !atems().some((a) => a.id === b.refId)) throw new HttpError(400, "unknown_atem");
-    const deck = b.kind === "hyperdeck" ? hyperdecks().find((h) => h.id === b.refId) : undefined;
-    if (b.kind === "hyperdeck" && !deck) throw new HttpError(400, "unknown_hyperdeck");
+    const conv = b.kind === "teranex" ? teranexes().find((x) => x.id === b.refId) : undefined;
+    if (b.kind === "teranex" && !conv) throw new HttpError(400, "unknown_teranex");
     if (b.kind === "device" && !b.name) throw new HttpError(400, "name_required");
-    if (b.kind === "hyperdeck") {
-      if (db.prepare("SELECT 1 FROM diagram_devices WHERE kind = 'device' AND ref_id = ?").get(HD + deck!.id)) throw new HttpError(409, "already_placed");
+    if (b.kind === "teranex") {
+      if (db.prepare("SELECT 1 FROM diagram_devices WHERE kind = 'device' AND ref_id = ?").get(TX + conv!.id)) throw new HttpError(409, "already_placed");
       const id = randomUUID();
-      const cards = b.cards?.length ? b.cards : hyperdeckCards(deck!.snapshot?.model);
-      db.prepare("INSERT INTO diagram_devices (id, kind, ref_id, name, device_type, x, y, cards) VALUES (?, 'device', ?, '', 'recorder', ?, ?, ?)").run(id, HD + deck!.id, b.x, b.y, JSON.stringify(cards));
+      const cards = b.cards?.length ? b.cards : teranexCards(conv!.snapshot?.model);
+      db.prepare("INSERT INTO diagram_devices (id, kind, ref_id, name, device_type, x, y, cards) VALUES (?, 'device', ?, '', 'converter', ?, ?, ?)").run(id, TX + conv!.id, b.x, b.y, JSON.stringify(cards));
       return { id };
     }
     if (b.kind !== "device" && db.prepare("SELECT 1 FROM diagram_devices WHERE kind = ? AND ref_id = ?").get(b.kind, b.refId!)) throw new HttpError(409, "already_placed");
@@ -236,7 +237,7 @@ export function registerDiagram(app: FastifyInstance, platform: Platform, atems:
     const b = editDevice.parse(req.body);
     if (b.cards && d.kind === "atem") throw new HttpError(400, "atem_ports_fixed");
     db.prepare("UPDATE diagram_devices SET name = ?, device_type = ?, cards = ?, notes = ? WHERE id = ?").run(
-      d.kind === "device" && !deckId(d) ? (b.name || d.name) : (b.name ?? d.name),
+      d.kind === "device" && !teranexId(d) ? (b.name || d.name) : (b.name ?? d.name),
       b.deviceType ?? d.device_type,
       b.cards ? JSON.stringify(b.cards) : d.cards,
       b.notes ?? d.notes,

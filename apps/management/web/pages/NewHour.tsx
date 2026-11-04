@@ -1,6 +1,6 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Switch, cx, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CalendarRange, Check, CheckCircle2, Clapperboard, Clock3, Film, GripVertical, MousePointerClick, PartyPopper, Plus, Repeat, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowDown, Newspaper, ArrowLeft, ArrowRight, ArrowUp, CalendarRange, Check, CheckCircle2, Clapperboard, Clock3, Film, GripVertical, MousePointerClick, PartyPopper, Pencil, Plus, Repeat, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { distribute, occurrenceParts, overlaps } from "../../server/hourclock";
@@ -8,15 +8,19 @@ import { ClockRing } from "../components/ClockRing";
 import { ChannelTabs } from "../components/ChannelPicker";
 import { indicatorClass, payloadItems, useDrop, useDropList, type DragPayload } from "../components/dnd";
 import { WithMediaBin } from "../components/MediaBin";
+import { FillSelect, useFillChoices } from "../components/FillSelect";
+import { AutoClipsDialog, autoLabel, useAutoPreviews, type AutoInfo, type AutoRule } from "../components/AutoClips";
 import { errorText, fmtDuration, fmtMinutes, useCategories, useChannelSelection, useChannels, useGet, weekdayName, type BlockSummary, type HourClock } from "../lib";
 import { ColorPicker } from "./Categories";
 import { DayPicker, type Slot } from "./Week";
 
 type LibraryPayload = Exclude<DragPayload, { kind: "row" }>;
 interface Item {
-  type: "media" | "block";
+  type: "media" | "block" | "auto";
   mediaId?: number;
   childBlockId?: number;
+  /** Dynamic part: picks its clips by itself from a folder or category. */
+  autoRule?: AutoRule;
   label: string;
   sub?: string;
   durationMs: number;
@@ -57,6 +61,20 @@ export function NewHourPage() {
   const [lengthMin, setLengthMin] = useState(60);
   const [clockChoice, setClockChoice] = useState<"channel" | "none" | number>("channel");
   const [items, setItems] = useState<Item[]>([]);
+  /** What plays when the hour is not full (beeldkrant / webcam), null = the channel filler. */
+  const [fill, setFill] = useState<string | null>(null);
+  const fillChoices = useFillChoices();
+  const fillName = fillChoices.nameOf(fill);
+  /** Dynamic part dialog: a new part, or the index of the one being changed. */
+  const [autoEdit, setAutoEdit] = useState<"new" | number | null>(null);
+  // Dynamic parts previewed together (no bumper twice); keeps their length and "now" line up to date.
+  const previews = useAutoPreviews(items.map((i) => (i.type === "auto" ? i.autoRule : null)));
+  useEffect(() => {
+    if (!previews || previews.length !== items.length) return;
+    setItems((cur) => (cur.length !== previews.length ? cur : cur.map((it, i) => (it.type === "auto" && previews[i] ? autoItem(previews[i]!) : it))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previews]);
+  const autoItem = (info: AutoInfo): Item => ({ type: "auto", autoRule: info.autoRule, label: autoLabel(t, info), sub: info.autoClips.length ? `${t("mgmt.auto.now")}: ${info.autoClips.map((c) => c.name).join(" · ")}` : t("mgmt.auto.noneYet"), durationMs: info.effectiveDurationMs });
   const [plan, setPlan] = useState(true);
   const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   /** Start times (minutes) on every chosen day: one programme can run several times a day. */
@@ -146,7 +164,8 @@ export function NewHourPage() {
         kind: "program",
         color,
         categoryId: categoryId || null,
-        items: items.map((i) => (i.type === "media" ? { type: "media", mediaId: i.mediaId } : { type: "block", childBlockId: i.childBlockId })),
+        fill,
+        items: items.map((i) => (i.type === "media" ? { type: "media", mediaId: i.mediaId } : i.type === "auto" ? { type: "auto", autoRule: i.autoRule } : { type: "block", childBlockId: i.childBlockId })),
       });
       let planned = 0;
       if (plan && weekdays.length) {
@@ -351,7 +370,7 @@ export function NewHourPage() {
             icon={<MousePointerClick className="size-4" />}
             title={t("mgmt.newHour.fillTitle", { name })}
             description={t("mgmt.newHour.fillIntro")}
-            actions={<FreeBadge free={free} />}
+            actions={<FreeBadge free={free} filled={!!fillName} />}
           />
           <CardBody className="space-y-3">
             <FillMeter used={total} capacity={capacity} />
@@ -362,11 +381,16 @@ export function NewHourPage() {
                   <li key={i} {...dnd.rowProps(i, it.label)} className={cx("flex cursor-grab items-center gap-2 bg-surface px-2.5 py-1.5 text-sm active:cursor-grabbing", out && "bg-danger/5", indicatorClass(dnd.indicator, i, items.length))}>
                     <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
                     <span className={cx("w-10 font-mono text-xs", out ? "text-danger" : "text-muted")}>{out ? "—" : at(startOf(preview, parts.windows, items, i))}</span>
-                    <span className={cx("hidden size-7 @5xl:grid shrink-0 place-items-center rounded-md", it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
+                    <span className={cx("hidden size-7 @5xl:grid shrink-0 place-items-center rounded-md", it.type === "auto" ? "bg-brand text-white" : it.type === "block" ? "bg-warn/15 text-warn" : "bg-brand/10 text-brand")}>{it.type === "auto" ? <Sparkles className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : <Clapperboard className="size-3.5" />}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{it.label}</span>
                       {it.sub && <span className="block truncate text-xs text-muted">{it.sub}</span>}
                     </span>
+                    {it.type === "auto" && (
+                      <button className="rounded p-1 text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setAutoEdit(i)} aria-label={t("mgmt.auto.change")} title={t("mgmt.auto.change")}>
+                        <Pencil className="size-3.5" />
+                      </button>
+                    )}
                     {!it.durationMs && <AlertTriangle className="size-4 shrink-0 text-warn" aria-label={t("mgmt.warnings.no_duration")} />}
                     {out && <Badge tone="danger">{t("mgmt.rundowns.doesNotFit")}</Badge>}
                     <span className="w-12 text-right font-mono text-xs text-muted">{fmtDuration(it.durationMs)}</span>
@@ -392,6 +416,34 @@ export function NewHourPage() {
                 </li>
               )}
             </ol>
+            <button
+              type="button"
+              onClick={() => setAutoEdit("new")}
+              className="flex w-full items-center gap-3 rounded-lg border border-dashed border-brand/50 px-3 py-2.5 text-left transition hover:bg-brand/5"
+            >
+              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-brand text-white">
+                <Sparkles className="size-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-brand">{t("mgmt.auto.button")}</span>
+                <span className="block text-xs text-muted">{t("mgmt.newHour.dynamicHint")}</span>
+              </span>
+            </button>
+            <div className="rounded-lg border border-line bg-surface-2/40 p-3">
+              <Field label={t("mgmt.fill.label")} hint={fillChoices.loaded && !fillChoices.beeldkranten.length ? t("mgmt.fill.noBeeldkrant") : t("mgmt.fill.hint")}>
+                {(fid) => <FillSelect id={fid} value={fill} choices={fillChoices} onChange={setFill} />}
+              </Field>
+            </div>
+            <AutoClipsDialog
+              open={autoEdit != null}
+              rule={typeof autoEdit === "number" ? (items[autoEdit]?.autoRule ?? null) : null}
+              onClose={() => setAutoEdit(null)}
+              onSave={(info) => {
+                const it = autoItem(info);
+                setItems((cur) => (typeof autoEdit === "number" ? cur.map((x, j) => (j === autoEdit ? it : x)) : [...cur, it]));
+                setAutoEdit(null);
+              }}
+            />
             {preview.overflowCount > 0 && <Alert tone="danger">{t("mgmt.newHour.tooMuch", { n: preview.overflowCount, d: fmtDuration(preview.overflowMs) })}</Alert>}
           </CardBody>
         </Card>
@@ -436,6 +488,14 @@ export function NewHourPage() {
                         );
                       })}
                     {(!pl || !pl.take) && <li className="text-[12.5px] text-muted italic">{t("mgmt.newHour.dropHere")}</li>}
+                    {fillName && (pl?.usedMs ?? 0) < p.end - p.start - 1000 && (
+                      <li className="-mx-1 flex items-center gap-2 rounded bg-brand/8 px-1 py-0.5 text-[12.5px] text-brand">
+                        <span className="w-11 font-mono text-[11px]">{at(p.start + (pl?.usedMs ?? 0))}</span>
+                        <Newspaper className="size-3.5 shrink-0" />
+                        <span className="flex-1 truncate italic">{t("mgmt.fill.restShort", { name: fillName })}</span>
+                        <span className="font-mono text-[11px]">{fmtDuration(p.end - p.start - (pl?.usedMs ?? 0))}</span>
+                      </li>
+                    )}
                   </ul>
                 </WindowDrop>
               );
@@ -481,11 +541,12 @@ export function NewHourPage() {
                 label={t("mgmt.newHour.content")}
                 value={
                   <span>
-                    {t("mgmt.newHour.contentSummary", { n: items.length, d: fmtDuration(total), room: fmtDuration(capacity) })} <FreeBadge free={free} />
+                    {t("mgmt.newHour.contentSummary", { n: items.length, d: fmtDuration(total), room: fmtDuration(capacity) })} <FreeBadge free={free} filled={!!fillName} />
                   </span>
                 }
                 edit={() => setStep("fill")}
               />
+              <Row label={t("mgmt.newHour.fillRow")} value={fillName ?? t("mgmt.fill.channel")} edit={() => setStep("fill")} />
               <Row
                 label={t("mgmt.newHour.when")}
                 value={plan ? t("mgmt.newHour.whenSummary", { days: weekdays.map((d) => weekdayName(d, "short")).join(", "), times: timesLabel, n: weekdays.length * starts.length }) : t("mgmt.newHour.notPlanned")}
@@ -494,7 +555,7 @@ export function NewHourPage() {
             </dl>
           </div>
           {preview.overflowCount > 0 && <Alert tone="warn">{t("mgmt.newHour.tooMuch", { n: preview.overflowCount, d: fmtDuration(preview.overflowMs) })}</Alert>}
-          {free > 5 * MIN && <Alert tone="warn">{t("mgmt.newHour.tooLittle", { d: fmtDuration(free) })}</Alert>}
+          {free > 5 * MIN && (fillName ? <Alert tone="brand">{t("mgmt.fill.fills", { d: fmtDuration(free), name: fillName })}</Alert> : <Alert tone="warn">{t("mgmt.newHour.tooLittle", { d: fmtDuration(free) })}</Alert>)}
           {plan && week.data && !week.data.channel.weekEnabled && <Switch checked={turnOn} onChange={setTurnOn} label={t("mgmt.newHour.turnOn", { channel: week.data.channel.name })} description={t("mgmt.newHour.turnOnHint")} />}
         </CardBody>
       </Card>
@@ -538,10 +599,11 @@ function startOf(preview: ReturnType<typeof distribute>, windows: { start: numbe
   return windows[p.window]!.start + items.slice(p.skip, i).reduce((s, x) => s + x.durationMs, 0);
 }
 
-function FreeBadge({ free }: { free: number }) {
+function FreeBadge({ free, filled }: { free: number; filled?: boolean }) {
   const { t } = useTranslation();
   if (Math.abs(free) <= 2000) return <Badge tone="ok">{t("mgmt.newHour.full")}</Badge>;
-  return free > 0 ? <Badge tone="warn">{t("mgmt.newHour.free", { d: fmtDuration(free) })}</Badge> : <Badge tone="danger">{t("mgmt.newHour.over", { d: fmtDuration(-free) })}</Badge>;
+  // The rest of the hour is filled by the chosen beeldkrant / webcam: free time is fine then.
+  return free > 0 ? <Badge tone={filled ? "brand" : "warn"}>{t("mgmt.newHour.free", { d: fmtDuration(free) })}</Badge> : <Badge tone="danger">{t("mgmt.newHour.over", { d: fmtDuration(-free) })}</Badge>;
 }
 
 function FillMeter({ used, capacity, thin }: { used: number; capacity: number; thin?: boolean }) {

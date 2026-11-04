@@ -3,6 +3,7 @@
   1. Connects the media share (UNAS) with the credentials stored by install-studio.ps1 (DPAPI, machine scope).
   2. Starts casparcg.exe with stdin held open (CasparCG reads console commands from it) and waits.
   The service restarts CasparCG when it exits (also after the AMCP RESTART command, exit code 5).
+  SPDX-License-Identifier: AGPL-3.0-only
 #>
 $ErrorActionPreference = "Stop"
 $data = Join-Path $env:ProgramData "TVSM\studio"

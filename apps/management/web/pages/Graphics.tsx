@@ -1,9 +1,11 @@
-import { Alert, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Switch, Textarea, cx, post, put } from "@tvsm/ui";
-import { ImageUp, Save } from "lucide-react";
+import { Alert, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Switch, cx, post, put } from "@tvsm/ui";
+import { CalendarClock, ImageUp, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChannelTabs } from "../components/ChannelPicker";
-import { errorText, fmtTime, useChannelSelection, useChannels, type Graphics, type Position } from "../lib";
+import { HourStartCard, LayersCard } from "../components/ChannelLayers";
+import { TickerCard, TickerStrip, useTickerItems } from "../components/TickerCard";
+import { errorText, fmtTime, layersOf, LINEUP_DEFAULTS, tickerOf, useChannelSelection, useChannels, type Graphics, type LineupSettings, type Position } from "../lib";
 
 const POSITIONS: Position[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const corner = (p: Position) => ({ "top-left": "top-[5%] left-[5%]", "top-right": "top-[5%] right-[5%]", "bottom-left": "bottom-[5%] left-[5%]", "bottom-right": "bottom-[5%] right-[5%]" })[p];
@@ -11,6 +13,8 @@ const corner = (p: Position) => ({ "top-left": "top-[5%] left-[5%]", "top-right"
 function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null; channel: string }) {
   const { t } = useTranslation();
   const [now, setNow] = useState(new Date());
+  const ticker = tickerOf(g);
+  const { items: tickerItems } = useTickerItems(ticker);
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(i);
@@ -39,12 +43,58 @@ function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null;
           </span>
         </div>
       )}
-      {g.enabled && g.ticker.enabled && g.ticker.text && (
-        <div className="absolute right-0 bottom-0 left-0 truncate border-t-2 border-brand px-4 py-1.5 text-xs sm:text-sm" style={{ background: "rgb(10 14 26 / 0.9)" }}>
-          {g.ticker.text}
-        </div>
-      )}
+      {g.enabled && ticker.enabled && tickerItems.length > 0 && <TickerStrip t={ticker} items={tickerItems} className="absolute right-0 bottom-0 left-0" />}
     </div>
+  );
+}
+
+/** Settings and live preview of the "coming up" slide (programmes of the coming hour). */
+function LineupCard({ channelId, value, onChange }: { channelId: number; value: LineupSettings; onChange: (v: LineupSettings) => void }) {
+  const { t } = useTranslation();
+  // The preview page is rendered by the server from the real schedule; wait a moment while typing.
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    const h = setTimeout(() => setSrc(`/lineup/page.html?channel=${channelId}&preview=1&settings=${encodeURIComponent(JSON.stringify(value))}`), 400);
+    return () => clearTimeout(h);
+  }, [channelId, value]);
+  return (
+    <Card className="mt-6">
+      <CardHeader title={t("mgmt.lineup.settingsTitle")} description={t("mgmt.lineup.settingsIntro")} actions={<CalendarClock className="size-5 text-muted" />} />
+      <CardBody className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <div className="space-y-2">
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">{src && <iframe title={t("mgmt.lineup.settingsTitle")} src={src} className="size-full border-0" />}</div>
+          <p className="text-xs text-muted">{t("mgmt.lineup.previewHint")}</p>
+        </div>
+        <div className="space-y-4">
+          <Field label={t("mgmt.lineup.heading")} hint={t("mgmt.lineup.headingHint")}>
+            {(id) => <Input id={id} value={value.heading} maxLength={80} placeholder={t("mgmt.lineup.headingPlaceholder")} onChange={(e) => onChange({ ...value, heading: e.target.value })} />}
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label={t("mgmt.lineup.language")}>
+              {(id) => (
+                <Select id={id} value={value.language} onChange={(e) => onChange({ ...value, language: e.target.value as LineupSettings["language"] })}>
+                  <option value="nl">Nederlands</option>
+                  <option value="en">English</option>
+                </Select>
+              )}
+            </Field>
+            <Field label={t("mgmt.lineup.minutesAhead")}>
+              {(id) => (
+                <Select id={id} value={value.minutesAhead} onChange={(e) => onChange({ ...value, minutesAhead: Number(e.target.value) })}>
+                  {[30, 60, 90, 120, 180].map((m) => (
+                    <option key={m} value={m}>
+                      {t("mgmt.lineup.minutes", { count: m })}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label={t("mgmt.lineup.maxRows")}>{(id) => <Input id={id} type="number" min={2} max={10} value={value.maxRows} onChange={(e) => onChange({ ...value, maxRows: Math.min(10, Math.max(2, Number(e.target.value) || 7)) })} />}</Field>
+          </div>
+          <p className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">{t("mgmt.lineup.howTo")}</p>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -61,7 +111,7 @@ export function GraphicsPage() {
   if (!channel || !g)
     return (
       <>
-        <PageHeader title={t("mgmt.graphics.title")} description={t("mgmt.graphics.intro")} />
+        <PageHeader title={t("mgmt.plan.channelTitle")} description={t("mgmt.plan.channelIntro")} />
         {channels && !channels.length && <Alert tone="warn">{t("mgmt.control.noChannelsIntro")}</Alert>}
       </>
     );
@@ -101,8 +151,8 @@ export function GraphicsPage() {
   return (
     <>
       <PageHeader
-        title={t("mgmt.graphics.title")}
-        description={t("mgmt.graphics.intro")}
+        title={t("mgmt.plan.channelTitle")}
+        description={t("mgmt.plan.channelIntro")}
         actions={
           <Button icon={<Save className="size-4" />} onClick={() => void save()}>
             {t("common.save")}
@@ -124,7 +174,6 @@ export function GraphicsPage() {
           <CardHeader title={channel.name} />
           <CardBody className="space-y-5">
             <Switch checked={g.enabled} onChange={(v) => setG({ ...g, enabled: v })} label={t("mgmt.graphics.enabled")} description={t("mgmt.graphics.enabledHint")} />
-            <Switch checked={g.hideInCommercials} onChange={(v) => setG({ ...g, hideInCommercials: v })} label={t("mgmt.graphics.hideInAds")} />
             <div className="space-y-3 border-t border-line pt-4">
               <div className="flex items-center justify-between gap-3">
                 <Switch checked={g.logo.enabled} onChange={(v) => setG({ ...g, logo: { ...g.logo, enabled: v } })} label={t("mgmt.graphics.logo")} />
@@ -153,9 +202,11 @@ export function GraphicsPage() {
                 <Field label={t("mgmt.graphics.showFor")}>{(id) => <Input id={id} type="number" min={3} max={120} value={g.upNext.durationSeconds} onChange={(e) => setG({ ...g, upNext: { ...g.upNext, durationSeconds: Number(e.target.value) || 12 } })} />}</Field>
               </div>
             </div>
-            <div className="space-y-3 border-t border-line pt-4">
-              <Switch checked={g.ticker.enabled} onChange={(v) => setG({ ...g, ticker: { ...g.ticker, enabled: v } })} label={t("mgmt.graphics.ticker")} />
-              <Textarea className="min-h-16 font-sans text-sm" value={g.ticker.text} placeholder={t("mgmt.graphics.tickerPlaceholder")} onChange={(e) => setG({ ...g, ticker: { ...g.ticker, text: e.target.value } })} />
+            <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+              <Switch checked={g.ticker.enabled} onChange={(v) => setG({ ...g, ticker: { ...tickerOf(g), enabled: v } })} label={t("mgmt.graphics.ticker")} description={t("mgmt.ticker.shortHint")} />
+              <a href="#ticker" className="shrink-0 text-xs font-medium text-brand hover:underline">
+                {t("mgmt.ticker.settingsLink")}
+              </a>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
               <Switch checked={g.subtitles.enabled} onChange={(v) => setG({ ...g, subtitles: { ...g.subtitles, enabled: v } })} label={t("mgmt.graphics.subtitles")} description={t("mgmt.graphics.subtitlesHint")} />
@@ -177,6 +228,12 @@ export function GraphicsPage() {
           </CardBody>
         </Card>
       </div>
+      <div id="ticker" className="scroll-mt-4">
+        <TickerCard value={tickerOf(g)} onChange={(ticker) => setG({ ...g, ticker })} />
+      </div>
+      <HourStartCard value={g.hourStart ?? { enabled: false, blockId: null }} onChange={(hourStart) => setG({ ...g, hourStart })} />
+      <LayersCard g={g} layers={layersOf(g)} onChange={(layers) => setG({ ...g, layers, hideInCommercials: true })} />
+      <LineupCard channelId={channel.id} value={g.lineup ?? LINEUP_DEFAULTS} onChange={(lineup) => setG({ ...g, lineup })} />
     </>
   );
 }

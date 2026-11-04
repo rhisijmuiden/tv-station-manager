@@ -7,6 +7,8 @@ A channel can use two Windows CasparCG machines:
 
 Give each node its role under *Devices → Studio nodes* (Playout node / Live node / Playout + live). In the orchestrator the same roles can be assigned when approving a node.
 
+Both machines are installed with the same `install-studio.ps1`; `-Role` says what a node does: `tv` (TV node, playout), `ingest` (ingest server, live) or `both`. The agent reports that choice, the orchestrator proposes it in the approval dialog and shows it on the node page ("Installed as"). Changing the role later = rerun the installer with another `-Role`, then change the role in the orchestrator and under *Devices → Studio nodes*.
+
 ## What the director does
 
 Put the remote source in a TV block as a *live* item and schedule it. Then:

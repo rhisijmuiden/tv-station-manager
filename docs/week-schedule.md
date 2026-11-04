@@ -9,6 +9,8 @@ The management node plans the linear channel per week.
 
 ## Menu
 
+Since the simple planning ([simple-planning.md](simple-planning.md)) editors see **Now on TV, Week planning, Blocks, Library**; the tools below are under *Setup → Advanced planning* (the week board at `/week/advanced`). Earlier layout:
+
 The left menu follows the editor's work: **Editorial** (New hour block, Week board, Day planning, Hour blocks, Hour clocks, Media library, Categories, Ad breaks, Beeldkrant), **On air** (Control room, Schedule, Programme guide, Remote sources, Stream output) and **Setup** (Graphics, Channels, Devices; editors and admins). The dashboard shows the three editorial steps.
 
 ## New hour programme (step by step)
@@ -19,6 +21,28 @@ An hour programme is the build-up of one hour, used as a template: it can run at
 2. **Fill the hour**: drag clips (or blocks) from the library into the list or straight into a programme window of the hour. The hour preview shows when every clip starts; what does not fit is marked.
 3. **Days and times**: weekday buttons (Mon–Fri, Weekend, Every day) and one or more start times: click hours in a grid (half hours for a half-hour programme), "repeat back to back" (from 13:00, 3× gives 13:00, 14:00, 15:00) or an exact quarter-hour time. Times that would overlap a chosen one are greyed out; clashes with what already runs are shown before saving. A small week board shows every chosen time. Planning can be skipped.
 4. **Check and save**: makes a TV block and one week slot per chosen day and time (`POST /api/blocks`, then one `POST /api/week/slots` with `weekdays` and `startMins`, all or nothing), and can switch the week schedule on for the channel.
+
+## When the hour is not full
+
+An hour block can choose what plays when its material ends before the hour is over: **When the hour is not full** in step 2 of *New hour programme* and in the hour block editor (`blocks.fill`: `beeldkrant:<id>`, `webcam:<id>`, or empty for the channel filler).
+
+- After the last clip the chosen beeldkrant (or webcam) plays until the next whole hour, or until the next programme if that starts earlier; then the schedule goes on as planned. It never runs past the hour: after that the channel filler plays as before.
+- In an hour clock the gaps between the programme windows and the fixed parts (for example a reserved ad break that is shorter than its reservation) follow the hour block's choice too, so the whole hour stays on the beeldkrant instead of the filler.
+- A date rundown made by an editor follows the hour block it holds; a block without a choice keeps the channel filler.
+- The hour preview in the wizard shows the filled part, the schedule shows "Filled mm:ss" instead of a gap, and *Now on TV* shows the beeldkrant as part of the hour block.
+- Removing a beeldkrant or webcam that is chosen here asks for confirmation (it counts as "in use") and sets the blocks back to the channel filler.
+
+The logic is in `compile()` in `apps/management/server/timeline.ts` (events with `fill: true`, played by the director like any beeldkrant or webcam item).
+
+## Changes wait for the next hour
+
+A change that touches the hour on air (a block edited, an entry added or moved, the week schedule published again)
+does not restart the playout: the director keeps the timeline it had for that hour and takes the new one at the next
+whole hour in station time (`station.timezone`). Later hours update at once. The pure part is `holdUntil` in
+`server/timeline.ts`; the director keeps `hold` per channel. `/api/control` shows `pending: { from }` per channel, the
+dashboard, week planning and blocks pages show a bar with **Apply now** (`POST /api/control/:id/apply-now`, editor),
+which takes the change on air immediately (the item on air may restart). A timeline older than 5 minutes is never
+held (the director was not running), and manual control (automation off) takes changes directly.
 
 ## Series: one block on several days
 

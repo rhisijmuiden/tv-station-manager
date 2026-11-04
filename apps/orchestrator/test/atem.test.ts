@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
 import { ATEM_CONTROL_MIGRATIONS, ATEM_MIGRATIONS, registerAtem, type AtemLink, type AtemSnapshot, type SwitchAction } from "../server/atem.ts";
 import { DIAGRAM_MIGRATIONS, registerDiagram } from "../server/diagram.ts";
-import { NODE_MIGRATIONS, registerNodes } from "../server/nodes.ts";
+import { NODE_MIGRATIONS, PROVISION_MIGRATIONS, registerNodes } from "../server/nodes.ts";
 
 const root = mkdtempSync(join(tmpdir(), "tvsm-atem-"));
 process.env.TVSM_DATA_DIR = join(root, "data");
@@ -86,9 +86,9 @@ const call = async (method: string, url: string, payload?: unknown) => {
 test.before(async () => {
   p = await createPlatform({
     app: { id: "orchestrator", name: "Orch", defaultPort: 0 },
-    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS],
+    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS, ...PROVISION_MIGRATIONS],
     register: (s, pl) => {
-      registerNodes(s, pl);
+      registerNodes(s, pl, { releases: async () => [] });
       const atem = registerAtem(s, pl, (host) => {
         const l = new FakeLink(host);
         links.push(l);

@@ -35,6 +35,8 @@ interface Remote {
 
 const KEY = "orchestrator.link";
 export const POLL_MS = 3000;
+const MONITORING_PATH = "/automation-api/v1/monitoring";
+const MONITOR_CACHE_MS = 2000;
 const norm = (h: string) => h.trim().toLowerCase();
 
 export class OrchestratorLink extends EventEmitter {
@@ -67,6 +69,7 @@ export class OrchestratorLink extends EventEmitter {
     if (!b.enabled) this.setLocks([]);
     this.lastError = null;
     this.known.clear();
+    this.monitorCache = null;
   }
 
   /** The lock on the ATEM at `host`, or null when the automation may switch it. */
@@ -115,6 +118,45 @@ export class OrchestratorLink extends EventEmitter {
     }
   }
 
+  /**
+   * GET a read-only path from the orchestrator's automation API with the stored token (monitoring).
+   * Needs only the address + token; the "enabled" switch is about the ATEM locks.
+   * Throws HttpError with a code the UI translates.
+   */
+  async fetchRemote<T>(path: string): Promise<T> {
+    const s = this.stored();
+    if (!s.url || !s.token) throw new HttpError(409, "orchestrator_not_linked");
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${s.url}${path}`, {
+        headers: { authorization: `Bearer ${this.platform.ctx.secrets.decrypt(s.token)}` },
+        signal: AbortSignal.timeout(4000),
+      });
+    } catch (e) {
+      throw new HttpError(502, "orchestrator_unreachable", (e as Error).name === "TimeoutError" ? "timeout" : (e as Error).message);
+    }
+    if (res.status === 401) throw new HttpError(502, "orchestrator_token_rejected");
+    // An orchestrator from before this feature has no monitoring route.
+    if (res.status === 404 && path === MONITORING_PATH) throw new HttpError(502, "orchestrator_outdated");
+    if (res.status === 404) throw new HttpError(404, "not_found");
+    if (!res.ok) throw new HttpError(502, "orchestrator_unreachable", `orchestrator answered ${res.status}`);
+    return (await res.json()) as T;
+  }
+
+  private monitorCache: { at: number; data: Record<string, unknown> } | null = null;
+  private monitorPending: Promise<Record<string, unknown>> | null = null;
+  /** The orchestrator's monitoring overview; shared for a moment so many open browsers ask it once. */
+  async monitoring(): Promise<Record<string, unknown>> {
+    if (this.monitorCache && Date.now() - this.monitorCache.at < MONITOR_CACHE_MS) return this.monitorCache.data;
+    this.monitorPending ??= this.fetchRemote<Record<string, unknown>>(MONITORING_PATH)
+      .then((data) => {
+        this.monitorCache = { at: Date.now(), data };
+        return data;
+      })
+      .finally(() => (this.monitorPending = null));
+    return this.monitorPending;
+  }
+
   start(intervalMs = POLL_MS) {
     void this.poll();
     this.timer = setInterval(() => void this.poll(), intervalMs);
@@ -145,6 +187,13 @@ export function registerOrchestratorLink(app: FastifyInstance, link: Orchestrato
     link.save(b);
     if (b.enabled) await link.poll();
     return link.status();
+  });
+  // The orchestrator's monitoring page, read-only, for everyone signed in here (no login on the orchestrator).
+  app.get("/api/orchestrator-monitoring", async () => ({ ...(await link.monitoring()), source: link.config().url }));
+  app.get("/api/orchestrator-monitoring/devices/:id/events", async (req) => {
+    const id = (req.params as { id: string }).id;
+    if (!/^[\w-]{1,64}$/.test(id)) throw new HttpError(404, "not_found");
+    return link.fetchRemote<{ events: unknown[] }>(`${MONITORING_PATH}/devices/${id}/events`);
   });
   app.post("/api/orchestrator-link/test", async (req) => {
     requireRole(req, "admin");

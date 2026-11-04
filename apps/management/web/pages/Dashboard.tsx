@@ -1,5 +1,5 @@
 import { Badge, Card, CardBody, CardHeader, PageHeader, cx, roleAtLeast, useSession } from "@tvsm/ui";
-import { CalendarRange, CheckCircle2, Circle, ClipboardList, FolderOpen, Radio, Tv, WandSparkles } from "lucide-react";
+import { CalendarRange, CheckCircle2, Circle, FolderOpen, LayoutGrid, Library, Radio, Tv } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -47,9 +47,9 @@ export function Dashboard() {
   const { user } = useSession();
   if (!o) return null;
   const editorial = [
-    { to: "/new-hour", icon: WandSparkles, label: t("mgmt.dashboard.ed1"), hint: t("mgmt.dashboard.ed1Hint") },
-    { to: "/week", icon: CalendarRange, label: t("mgmt.dashboard.ed2"), hint: t("mgmt.dashboard.ed2Hint") },
-    { to: "/rundowns", icon: ClipboardList, label: t("mgmt.dashboard.ed3"), hint: t("mgmt.dashboard.ed3Hint") },
+    { to: "/media", icon: Library, label: t("mgmt.dashboard.ed1"), hint: t("mgmt.dashboard.ed1Hint") },
+    { to: "/blocks/new", icon: LayoutGrid, label: t("mgmt.dashboard.ed2"), hint: t("mgmt.dashboard.ed2Hint") },
+    { to: "/week", icon: CalendarRange, label: t("mgmt.dashboard.ed3"), hint: t("mgmt.dashboard.ed3Hint") },
   ];
   const steps = [
     { done: o.atems.length > 0, label: t("mgmt.dashboard.stepAtem"), to: "/devices" },

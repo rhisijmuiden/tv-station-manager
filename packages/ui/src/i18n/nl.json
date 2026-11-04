@@ -51,7 +51,7 @@
     "passwordHint": "Minimaal 10 tekens.",
     "passwordMismatch": "Wachtwoorden komen niet overeen",
     "createAccount": "Account aanmaken",
-    "defaultPasswordWarning": "Je gebruikt het standaard beheerderswachtwoord. Wijzig het voordat je live gaat.",
+    "defaultPasswordWarning": "Het lokale account \"{{username}}\" heeft nog het standaardwachtwoord. Wijzig het voordat je live gaat.",
     "changeNow": "Wachtwoord wijzigen",
     "signInMicrosoft": "Inloggen met Microsoft",
     "useLocalAccount": "Liever inloggen met een lokaal account",
@@ -86,6 +86,8 @@
   },
   "info": {
     "title": "Over deze installatie",
+    "license": "Licentie",
+    "sourceCode": "Broncode",
     "version": "Versie",
     "channel": "Releasekanaal",
     "hostname": "Host",

@@ -16,6 +16,7 @@
        stream status from the MediaMTX API (TCP 9997, only from the management node).
     4. Opens the firewall (AMCP 5250 and API 9997 for the management node, RTMP 1935, SRT 8890) and disables sleep.
   Settings live in %ProgramData%\TVSM\studio (studio.json, smb.cred, mediamtx.yml).
+  SPDX-License-Identifier: AGPL-3.0-only
 #>
 param(
   [string]$Orchestrator = "",
@@ -25,18 +26,29 @@ param(
   [string]$MediaPath = "",
   [string]$SmbUser = "",
   [SecureString]$SmbPassword,
+  # Never ask for input (used when the orchestrator runs this script through the agent): a missing password fails.
+  [switch]$NonInteractive,
+  # Number of CasparCG channels (one per DeckLink output). Default: the count of the previous install, else 4.
   [ValidateRange(1, 8)][int]$Outputs = 4,
   # CasparCG video mode for every channel, e.g. 1080i5000, 1080p5000, 720p5000, 1080p2500. Must match the ATEM / receiver.
   # Default: the mode of the previous install, else 1080i5000.
   [string]$VideoMode = "",
   # DeckLink keyer: default (fill only, HDMI shows the programme), external (fill + key on two connectors), internal.
   [ValidateSet("", "default", "external", "internal")][string]$Keyer = "",
-  # IP address(es) of the management node that may connect to AMCP (TCP 5250). Empty = any address.
+  # IP address(es) of the management node that may connect to AMCP (TCP 5250). Default: those of the previous install,
+  # else any address.
   [string[]]$ManagementHost = @(),
   # URL of the management node; the ingest server checks stream keys there. Default: http://<first -ManagementHost>:8080.
   [string]$ManagementUrl = "",
   # Address used in the RTMP push URL shown to remote contributors. Default: this machine's first IPv4 address.
   [string]$PublicHost = "",
+  # Render HTML graphics (overlay, beeldkrant, webcams) on the graphics card: auto (on when an NVIDIA/AMD/Intel GPU
+  # with a vendor driver is present), on, off. Default: the choice of the previous install, else auto.
+  [ValidateSet("", "auto", "on", "off")][string]$HtmlGpu = "",
+  # What this node does: tv (TV node: plays the schedule), ingest (ingest server: plays live RTMP/SRT streams from
+  # events), both (one node does both). Reported to the orchestrator, which proposes the matching role when you
+  # approve the node. Default: the choice of the previous install, else tv.
+  [ValidateSet("", "tv", "ingest", "both")][string]$Role = "",
   [string]$CasparVersion = "2.4",
   [string]$MediaMtxVersion = "latest",
   [switch]$SkipAgent
@@ -57,7 +69,11 @@ function Invoke-Native([string]$exe, [string[]]$arguments) {
   $ErrorActionPreference = "Continue"
   try { & $exe @arguments 2>&1 | Out-Null } finally { $ErrorActionPreference = $prev }
 }
-function Step($m) { Write-Host ""; Write-Host "==> $m" -ForegroundColor Cyan }
+function Step($m) {
+  # Run by provision.ps1 (orchestrator -> Change role): report the step to the orchestrator as well.
+  if (Get-Command Set-ProvisionStep -ErrorAction SilentlyContinue) { Set-ProvisionStep $m; return }
+  Write-Host ""; Write-Host "==> $m" -ForegroundColor Cyan
+}
 function Warn($m) { Write-Host "WARNING: $m" -ForegroundColor Yellow }
 $headers = @{ "User-Agent" = "tvsm-studio-installer" }
 $branch = if ($Channel -eq "test") { "test" } else { "production" }
@@ -75,9 +91,17 @@ icacls $data /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)
 $old = $null
 if (Test-Path (Join-Path $data "studio.json")) { $old = Get-Content (Join-Path $data "studio.json") -Raw | ConvertFrom-Json }
 if (-not $MediaPath -and $old) { $MediaPath = $old.mediaPath }
+if ($ManagementHost.Count -eq 0 -and $old -and $old.managementHosts) { $ManagementHost = @($old.managementHosts | ForEach-Object { [string]$_ }) }
 if (-not $VideoMode -and $old) { $VideoMode = if ($old.videoMode) { $old.videoMode } elseif ($old.outputs) { @($old.outputs)[0].format } else { "" } }
 if (-not $VideoMode) { $VideoMode = "1080i5000" }
 if (-not $Keyer) { $Keyer = if ($old -and $old.keyer) { $old.keyer } else { "default" } }
+if (-not $HtmlGpu) { $HtmlGpu = if ($old -and $old.htmlGpu) { $old.htmlGpu } else { "auto" } }
+$roleMap = @{ tv = "playout"; ingest = "live"; both = "studio" }
+if (-not $Role -and $old -and $old.role) { $Role = ($roleMap.GetEnumerator() | Where-Object { $_.Value -eq $old.role } | Select-Object -First 1).Key }
+if (-not $Role) { $Role = "tv" }
+# A rerun keeps the number of channels of the previous install unless -Outputs is given (a node with one DeckLink
+# output must not suddenly get 4 channels that grab inputs of other software).
+if (-not $PSBoundParameters.ContainsKey("Outputs") -and $old -and $old.outputs) { $Outputs = [Math]::Max(1, @($old.outputs).Count) }
 if ($MediaPath -and -not $MediaPath.StartsWith("\\") -and -not ($MediaPath -match '^[A-Za-z]:\\')) { throw "-MediaPath must be a UNC path (\\server\share\folder) or a local folder." }
 
 function Get-Release([string]$repo, [scriptblock]$pick) {
@@ -164,6 +188,13 @@ if ($old -and $old.casparVersion -eq $casparTag -and (Test-Path (Join-Path $casp
   Write-Host "Installed CasparCG $casparTag to $casparDir"
 }
 
+# A real GPU with its vendor driver (not the Basic Display / Remote Display adapter). CasparCG mixes on it anyway
+# (OpenGL); this decides whether CEF (HTML producer) renders on it too instead of in software on the CPU.
+$gpu = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "OK" -and $_.Name -match "(?i)nvidia|geforce|quadro|rtx|radeon|amd|intel.*(graphics|arc)" } | Select-Object -First 1
+$htmlOnGpu = $HtmlGpu -eq "on" -or ($HtmlGpu -eq "auto" -and $gpu)
+if ($gpu) { Write-Host "Graphics card: $($gpu.Name) (driver $($gpu.DriverVersion))" } else { Warn "No graphics card with a vendor driver found: CasparCG needs OpenGL 4.5 (install the GPU driver)." }
+Write-Host "HTML graphics render on: $(if ($htmlOnGpu) { 'GPU' } else { 'CPU' }) (-HtmlGpu $HtmlGpu)"
+
 $consumers = ""
 $outs = @()
 for ($i = 1; $i -le $Outputs; $i++) {
@@ -207,7 +238,7 @@ $consumers  </channels>
     </tcp>
   </controllers>
   <html>
-    <enable-gpu>false</enable-gpu>
+    <enable-gpu>$(if ($htmlOnGpu) { "true" } else { "false" })</enable-gpu>
   </html>
 </configuration>
 "@
@@ -220,7 +251,10 @@ if (-not $MediaPath) { New-Item -ItemType Directory (Join-Path $casparDir "media
 # ---- 4. media share credentials ------------------------------------------------------------
 if ($MediaPath.StartsWith("\\") -and $SmbUser) {
   Step "Media share credentials"
-  if (-not $SmbPassword) { $SmbPassword = Read-Host "Password for $SmbUser on $MediaPath" -AsSecureString }
+  if (-not $SmbPassword) {
+    if ($NonInteractive) { throw "No password given for $SmbUser on $MediaPath." }
+    $SmbPassword = Read-Host "Password for $SmbUser on $MediaPath" -AsSecureString
+  }
   Add-Type -AssemblyName System.Security
   $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($SmbPassword))
   $enc = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($plain), $null, "LocalMachine")
@@ -334,10 +368,13 @@ $studioJson = [ordered]@{
   rtmpUrl = if ($PublicHost) { "rtmp://$PublicHost/live" } else { $null }
   ingestAuth = $ingestAuth
   managementUrl = if ($ManagementUrl) { $ManagementUrl } else { $null }
+  managementHosts = @($ManagementHost)
   publishPassword = $publishPass
   mediaPath = if ($MediaPath) { $MediaPath } else { $null }
   videoMode = $VideoMode
   keyer = $Keyer
+  htmlGpu = $HtmlGpu
+  role = $roleMap[$Role]
   outputs = $outs
 } | ConvertTo-Json -Depth 4
 Write-Utf8 (Join-Path $data "studio.json") $studioJson
@@ -421,6 +458,7 @@ Write-Host ""
 Write-Host "Studio node ready." -ForegroundColor Green
 Write-Host "  CasparCG $casparTag, $Outputs channel(s) at ${VideoMode}: channel N plays to DeckLink output N."
 Write-Host "  Media folder:  $mediaDir"
+Write-Host "  HTML graphics: $(if ($htmlOnGpu) { "GPU ($($gpu.Name))" } else { 'CPU (software)' })"
 if ($ingestAuth -eq "management") {
   Write-Host "  RTMP/SRT:      stream keys are checked by $ManagementUrl (management node -> Remote sources)"
 } elseif ($PublicHost) {
@@ -428,6 +466,6 @@ if ($ingestAuth -eq "management") {
   Write-Host "  SRT push:      srt://${PublicHost}:8890?streamid=publish:live/<name>:publish:$publishPass"
 }
 Write-Host "Next, in the management node:"
-Write-Host "  1. Devices -> Studio nodes: add $(if ($PublicHost) { $PublicHost } else { 'this machine' }), port 5250."
+Write-Host "  1. Devices -> Studio nodes: add $(if ($PublicHost) { $PublicHost } else { 'this machine' }), port 5250, role $(@{ tv = 'playout'; ingest = 'live'; both = 'both' }[$Role])."
 Write-Host "  2. Channels: pick the CasparCG channel per TV channel and the ATEM input each DeckLink output is cabled to."
 Write-Host "  3. Remote sources: add a source per contributor (studio node, DeckLink output, ATEM input) and send them the connection details."

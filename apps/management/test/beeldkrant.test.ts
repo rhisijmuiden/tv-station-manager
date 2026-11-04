@@ -135,8 +135,9 @@ class FakeSwitcher extends EventEmitter implements SwitcherDriver {
 class FakePlayout extends EventEmitter implements PlayoutDriver {
   calls: string[] = [];
   graphics: unknown[] = [];
+  session = 1;
   info() {
-    return { connected: true, version: "2.4.3", channels: [1], session: 1 };
+    return { connected: true, version: "2.4.3", channels: [1], session: this.session };
   }
   async play(ch: number, layer: number, clip?: string) {
     this.calls.push(`play ${ch}-${layer}${clip ? ` ${clip}` : ""}`);
@@ -290,6 +291,40 @@ test("beeldkrant: WordPress and RSS feeds, pages, planning and playout on Caspar
   assert.equal((playout.graphics.at(-1) as { hidden: boolean }).hidden, true);
   const ctl = (await api("GET", "/api/control")).body.channels[0];
   assert.equal(ctl.current.type, "beeldkrant");
+
+  // CasparCG restarted (faster than a tick, so never seen disconnected): the page and overlay come back.
+  await h.director.tick();
+  const before = playout.calls.filter((c) => c.startsWith("html 1-10 ")).length;
+  const gfxBefore = playout.graphics.length;
+  playout.session = 2;
+  await h.director.tick();
+  assert.equal(playout.calls.filter((c) => c.startsWith("html 1-10 ")).length, before + 1, playout.calls.join("\n"));
+  assert.ok(playout.graphics.length > gfxBefore);
+  await h.director.tick();
+  assert.equal(playout.calls.filter((c) => c.startsWith("html 1-10 ")).length, before + 1);
+
+  // Rest of the hour: a short block whose beeldkrant fills the hour after its material, then the next hour starts.
+  const short = (await api("POST", "/api/blocks", { name: "Kort", items: [{ type: "beeldkrant", beeldkrantId: bk.body.id, durationMs: 60_000 }], fill: `beeldkrant:${bk.body.id}` })).body;
+  assert.equal((await api("GET", `/api/blocks/${short.id}`)).body.block.fill, `beeldkrant:${bk.body.id}`);
+  const t1 = t0 + 3600_000;
+  await api("POST", "/api/schedule", { channelId: ch.id, startAt: new Date(t1).toISOString(), blockId: short.id, title: "Kort" });
+  await api("POST", "/api/schedule", { channelId: ch.id, startAt: new Date(t1 + 3600_000).toISOString(), blockId: longer.id, title: "Volgend uur" });
+  const sched = (await api("GET", `/api/schedule?channel=${ch.id}&from=${new Date(t1).toISOString()}&to=${new Date(t1 + 7200_000).toISOString()}`)).body.entries;
+  const kort = sched.find((e: { title: string }) => e.title === "Kort");
+  assert.equal(kort.fillMs, 59 * 60_000);
+  assert.equal(kort.gapAfterMs, 0);
+  h.director.now = () => t1 + 30 * 60_000;
+  h.director.invalidate();
+  await h.director.tick();
+  assert.match(playout.calls.filter((c) => c.startsWith("html 1-10 ")).at(-1)!, new RegExp(`/beeldkrant/page\\.html\\?id=${bk.body.id}&start=${t1 + 60_000}$`));
+  const filling = (await api("GET", "/api/control")).body.channels[0];
+  assert.equal(filling.current.type, "beeldkrant");
+  assert.equal(filling.program.title, "Kort");
+  assert.equal(filling.program.next.title, "Volgend uur");
+  // Unknown choices are dropped; a beeldkrant chosen to fill counts as in use.
+  assert.equal((await api("PUT", `/api/blocks/${short.id}`, { name: "Kort", items: [], fill: "rubbish" })).status, 200);
+  assert.equal((await api("GET", `/api/blocks/${short.id}`)).body.block.fill, null);
+  await api("PUT", `/api/blocks/${short.id}`, { name: "Kort", items: [], fill: `beeldkrant:${bk.body.id}` });
 
   // Deleting a feed takes its pages out; deleting a used beeldkrant needs force.
   await api("DELETE", `/api/rss/feeds/${atom.id}`);

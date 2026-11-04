@@ -14,7 +14,7 @@ import { HttpError, randomToken, requireRole } from "@tvsm/platform";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { Atem, Enums } from "atem-connection";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 export const ATEM_MIGRATIONS = [
@@ -493,9 +493,13 @@ export function registerAtem(app: FastifyInstance, platform: Platform, connect: 
     return { token: t, path: `${AUTOMATION_API}/atem-control`, lastPollAt: lastPoll };
   });
   let lastPoll: { at: string; ip: string } | null = null;
-  app.get(`${AUTOMATION_API}/atem-control`, async (req, reply) => {
+  /** True when the request carries the automation token (management nodes). */
+  const automationAuthorized = (req: FastifyRequest) => {
     const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? "");
-    if (!m || !sameSecret(m[1]!, automationToken())) return reply.status(401).send({ error: "unauthorized" });
+    return !!m && sameSecret(m[1]!, automationToken());
+  };
+  app.get(`${AUTOMATION_API}/atem-control`, async (req, reply) => {
+    if (!automationAuthorized(req)) return reply.status(401).send({ error: "unauthorized" });
     lastPoll = { at: new Date().toISOString(), ip: req.ip };
     const rows = db.prepare("SELECT * FROM atem_switchers ORDER BY name COLLATE NOCASE").all() as unknown as SwitcherRow[];
     return {
@@ -505,7 +509,7 @@ export function registerAtem(app: FastifyInstance, platform: Platform, connect: 
   });
 
   const list = () => (db.prepare("SELECT * FROM atem_switchers ORDER BY name COLLATE NOCASE").all() as unknown as SwitcherRow[]).map(toPublic);
-  return { counts, list };
+  return { counts, list, automationAuthorized };
 }
 
 export type PublicSwitcher = ReturnType<ReturnType<typeof registerAtem>["list"]>[number];

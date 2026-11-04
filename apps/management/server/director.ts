@@ -1,3 +1,4 @@
+import { baseLayer } from "./layers.js";
 import type { Platform } from "@tvsm/platform";
 import { HttpError, requireRole } from "@tvsm/platform";
 import type { FastifyInstance } from "fastify";
@@ -7,9 +8,12 @@ import { AUDIO_LAYER, audioGain, audioProducer, audioSource } from "./audio.js";
 import { channelOut, dbLoader, scheduleEntries, type ChannelRow, type Graphics } from "./content.js";
 import type { DeviceHub } from "./devices.js";
 import type { LiveRow, RemoteSources } from "./remote.js";
-import { at, casparClip, compile, programAt, type EntryInfo, type TimelineEvent } from "./timeline.js";
+import { nextStationHour } from "./hourclock.js";
+import { at, casparClip, compile, holdUntil, programAt, skipEvent, type EntryInfo, type TimelineEvent } from "./timeline.js";
 import { webcamOf } from "./webcamdb.js";
 import { playPlan } from "./webcamlogic.js";
+import { tickerHeadlinesFromDb } from "./tickerdb.js";
+import { tickerData, tickerHeight } from "./tickerlogic.js";
 
 /**
  * The director ("regisseur"). For every channel with automation on it follows the compiled schedule:
@@ -29,9 +33,13 @@ export const PLAYOUT_LAYER = 10;
 export const CAPTION_LAYER = 11;
 const PRELOAD_MS = 3000;
 const RETRY_MS = 5000;
+/** A clip whose file CasparCG cannot find is skipped after this long; the rest of its programme moves up. */
+export const SKIP_MISSING_MS = 10_000;
 const WINDOW_BACK = 6 * 3600_000;
 const WINDOW_AHEAD = 30 * 3600_000;
 const ALERT_EVERY_MS = 5 * 60_000;
+/** A timeline compiled longer ago than this is not what is on air any more: it is not held. */
+const HOLD_STALE_MS = 5 * 60_000;
 /** A live item on another studio node is started this long before it goes on air. */
 export const LIVE_PREROLL_MS = 30_000;
 /** A stream must have been playing on CasparCG this long before the ATEM cuts to it. */
@@ -47,6 +55,11 @@ interface ChannelState {
   currentKey: string | null;
   executedAt: number;
   failedKey: string | null;
+  /** When the failing item first failed, and whether CasparCG said its file does not exist. */
+  failedSince: number;
+  failedNotFound: boolean;
+  /** Items skipped because their file was missing (key -> time skipped), applied again after every compile. */
+  skips: Map<string, number>;
   preloadedKey: string | null;
   override: { liveSourceId: number; name: string; since: string } | null;
   activeRtmp: (Output & { liveId: number }) | null;
@@ -55,6 +68,8 @@ interface ChannelState {
   /** A live item on another node is current but its stream is not playing: the playout node stays on air. */
   standby: { liveSourceId: number; name: string; since: string; input: number | null } | null;
   graphicsLoaded: boolean;
+  /** CasparCG connection the current item was played on; a new one (restart) starts from a clean server. */
+  playoutSession: number | undefined;
   graphicsJson: string | null;
   /** Graphics overlay on the live node's output. */
   liveGfx: (Output & { session: number | undefined; json: string }) | null;
@@ -65,10 +80,20 @@ interface ChannelState {
   audioError: { sourceId: number; message: string; at: number } | null;
   /** A webcam caption is on CAPTION_LAYER of the playout channel. */
   captionOn: boolean;
+  /**
+   * Changes to the hour on air wait for the next whole hour (`until`): the timeline as compiled before the change is
+   * kept until then, so a block edited at 14:30 does not restart the clip playing; it goes on air at 15:00.
+   * `changed` = the picture would change (shown to the editors), otherwise only keys differed (e.g. a republish).
+   */
+  hold: { until: number; events: TimelineEvent[]; entries: Map<number, EntryInfo>; changed: boolean } | null;
+  /** "Apply now" was pressed: the next compile takes the new schedule at once. */
+  applyNow: boolean;
 }
 
 export class Director {
   private states = new Map<number, ChannelState>();
+  /** RSS headlines of each channel's ticker, re-read every `ticker.refreshMinutes` (or when its settings change). */
+  private tickerCache = new Map<number, { key: string; at: number; headlines: string[] }>();
   private timer: NodeJS.Timeout | null = null;
   private dirty = true;
   private busy = new Set<number>();
@@ -98,7 +123,7 @@ export class Director {
   private state(id: number): ChannelState {
     let s = this.states.get(id);
     if (!s) {
-      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false };
+      s = { events: [], entries: new Map(), compiledAt: 0, currentKey: null, executedAt: 0, failedKey: null, failedSince: 0, failedNotFound: false, skips: new Map(), preloadedKey: null, override: null, activeRtmp: null, prerolled: null, standby: null, graphicsLoaded: false, playoutSession: undefined, graphicsJson: null, liveGfx: null, lastError: null, lastAlertAt: 0, audio: null, audioError: null, captionOn: false, hold: null, applyNow: false };
       this.states.set(id, s);
     }
     return s;
@@ -110,9 +135,48 @@ export class Director {
     const from = now - WINDOW_BACK;
     const to = now + WINDOW_AHEAD;
     const entries = scheduleEntries(this.platform.ctx.db, ch.id, from, to);
-    s.events = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
-    s.entries = new Map(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
+    for (const [key, t] of s.skips) if (t < from) s.skips.delete(key);
+    let fresh = compile(dbLoader(this.platform.ctx.db), entries, from, to).events;
+    for (const [key, t] of s.skips) fresh = skipEvent(fresh, key, t);
+    const freshEntries = new Map<number, EntryInfo>(entries.map((e) => [e.id, { group: e.group ?? null, inEpg: e.inEpg }]));
+    if (s.hold && (now >= s.hold.until || s.applyNow || !ch.automation)) s.hold = null;
+    // Only a channel that is playing holds its hour; the first compile, manual control, a stale timeline (the
+    // director was not running) and "apply now" take the new schedule at once.
+    if (!s.hold && ch.automation && s.compiledAt > 0 && now - s.compiledAt < HOLD_STALE_MS && !s.applyNow) {
+      const until = nextStationHour(now, this.timeZone());
+      s.hold = { until, events: s.events.filter((e) => e.start < until), entries: s.entries, changed: false };
+    }
+    s.applyNow = false;
+    const r = s.hold ? holdUntil(s.hold.events, fresh, now, s.hold.until) : null;
+    if (s.hold && r?.differs) {
+      if (r.changed && !s.hold.changed) this.asrun(ch.id, "control", "Schedule changed", `Goes on air at ${new Date(s.hold.until).toISOString()} (the hour on air plays on)`, true);
+      s.hold.changed = r.changed;
+      s.events = r.events;
+      s.entries = new Map([...s.hold.entries, ...freshEntries]);
+    } else {
+      s.hold = null;
+      s.events = fresh;
+      s.entries = freshEntries;
+    }
     s.compiledAt = now;
+  }
+
+  private timeZone() {
+    return this.platform.ctx.settings.get<string>("station.timezone", "Europe/Amsterdam");
+  }
+
+  /** Schedule changes waiting for the next hour on this channel, if any. */
+  pending(channelId: number) {
+    const h = this.states.get(channelId)?.hold;
+    return h?.changed && h.until > this.now() ? { from: new Date(h.until).toISOString() } : null;
+  }
+
+  /** Takes the changed schedule on air now instead of at the next hour (the item on air may restart). */
+  applyNow(channelId: number) {
+    const s = this.state(channelId);
+    s.applyNow = true;
+    s.hold = null;
+    this.dirty = true;
   }
 
   async tick() {
@@ -133,12 +197,23 @@ export class Director {
     }
   }
 
-  private async step(ch: ChannelRow, s: ChannelState, now: number) {
+  private async step(ch: ChannelRow, s: ChannelState, now: number): Promise<void> {
     const { current, upcoming } = at(s.events, now);
+    this.checkPlayoutSession(ch, s);
     if (s.override) {
       const live = this.live(s.override.liveSourceId);
       if (live) await this.switchTo(ch, live.atem_input).catch((e) => this.fail(ch, s, `override: ${(e as Error).message}`));
     } else if (current) {
+      if (current.type === "media" && s.failedKey === current.key && s.failedNotFound && now - s.failedSince >= SKIP_MISSING_MS) {
+        // The file is not there: skip it so the picture does not stand still, the rest of the programme moves up.
+        s.skips.set(current.key, now);
+        s.events = skipEvent(s.events, current.key, now);
+        if (s.hold) s.hold.events = skipEvent(s.hold.events, current.key, now);
+        s.failedKey = null;
+        s.lastError = null;
+        this.asrun(ch.id, "media", current.title, `Skipped: file not found (${current.leaf?.path ?? ""})`, false);
+        return this.step(ch, s, now);
+      }
       const changed = current.key !== s.currentKey;
       const retry = s.failedKey === current.key && now - s.executedAt > RETRY_MS;
       if (changed || retry) await this.execute(ch, s, current, now);
@@ -159,6 +234,24 @@ export class Director {
 
   private playout(ch: ChannelRow) {
     return this.hub.playout(ch.studio_id);
+  }
+
+  /**
+   * CasparCG came back with empty layers (service restart, crash, reconnect): play the current item again (at its
+   * offset), preload the next one and add the overlay again. A restart shorter than one tick is not seen as a
+   * disconnect, so compare the connection session instead of waiting for `connected` to drop.
+   */
+  private checkPlayoutSession(ch: ChannelRow, s: ChannelState) {
+    const info = this.playout(ch)?.info();
+    if (!info?.connected) return;
+    if (s.playoutSession !== undefined && info.session !== s.playoutSession) {
+      s.currentKey = null;
+      s.preloadedKey = null;
+      s.graphicsLoaded = false;
+      s.captionOn = false;
+      this.asrun(ch.id, "control", "CasparCG reconnected", "Current item and overlay played again", true);
+    }
+    s.playoutSession = info.session;
   }
   private live(id: number) {
     return this.remote.live(id);
@@ -275,7 +368,25 @@ export class Director {
         const p = this.playout(ch);
         if (!p) throw new Error("no studio node configured for this channel");
         this.remote.forget(ch.studio_id, ch.caspar_channel);
-        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, beeldkrantUrl(this.platform, ev.leaf.beeldkrantId, ev.start - ev.offsetMs));
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, beeldkrantUrl(this.platform, ev.leaf.beeldkrantId, ev.start - ev.offsetMs, this.tickerSpace(ch, ev, now)));
+        s.standby = null;
+        await this.stopRtmp(s);
+        await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "lineup") {
+        // "Coming up" slide: a static page with the programmes of the coming hour, made from the schedule.
+        const p = this.playout(ch);
+        if (!p) throw new Error("no studio node configured for this channel");
+        this.remote.forget(ch.studio_id, ch.caspar_channel);
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, lineupUrl(this.platform, ch.id, ev.start - ev.offsetMs));
+        s.standby = null;
+        await this.stopRtmp(s);
+        await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "info" && ev.leaf?.infoPageId) {
+        // Fixed info page made by the editors: a static page in the channel's house style.
+        const p = this.playout(ch);
+        if (!p) throw new Error("no studio node configured for this channel");
+        this.remote.forget(ch.studio_id, ch.caspar_channel);
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, infoPageUrl(this.platform, ev.leaf.infoPageId, ch.id));
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
@@ -311,8 +422,11 @@ export class Director {
       s.lastError = null;
       this.asrun(ch.id, ev.type, ev.type === "filler" ? "Filler" : ev.title, ev.programTitle || null, true);
     } catch (e) {
+      const message = (e as Error).message;
+      if (s.failedKey !== ev.key) s.failedSince = now;
       s.failedKey = ev.key;
-      this.fail(ch, s, (e as Error).message, ev);
+      s.failedNotFound = /\b404\b|not found/i.test(message);
+      this.fail(ch, s, message, ev);
     }
   }
 
@@ -376,7 +490,7 @@ export class Director {
 
   /** The audio source that should sound now: only while the playout node itself is on air (clip, beeldkrant or webcam). */
   private wantedAudio(s: ChannelState, current: TimelineEvent | null) {
-    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam")) return null;
+    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam" && current.type !== "lineup" && current.type !== "info")) return null;
     return current.leaf?.audioSourceId ?? null;
   }
 
@@ -431,24 +545,43 @@ export class Director {
 
   graphicsData(ch: ChannelRow, current: TimelineEvent | null, upcoming: TimelineEvent[], now: number) {
     const g = channelOut(ch).graphics as Graphics;
-    const inAd = current?.leaf?.blockKind === "commercial" || current?.leaf?.category === "commercial";
-    // A beeldkrant has its own header and clock; the overlay only stays when the beeldkrant asks for it.
-    const onBeeldkrant = (current?.type === "beeldkrant" || current?.type === "webcam") && !current.leaf?.showOverlay;
-    const hidden = !g.enabled || (g.hideInCommercials && inAd) || onBeeldkrant;
+    // The base layer (logo, clock, ticker) follows the channel's rule for this kind of content: a beeldkrant has its own
+    // logo and clock, a commercial goes without (unless "hide in commercials" was switched off before the rules existed).
+    const base = baseLayer(g.layers, current);
+    const rule = base.kind === "commercial" && !g.hideInCommercials ? g.layers.media : base;
+    const hidden = !g.enabled || (!rule.logo && !rule.clock && !rule.ticker);
     // "Up next" shows the next programme (schedule entry) shortly before the current one ends.
-    const nextProgram = upcoming.find((e) => e.scheduleId != null && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
+    const nextProgram = upcoming.find((e) => e.scheduleId != null && !e.fill && e.scheduleId !== current?.scheduleId && e.offsetMs === 0);
     const untilNext = nextProgram ? nextProgram.start - now : Infinity;
     const upNextVisible = g.upNext.enabled && !hidden && untilNext <= g.upNext.secondsBeforeEnd * 1000 && untilNext > (g.upNext.secondsBeforeEnd - g.upNext.durationSeconds) * 1000;
     return {
       channel: ch.name,
       hidden,
-      logo: { ...g.logo, url: g.logo.file ? `${publicUrl(this.platform)}/graphics/${ch.id}/logo?v=${encodeURIComponent(g.logo.file)}` : null },
-      clock: g.clock,
-      ticker: g.ticker,
+      logo: { ...g.logo, enabled: g.logo.enabled && rule.logo, url: g.logo.file ? `${publicUrl(this.platform)}/graphics/${ch.id}/logo?v=${encodeURIComponent(g.logo.file)}` : null },
+      clock: { ...g.clock, enabled: g.clock.enabled && rule.clock },
+      ticker: tickerData(g.ticker, g.ticker.enabled && rule.ticker, this.tickerHeadlines(ch.id, g.ticker, now)),
       now: { title: current?.programTitle || current?.title || "" },
       upNext: { visible: upNextVisible, title: nextProgram?.programTitle ?? "", startAt: nextProgram ? new Date(nextProgram.start).toISOString() : null },
       subtitles: this.subtitlesFor(g, current),
     };
+  }
+
+  /** The ticker's RSS headlines; kept for `refreshMinutes` so the running line does not change on every feed fetch. */
+  tickerHeadlines(channelId: number, t: Graphics["ticker"], now: number): string[] {
+    if (t.source === "text" || !t.feedIds.length) return [];
+    const key = JSON.stringify([t.source, t.feedIds, t.maxItems, t.maxAgeHours, t.showTime]);
+    const c = this.tickerCache.get(channelId);
+    if (c && c.key === key && now - c.at < t.refreshMinutes * 60_000) return c.headlines;
+    const headlines = tickerHeadlinesFromDb(this.platform.ctx.db, t, now, this.platform.ctx.settings.get("station.timezone", "Europe/Amsterdam"));
+    this.tickerCache.set(channelId, { key, at: now, headlines });
+    return headlines;
+  }
+
+  /** Room the beeldkrant page keeps free at the bottom for the channel's ticker (0 = no ticker during this item). */
+  private tickerSpace(ch: ChannelRow, ev: TimelineEvent, now: number) {
+    const g = channelOut(ch).graphics as Graphics;
+    if (!g.enabled || !g.ticker.enabled || !baseLayer(g.layers, ev).ticker) return 0;
+    return tickerData(g.ticker, true, this.tickerHeadlines(ch.id, g.ticker, now)).enabled ? tickerHeight(g.ticker.fontSize) : 0;
   }
 
   /** Cues URL + the wall-clock time of the clip's first frame; the overlay times the cues itself (NTP-synced clocks). */
@@ -543,6 +676,7 @@ export class Director {
       playout: p ? p.info() : null,
       onAir: this.onAir(ch, s, sw?.info().program[ch.atem_me]),
       atemLock: this.hub.lock(ch.atem_id),
+      pending: this.pending(ch.id),
       standby: s.standby ? { liveSourceId: s.standby.liveSourceId, name: s.standby.name, since: s.standby.since } : null,
       audio: this.audioStatus(s, current),
       lastError: s.lastError,
@@ -555,7 +689,7 @@ export class Director {
   private programNow<T>(s: ChannelState, now: number, ev: (e: TimelineEvent) => T) {
     const p = programAt(s.events, now, (id) => s.entries.get(id));
     if (!p) return null;
-    const next = s.events.find((e) => e.start >= p.end && e.scheduleId != null && e.offsetMs === 0);
+    const next = s.events.find((e) => e.start >= p.end && e.scheduleId != null && !e.fill && e.offsetMs === 0);
     return {
       title: p.title,
       startAt: new Date(p.start).toISOString(),
@@ -653,6 +787,14 @@ export class Director {
       return { ok: true };
     });
 
+    app.post("/api/control/:id/apply-now", async (req) => {
+      requireRole(req, "editor");
+      const c = channel(pid(req));
+      this.applyNow(c.id);
+      this.asrun(c.id, "control", "Schedule change applied now", req.user!.username, true);
+      return { ok: true };
+    });
+
     app.post("/api/control/:id/resume", async (req) => {
       requireRole(req, "operator");
       await this.resume(channel(pid(req)), req.user!.username);
@@ -693,7 +835,14 @@ export function publicUrl(platform: Platform) {
   return `http://${ip ?? "127.0.0.1"}:${platform.ctx.config.port}`;
 }
 
+/** Page CasparCG plays for a "coming up" slide: `at` is the slide's start, the list shows what starts after it. */
+export const lineupUrl = (platform: Platform, channelId: number, at: number) => `${publicUrl(platform)}/lineup/page.html?channel=${channelId}&at=${Math.round(at)}`;
+
+/** Page CasparCG plays for an info page, in the house style (colours, logo) of the channel it is on. */
+export const infoPageUrl = (platform: Platform, id: number, channelId: number) => `${publicUrl(platform)}/infopage/page.html?id=${id}&channel=${channelId}`;
+
 /** Page CasparCG plays for a beeldkrant: `start` is the wall-clock time of its first page, so a restart shows the right page. */
-export const beeldkrantUrl = (platform: Platform, id: number, start: number) => `${publicUrl(platform)}/beeldkrant/page.html?id=${id}&start=${Math.round(start)}`;
+export const beeldkrantUrl = (platform: Platform, id: number, start: number, tickerSpace = 0) =>
+  `${publicUrl(platform)}/beeldkrant/page.html?id=${id}&start=${Math.round(start)}${tickerSpace > 0 ? `&ticker=${tickerSpace}` : ""}`;
 
 const sameOutput = (a: Output, b: Output) => a.studioId === b.studioId && a.casparChannel === b.casparChannel;

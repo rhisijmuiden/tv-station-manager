@@ -1,5 +1,5 @@
 import { get, Badge, Card, CardBody, CardHeader, PageHeader, cx } from "@tvsm/ui";
-import { CheckCircle2, Circle, DatabaseBackup, Radio, Server, SlidersHorizontal, Video } from "lucide-react";
+import { CheckCircle2, Circle, DatabaseBackup, Radio, Repeat, Server, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 interface Overview {
   nodes: { total: number; online: number; pending: number };
   atem: { total: number; online: number };
-  hyperdecks?: { total: number; online: number; recording: number };
+  teranex?: { total: number; online: number; noSignal: number };
   mailConfigured: boolean;
   backupTargets: number;
   lastBackup: { status: string; startedAt: string; kind: string } | null;
@@ -54,18 +54,18 @@ export function Dashboard() {
             tone={o.atem.online < o.atem.total ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
           />
         </Link>
-        {!!o.hyperdecks?.total && (
-          <Link to="/hyperdeck">
+        {!!o.teranex?.total && (
+          <Link to="/teranex">
             <Stat
-              label={t("orch.hyperdeck.dashboard")}
+              label={t("orch.teranex.dashboard")}
               value={
                 <span>
-                  {o.hyperdecks.online} <span className="text-sm font-medium text-muted">/ {o.hyperdecks.total} {t("orch.dashboard.online").toLowerCase()}</span>
-                  {o.hyperdecks.recording > 0 && <span className="text-sm font-medium text-danger"> · {o.hyperdecks.recording} {t("orch.hyperdeck.recordingNow")}</span>}
+                  {o.teranex.online} <span className="text-sm font-medium text-muted">/ {o.teranex.total} {t("orch.dashboard.online").toLowerCase()}</span>
+                  {o.teranex.noSignal > 0 && <span className="text-sm font-medium text-danger"> · {o.teranex.noSignal} {t("orch.teranex.noSignalCount")}</span>}
                 </span>
               }
-              icon={<Video className="size-5" />}
-              tone={o.hyperdecks.online < o.hyperdecks.total ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
+              icon={<Repeat className="size-5" />}
+              tone={o.teranex.online < o.teranex.total || o.teranex.noSignal > 0 ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
             />
           </Link>
         )}

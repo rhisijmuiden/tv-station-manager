@@ -1,13 +1,14 @@
 import { Badge, Button, Card, Input, cx, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { Clapperboard, Film, Megaphone, MonitorPlay, Newspaper, Pause, Radio, Settings2, Webcam, X } from "lucide-react";
+import { CalendarClock, Clapperboard, Film, Info, Megaphone, MonitorPlay, Newspaper, Pause, Radio, Settings2, Webcam, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { errorText, fmtDuration, fmtTime } from "../lib";
+import { PendingBar } from "./PendingChanges";
 
 export interface NowEv {
   key: string;
-  type: "media" | "live" | "beeldkrant" | "webcam" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "info" | "filler";
   title: string;
   programTitle: string;
   startAt: string;
@@ -24,6 +25,8 @@ export interface NowChannel {
   upcoming: NowEv[];
   program: { title: string; startAt: string; endAt: string; index: number; items: NowEv[]; next: { title: string; startAt: string } | null } | null;
   lastError: string | null;
+  /** Schedule changes to the hour on air, waiting for the next hour. */
+  pending?: { from: string } | null;
 }
 export interface Preview {
   channelId: number;
@@ -50,7 +53,7 @@ const ms = (iso: string) => Date.parse(iso);
 
 function typeIcon(e: NowEv) {
   if (e.blockKind === "commercial") return Megaphone;
-  return { media: Film, live: Radio, beeldkrant: Newspaper, webcam: Webcam, filler: Pause }[e.type] ?? Clapperboard;
+  return { media: Film, live: Radio, beeldkrant: Newspaper, webcam: Webcam, lineup: CalendarClock, info: Info, filler: Pause }[e.type] ?? Clapperboard;
 }
 
 function Bar({ value, className, fill = "bg-brand" }: { value: number; className?: string; fill?: string }) {
@@ -66,7 +69,7 @@ export function NowOnTv({ c, now, preview, onPreviewSaved }: { c: NowChannel; no
   const { t } = useTranslation();
   const [showPreview, setShowPreview] = useState(false);
   const cur = c.current;
-  const label = (e: NowEv) => (e.type === "filler" ? t("mgmt.control.filler") : e.title || e.programTitle);
+  const label = (e: NowEv) => (e.type === "filler" ? t("mgmt.control.filler") : e.title || (e.type === "lineup" ? t("mgmt.lineup.item") : e.programTitle));
 
   const p = c.program;
   const nextItems = p ? p.items.slice(p.index + 1) : c.upcoming;
@@ -142,6 +145,8 @@ export function NowOnTv({ c, now, preview, onPreviewSaved }: { c: NowChannel; no
           <p className="mt-1 text-[11px] text-muted">{t("mgmt.now.itemOf", { n: p.index + 1, total: p.items.length })}</p>
         </div>
       )}
+
+      {c.pending && <PendingBar channelId={c.channel.id} from={c.pending.from} className="rounded-none border-b border-line px-5" />}
 
       <div className="px-5 py-4">{curBox}</div>
 
