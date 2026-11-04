@@ -52,7 +52,7 @@ test("provisioning job: progress, final result once, crash detection", async () 
     assert.deepEqual(await pollProvision(dir, now, async () => true), { id: 7, status: "running", result: "Starting" });
     writeFileSync(join(dir, "status.json"), JSON.stringify({ id: 7, state: "running", step: "ffmpeg" }));
     assert.equal(activeProvision(dir)?.step, "ffmpeg");
-    assert.deepEqual(await pollProvision(dir, Date.now(), async () => true), { id: 7, status: "running", result: "ffmpeg" });
+    assert.deepEqual(await pollProvision(dir, now + 5_000, async () => true), { id: 7, status: "running", result: "ffmpeg" });
     writeFileSync(join(dir, "status.json"), JSON.stringify({ id: 7, state: "done", step: "done", message: "Node set up as ingest", rebootRequired: true }));
     assert.deepEqual(await pollProvision(dir), { id: 7, status: "done", result: "Node set up as ingest Restart required." });
     assert.equal(await pollProvision(dir), null, "reported once");
