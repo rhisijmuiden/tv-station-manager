@@ -28,6 +28,8 @@
     "updates": "Software & updates",
     "account": "My account",
     "info": "Info",
+    "help": "Help",
+    "helpHint": "Open the user guide in a new tab",
     "logout": "Sign out",
     "theme": "Theme",
     "light": "Light",
