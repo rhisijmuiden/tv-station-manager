@@ -80,11 +80,17 @@ export interface Channel {
   weekEnabled: boolean;
 }
 export type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+/** Logo size (height in px on the 1920x1080 frame) and offset limits; the server checks the same (content.ts). */
+export const LOGO_SIZE = { min: 24, max: 600, default: 96 } as const;
+export const LOGO_OFFSET = { min: -96, max: 900 } as const;
+/** The logo settings with the fields older saved settings lack filled in. */
+export const logoOf = (l: Graphics["logo"]): Required<Graphics["logo"]> => ({ size: LOGO_SIZE.default, offsetX: 0, offsetY: 0, fullFrame: false, ...l });
 export interface Graphics {
   enabled: boolean;
   template: string;
   layer: number;
-  logo: { enabled: boolean; position: Position; file: string | null; opacity: number };
+  /** size = height in px on the 1920x1080 frame; offsetX/offsetY move it from its corner; fullFrame = 1920x1080 file as is. */
+  logo: { enabled: boolean; position: Position; file: string | null; opacity: number; size?: number; offsetX?: number; offsetY?: number; fullFrame?: boolean };
   clock: { enabled: boolean; position: Position };
   upNext: { enabled: boolean; secondsBeforeEnd: number; durationSeconds: number };
   ticker: TickerSettings;

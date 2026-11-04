@@ -2,7 +2,7 @@
 <!--
   TV Station Manager graphics overlay for CasparCG (HTML template).
   Loaded by the management node with: CG <ch>-<layer> ADD 1 "tvsm/overlay" 1 "<json>"
-  and updated with CG UPDATE. Data: { channel, hidden, logo{enabled,position,opacity,url}, clock{enabled,position},
+  and updated with CG UPDATE. Data: { channel, hidden, logo{enabled,position,opacity,url,size,offsetX,offsetY,fullFrame}, clock{enabled,position},
   ticker{enabled,items[],separator,label,speed,fontSize,height,bold,uppercase,colors{background,text,accent,labelText},backgroundOpacity}
   (older management nodes send ticker{enabled,text}), now{title}, upNext{visible,title,startAt}, subtitles{enabled,url,clipStart,size} }.
   Subtitles: `url` returns { cues: [{ s, e, t }] } (ms from the clip start); `clipStart` is the wall-clock time (epoch ms)
@@ -23,7 +23,9 @@
   .pos-bottom-right { position: absolute; bottom: 0; right: 0; }
   .fade { transition: opacity 400ms ease, transform 500ms cubic-bezier(.2,.8,.2,1); }
   .gone { opacity: 0 !important; }
-  #logo img { max-height: 96px; max-width: 280px; display: block; }
+  #logo img { height: 96px; width: auto; max-width: 1728px; display: block; }
+  #logo.full { position: fixed; top: 0 !important; left: 0 !important; right: auto !important; bottom: auto !important; }
+  #logo.full img { max-width: none; }
   #clock { color: #fff; font-size: 40px; font-weight: 600; letter-spacing: .02em; text-shadow: 0 2px 10px rgba(0,0,0,.55); font-variant-numeric: tabular-nums; }
   #upnext { bottom: 120px; left: 0; display: flex; align-items: stretch; transform: translateX(0); }
   #upnext.gone { transform: translateX(-60px); }
@@ -59,6 +61,23 @@
   var state = {};
   var $ = function (id) { return document.getElementById(id); };
   function place(el, pos) { el.className = el.className.replace(/pos-\S+/g, "").trim() + " pos-" + (pos || "top-right"); }
+  /* Logo size (height in px, older management nodes send none = 96) and offset from its corner; fullFrame = a 1920x1080 file as is. */
+  function placeLogo(el, l) {
+    var img = el.querySelector("img"), full = !!l.fullFrame;
+    place(el, l.position);
+    el.classList.toggle("full", full);
+    var x = Number(l.offsetX) || 0, y = Number(l.offsetY) || 0, p = l.position || "top-right";
+    el.style.top = el.style.bottom = el.style.left = el.style.right = "";
+    if (!full) {
+      el.style[p.indexOf("bottom") === 0 ? "bottom" : "top"] = y + "px";
+      el.style[p.slice(-4) === "left" ? "left" : "right"] = x + "px";
+    }
+    if (img) {
+      var size = Math.max(24, Math.min(600, Number(l.size) || 96));
+      img.style.height = full ? "1080px" : size + "px";
+      img.style.width = full ? "1920px" : "auto";
+    }
+  }
   function show(el, on) { el.classList.toggle("gone", !on); }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function hhmm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
@@ -66,7 +85,7 @@
     var d = state, hidden = !!d.hidden;
     var logo = $("logo");
     if (d.logo && d.logo.url && logo.getAttribute("data-url") !== d.logo.url) { logo.innerHTML = '<img src="' + d.logo.url + '" />'; logo.setAttribute("data-url", d.logo.url); }
-    if (d.logo) { place(logo, d.logo.position); logo.style.opacity = d.logo.opacity || 0.9; }
+    if (d.logo) { placeLogo(logo, d.logo); logo.style.opacity = d.logo.opacity || 0.9; }
     show(logo, !hidden && d.logo && d.logo.enabled && !!d.logo.url);
     var clock = $("clock");
     if (d.clock) place(clock, d.clock.position);
