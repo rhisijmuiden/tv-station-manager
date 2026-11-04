@@ -29,6 +29,8 @@ export interface PlatformAppOptions {
   routes: AppRoute[];
   /** App-specific translations, merged with the platform strings. */
   translations: { en: Record<string, unknown>; nl: Record<string, unknown> };
+  /** Optional user guide, linked as "Help" above the Info button. */
+  helpUrl?: string;
 }
 
 const systemNav: NavGroup = {
@@ -55,7 +57,7 @@ function Gate({ opts }: { opts: PlatformAppOptions }) {
   if (status === "setup") return <SetupPage appName={opts.appName} logo={logoOnDark} />;
   if (status === "anonymous") return <LoginPage appName={opts.appName} logo={logoOnDark} />;
   return (
-    <AppShell nav={[...opts.nav, systemNav]} logo={logoOnDark} logoMark={logoMark}>
+    <AppShell nav={[...opts.nav, systemNav]} logo={logoOnDark} logoMark={logoMark} helpUrl={opts.helpUrl}>
       <Routes>
         {opts.routes.map((r) => (
           <Route key={r.path} path={r.path} element={r.element} />

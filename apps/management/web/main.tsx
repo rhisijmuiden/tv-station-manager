@@ -34,6 +34,7 @@ import orchNl from "../../orchestrator/web/i18n/nl.json";
 
 mountPlatformApp({
   appName: "TV Station Manager",
+  helpUrl: "/help/index.html",
   translations: { en: { ...en, orch: orchEn.orch }, nl: { ...nl, orch: orchNl.orch } },
   nav: [
     {

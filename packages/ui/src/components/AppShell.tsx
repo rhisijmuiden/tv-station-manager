@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsLeft, Info, LogOut, Menu, Moon, ShieldAlert, Sun, UserRound } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronsLeft, Info, LogOut, Menu, Moon, ShieldAlert, Sun, UserRound } from "lucide-react";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
@@ -45,7 +45,7 @@ const containsPath = (path: string, item: NavItem): boolean => (item.children ? 
 const rank = (r?: string) => ({ admin: 3, editor: 2, operator: 1 })[r ?? ""] ?? 0;
 export const roleAtLeast = (role: string | undefined, min?: string) => !min || rank(role) >= rank(min);
 
-export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; logo: string; logoMark: string; children: ReactNode }) {
+export function AppShell({ nav, logo, logoMark, helpUrl, children }: { nav: NavGroup[]; logo: string; logoMark: string; /** Opens in a new tab from the sidebar Help link. */ helpUrl?: string; children: ReactNode }) {
   const { t, i18n } = useTranslation();
   const { info, user, lastCheck, refresh, defaultPasswordAccount } = useSession();
   const [theme, setTheme] = useTheme();
@@ -203,6 +203,18 @@ export function AppShell({ nav, logo, logoMark, children }: { nav: NavGroup[]; l
       </nav>
 
       <div className="space-y-1 border-t border-white/5 p-3">
+        {helpUrl && (
+          <a
+            href={helpUrl}
+            target="_blank"
+            rel="noopener"
+            className={cx("flex w-full items-center gap-3 rounded-md py-2 text-[13.5px] text-sidebar-fg/80 hover:bg-white/5 hover:text-white", mini ? "justify-center" : "px-3")}
+            title={mini ? t("nav.help") : t("nav.helpHint")}
+          >
+            <BookOpen className="size-[18px]" />
+            {!mini && <span>{t("nav.help")}</span>}
+          </a>
+        )}
         <button
           onClick={() => setInfoOpen(true)}
           className={cx("flex w-full items-center gap-3 rounded-md py-2 text-[13.5px] text-sidebar-fg/80 hover:bg-white/5 hover:text-white", mini ? "justify-center" : "px-3")}
