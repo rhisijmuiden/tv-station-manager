@@ -10,6 +10,7 @@ import { audioIn, BlockCycleError, fillIn, compile, DEFAULT_LINEUP_MS, expandBlo
 import type { Db } from "@tvsm/platform";
 import { beeldkrantRef } from "./beeldkrantdb.js";
 import { webcamRef } from "./webcamdb.js";
+import { infoPageRef } from "./infopagedb.js";
 import { autoRuleSchema, isoWeek, mixNewest, newestFolders, parseAutoRule, pickClips, ruleReady, type AutoRule } from "./autofill.js";
 import { stationDay } from "./hourclock.js";
 
@@ -82,6 +83,7 @@ export function dbLoader(db: Db): Loader {
   const blocks = new Map<number, BlockRef | undefined>();
   const bk = new Map<number, ReturnType<NonNullable<Loader["beeldkrant"]>>>();
   const cams = new Map<number, ReturnType<NonNullable<Loader["webcam"]>>>();
+  const infos = new Map<number, ReturnType<NonNullable<Loader["infoPage"]>>>();
   const picks = newPickMemory();
   const openers = new Map<number, number | null>();
   return {
@@ -120,6 +122,10 @@ export function dbLoader(db: Db): Loader {
       if (!cams.has(id)) cams.set(id, webcamRef(db, id));
       return cams.get(id);
     },
+    infoPage(id) {
+      if (!infos.has(id)) infos.set(id, infoPageRef(db, id));
+      return infos.get(id);
+    },
     autoMedia(stored, asOf, slot) {
       return autoMedia(db, stored, asOf ?? Date.now(), slot, picks);
     },
@@ -146,7 +152,7 @@ export function channelHourStart(db: Db, channelId: number): number | null {
 
 /** Columns of a block item as the timeline loader and the rundown copies read them. */
 export const ITEM_COLUMNS =
-  "id, type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, webcam_id AS webcamId, auto_rule AS autoRule, duration_ms AS durationMs, title, audio";
+  "id, type, media_id AS mediaId, child_block_id AS childBlockId, live_source_id AS liveSourceId, beeldkrant_id AS beeldkrantId, webcam_id AS webcamId, info_page_id AS infoPageId, auto_rule AS autoRule, duration_ms AS durationMs, title, audio";
 
 /** Picks for broadcasts that start within this time are remembered (and count for "in turn"); later ones are a forecast. */
 export const PICK_MEMO_AHEAD_MS = 3 * 3600_000;
@@ -274,7 +280,7 @@ export const scheduleEntries = (db: Db, channelId: number, from: number, to: num
     group: (r.occurrence as string) || null,
   }));
 
-export type ItemType = "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
+export type ItemType = "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup" | "info";
 export interface ItemIn {
   type: ItemType;
   mediaId?: number | null;
@@ -282,6 +288,7 @@ export interface ItemIn {
   liveSourceId?: number | null;
   beeldkrantId?: number | null;
   webcamId?: number | null;
+  infoPageId?: number | null;
   /** Rule of a "newest clips" item (object from the API, or the stored JSON when items are copied). */
   autoRule?: unknown;
   durationMs?: number | null;
@@ -292,13 +299,14 @@ export interface ItemIn {
 /** Replaces a block's items (blocks page, day planning). Checks that each item points at something. */
 export function writeBlockItems(db: Db, blockId: number, items: ItemIn[]) {
   db.prepare("DELETE FROM block_items WHERE block_id = ?").run(blockId);
-  const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const ins = db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, info_page_id, auto_rule, duration_ms, title, audio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   items.forEach((it, i) => {
     if (it.type === "media" && !it.mediaId) throw new HttpError(400, "media_required");
     if (it.type === "block" && !it.childBlockId) throw new HttpError(400, "block_required");
     if (it.type === "live" && !it.liveSourceId) throw new HttpError(400, "live_source_required");
     if (it.type === "beeldkrant" && !it.beeldkrantId) throw new HttpError(400, "beeldkrant_required");
     if (it.type === "webcam" && !it.webcamId) throw new HttpError(400, "webcam_required");
+    if (it.type === "info" && !it.infoPageId) throw new HttpError(400, "info_page_required");
     const rule = it.type === "auto" ? parseAutoRule(it.autoRule) : null;
     if (rule && !ruleReady(rule)) throw new HttpError(400, "auto_source_required");
     ins.run(
@@ -310,6 +318,7 @@ export function writeBlockItems(db: Db, blockId: number, items: ItemIn[]) {
       it.type === "live" ? it.liveSourceId! : null,
       it.type === "beeldkrant" ? it.beeldkrantId! : null,
       it.type === "webcam" ? it.webcamId! : null,
+      it.type === "info" ? it.infoPageId! : null,
       rule ? JSON.stringify(rule) : null,
       it.type === "auto" ? null : (it.durationMs ?? null),
       it.title || null,
@@ -412,7 +421,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
 
   // ---- blocks -------------------------------------------------------------------
   const itemIn = z.object({
-    type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup"]),
+    type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup", "info"]),
     /** "Newest clips" rule for type auto. */
     autoRule: autoRuleSchema.nullable().optional(),
     mediaId: z.number().int().nullable().optional(),
@@ -420,6 +429,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     liveSourceId: z.number().int().nullable().optional(),
     beeldkrantId: z.number().int().nullable().optional(),
     webcamId: z.number().int().nullable().optional(),
+    infoPageId: z.number().int().nullable().optional(),
     durationMs: z.number().int().min(0).max(24 * 3600_000).nullable().optional(),
     title: z.string().max(200).nullable().optional(),
     /** null = follow the block, "none", or an audio source id. */
@@ -485,15 +495,16 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const items = (
       db
         .prepare(
-          `SELECT i.id, i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.auto_rule AS autoRule, i.duration_ms AS durationMs, i.title, i.audio,
+          `SELECT i.id, i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.info_page_id AS infoPageId, i.auto_rule AS autoRule, i.duration_ms AS durationMs, i.title, i.audio,
                   m.name AS mediaName, m.title AS mediaTitle, m.path AS mediaPath, m.duration_ms AS mediaDurationMs, m.category AS mediaCategory, m.missing AS mediaMissing,
-                  cb.name AS childName, cb.kind AS childKind, ls.name AS liveName, ls.kind AS liveKind, bk.name AS beeldkrantName, wc.name AS webcamName, wc.kind AS webcamKind
+                  cb.name AS childName, cb.kind AS childKind, ls.name AS liveName, ls.kind AS liveKind, bk.name AS beeldkrantName, wc.name AS webcamName, wc.kind AS webcamKind, ip.name AS infoPageName
              FROM block_items i
              LEFT JOIN media m ON m.id = i.media_id
              LEFT JOIN blocks cb ON cb.id = i.child_block_id
              LEFT JOIN live_sources ls ON ls.id = i.live_source_id
              LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id
              LEFT JOIN webcams wc ON wc.id = i.webcam_id
+             LEFT JOIN info_pages ip ON ip.id = i.info_page_id
             WHERE i.block_id = ? ORDER BY i.position, i.id`,
         )
         .all(Number(b.id)) as Record<string, unknown>[]
@@ -510,6 +521,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
       if (i.type === "beeldkrant") effective = (i.durationMs as number | null) ?? (i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : null);
       if (i.type === "lineup") effective = (i.durationMs as number | null) ?? DEFAULT_LINEUP_MS;
       if (i.type === "webcam") effective = (i.durationMs as number | null) ?? (i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null);
+      if (i.type === "info") effective = (i.durationMs as number | null) ?? (i.infoPageId ? (loader.infoPage?.(Number(i.infoPageId))?.durationMs ?? null) : null);
       if (i.type === "auto") return { ...i, mediaMissing: false, ...autoItemInfo(db, i.autoRule, Date.now(), { key: `preview:${b.id}`, path: String(i.id), preview: true }, previewPicks) };
       return { ...i, mediaMissing: !!i.mediaMissing, effectiveDurationMs: effective };
     });
@@ -613,7 +625,7 @@ export function registerContent(app: FastifyInstance, platform: Platform, onChan
     const id = tx(() => {
       const r = db.prepare("INSERT INTO blocks (name, kind, color, description, genre, category_id, audio, fill, hour_start) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(`${src.name} (copy)`, src.kind!, src.color!, src.description!, src.genre!, (src.category_id as unknown as number) ?? null, src.audio ?? null, src.fill ?? null, (src.hour_start as unknown as number) ?? 0);
       const id = Number(r.lastInsertRowid);
-      db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
+      db.prepare("INSERT INTO block_items (block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, info_page_id, auto_rule, duration_ms, title, audio) SELECT ?, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, info_page_id, auto_rule, duration_ms, title, audio FROM block_items WHERE block_id = ?").run(id, src.id!);
       return id;
     });
     return { id };

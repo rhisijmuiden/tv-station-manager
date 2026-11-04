@@ -29,7 +29,8 @@
       "audio": "Audio",
       "webcams": "Webcams & streams",
       "mediaSources": "Media sources",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "infoPages": "Info pages"
     },
     "categories": {
       "program": "Programme",
@@ -185,20 +186,23 @@
         "beeldkrant": "Beeldkrant",
         "webcam": "Webcam",
         "auto": "Dynamic from folder",
-        "lineup": "Slide"
+        "lineup": "Slide",
+        "info": "Info page"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duration (h:mm:ss); empty = from the beeldkrant",
       "addWebcam": "+ Webcam",
       "webcamDuration": "Duration (h:mm:ss); empty = from the webcam",
-      "addMore": "More: block, live, beeldkrant…",
+      "addMore": "More: block, info page, live…",
       "groups": {
         "blocks": "Ad breaks and blocks",
         "ads": "Other ad breaks",
         "live": "Live sources",
         "beeldkrant": "Beeldkrant",
-        "webcam": "Webcams & streams"
-      }
+        "webcam": "Webcams & streams",
+        "info": "Info pages"
+      },
+      "infoDuration": "Length (empty = the length set on the info page)"
     },
     "ads": {
       "title": "Ad breaks",
@@ -445,7 +449,9 @@
       "webcam_in_use": "This webcam is used in programmes.",
       "webcam_required": "Choose a webcam.",
       "inspect_failed": "Could not open this link: {{message}}",
-      "auto_source_required": "Choose a category or folder for the newest clips."
+      "auto_source_required": "Choose a category or folder for the newest clips.",
+      "info_page_required": "Choose an info page.",
+      "info_page_in_use": "This info page is still used in blocks or the schedule."
     },
     "remote": {
       "title": "Remote sources",
@@ -896,7 +902,10 @@
       "added": "“{{what}}” added to the rundown of {{date}}.",
       "openRundown": "Open the rundown",
       "tab_webcams": "Webcams",
-      "noWebcams": "No webcams yet. Add them under Editorial → Webcams & streams."
+      "noWebcams": "No webcams yet. Add them under Editorial → Webcams & streams.",
+      "tab_info": "Info",
+      "infoSub": "Info page",
+      "noInfo": "No info pages yet. Make them under Setup → Sources → Info pages."
     },
     "bk": {
       "title": "Beeldkrant",
@@ -1594,7 +1603,8 @@
         "live": "Live stream",
         "lineup": "Coming up slide",
         "commercial": "Commercials",
-        "filler": "Filler"
+        "filler": "Filler",
+        "info": "Info page"
       },
       "layers": {
         "title": "What stays on screen, per kind of content",
@@ -1782,6 +1792,61 @@
       "orchestrator_outdated_hint": "Update the orchestrator to the latest version (Info > Check for updates on the orchestrator).",
       "openLink": "Open orchestrator link",
       "askAdmin": "Ask an administrator to set up the orchestrator link."
+    },
+    "info": {
+      "pageTitle": "Info pages",
+      "intro": "Fixed pages with information for viewers, such as contact details or information about the station. They are shown full screen in the station’s house style.",
+      "howToPlan": "Put an info page in an hour block: drag it from the library (tab Info) or pick it in the “More…” list of the block. It plays for the length set on the page.",
+      "add": "New info page",
+      "new": "New info page",
+      "edit": "Edit",
+      "duplicate": "Duplicate",
+      "back": "Back to the list",
+      "untitled": "Info page",
+      "emptyTitle": "No info pages yet",
+      "emptyText": "Make a page with fixed information, such as how to reach the newsroom. Then place it in an hour block, like a clip.",
+      "editorIntro": "What you change is shown in the preview straight away. Save to use the page on air.",
+      "saved": "Saved. Hour blocks with this page show it like this from now on.",
+      "discard": "Leave without saving your changes?",
+      "preview": "Preview",
+      "previewHint": "Preview in the colours and logo of the channel (Setup → Channel & layers → coming up slide).",
+      "name": "Name in the library",
+      "nameHint": "Only editors see this name.",
+      "namePlaceholder": "e.g. Contact newsroom",
+      "layout": "Layout",
+      "layouts": {
+        "text": "Text only",
+        "imageRight": "Picture right",
+        "imageLeft": "Picture left",
+        "imageBackground": "Picture behind",
+        "imageOnly": "Picture only"
+      },
+      "imageChoose": "Choose picture",
+      "imageReplace": "Other picture",
+      "imageRemove": "Remove",
+      "imageMissing": "Choose a picture for this layout. Without a picture the page shows text only.",
+      "imageHint": "Large pictures are made smaller automatically (full HD).",
+      "title": "Heading",
+      "titlePlaceholder": "e.g. Contact the newsroom",
+      "subtitle": "Line under the heading",
+      "subtitlePlaceholder": "e.g. We are here for you every working day",
+      "body": "Text",
+      "bodyHint": "An empty line starts a new paragraph. Start a line with “- ” for a list. Put **two stars** around words to make them bold.",
+      "bodyPlaceholder": "- Phone: **0255 123 456**\n- E-mail: redactie@example.nl\n\nTip us about news in your neighbourhood!",
+      "footer": "Bottom line",
+      "footerHint": "Shown at the bottom, e.g. website or phone number.",
+      "footerPlaceholder": "e.g. www.example.nl",
+      "duration": "Length on air",
+      "durationHint": "How long the page stays on screen in an hour block (minutes:seconds). A block can still give it its own length.",
+      "showLogo": "Channel logo in the heading",
+      "showLogoHint": "The logo uploaded for the channel, next to the heading.",
+      "showOverlay": "Keep logo, clock and ticker on top",
+      "showOverlayHint": "Off: the page is shown on its own, like the beeldkrant.",
+      "confirmDelete": "Delete info page “{{name}}”?",
+      "confirmDeleteUsed": "“{{name}}” is used in {{count}} place(s). Delete it there too?",
+      "usedIn_one": "used in {{count}} place",
+      "usedIn_other": "used in {{count}} places",
+      "copyName": "{{name}} (copy)"
     }
   }
 }

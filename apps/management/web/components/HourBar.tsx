@@ -5,7 +5,7 @@ import { fmtDuration } from "../lib";
 export interface HourBarPart {
   label: string;
   ms: number;
-  kind: "start" | "media" | "auto" | "beeldkrant" | "webcam" | "live" | "lineup" | "commercial" | "filler" | "fill";
+  kind: "start" | "media" | "auto" | "beeldkrant" | "webcam" | "live" | "lineup" | "info" | "commercial" | "filler" | "fill";
 }
 const HOUR = 3600_000;
 const TONE: Record<HourBarPart["kind"], string> = {
@@ -16,6 +16,7 @@ const TONE: Record<HourBarPart["kind"], string> = {
   webcam: "bg-ok text-white",
   live: "bg-onair text-white",
   lineup: "bg-brand-dark text-white",
+  info: "bg-[var(--tvsm-info)] text-white",
   commercial: "bg-warn text-white",
   filler: "bg-surface-2 text-muted",
   fill: "text-white",

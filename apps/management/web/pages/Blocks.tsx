@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Clapperboard, Copy, Film, GripVertical, Lock, Newspaper, Pencil, Plus, Radio, Save, Sparkles, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Clapperboard, Copy, Film, GripVertical, Info, Lock, Newspaper, Pencil, Plus, Radio, Save, Sparkles, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -15,7 +15,7 @@ import { useHourStartItems } from "../components/ChannelLayers";
 import { HourBar, type HourBarPart } from "../components/HourBar";
 
 interface Item {
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup" | "info";
   /** "Newest clips": the rule and what it plays now. */
   autoRule?: AutoRule | null;
   autoSourceName?: string | null;
@@ -25,6 +25,7 @@ interface Item {
   liveSourceId?: number | null;
   beeldkrantId?: number | null;
   webcamId?: number | null;
+  infoPageId?: number | null;
   durationMs?: number | null;
   title?: string | null;
   /** Audio under the item: null = like the block, "none", or an audio source id. */
@@ -38,7 +39,7 @@ interface Item {
 }
 interface Detail {
   block: BlockSummary & { audio?: string | null; fill?: string | null; hourStart?: boolean };
-  items: (Item & { autoSourceName?: string | null; mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string; webcamName?: string })[];
+  items: (Item & { autoSourceName?: string | null; mediaName?: string; mediaTitle?: string; mediaPath?: string; mediaCategory?: string; mediaMissing?: boolean; mediaDurationMs?: number | null; childName?: string; liveName?: string; beeldkrantName?: string; webcamName?: string; infoPageName?: string })[];
 }
 const COLORS = [...new Set([brandColor("primary"), brandColor("accent", "#FF3D57"), "#1DB97A", "#F5A524", "#8B5CF6", "#06B6D4", "#EC4899", "#64748B"])];
 
@@ -66,6 +67,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const { sources: audioSources } = useAudioSources();
   const hasAudio = !!audioSources?.length;
   const webcams = useGet<{ webcams: { id: number; name: string; durationMs: number }[] }>("/api/webcams");
+  const infoPages = useGet<{ pages: { id: number; name: string; durationMs: number; block: { id: number } | null }[] }>("/api/infopages");
   const fillChoices = useFillChoices();
   // The channel's fixed hour start and layer rules, shown in the hour of a programme block.
   const { channels } = useChannels();
@@ -94,13 +96,14 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
           liveSourceId: i.liveSourceId,
           beeldkrantId: i.beeldkrantId,
           webcamId: i.webcamId,
+          infoPageId: i.infoPageId,
           durationMs: i.durationMs,
           title: i.title,
           audio: i.audio ?? null,
           autoRule: i.autoRule,
           autoSourceName: i.autoSourceName,
           autoClips: i.autoClips,
-          label: i.type === "auto" && i.autoRule ? autoLabel(t, { autoRule: i.autoRule, autoSourceName: i.autoSourceName ?? null }) : i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.type === "webcam" ? i.webcamName || "" : i.type === "lineup" ? t("mgmt.lineup.item") : i.liveName || "",
+          label: i.type === "auto" && i.autoRule ? autoLabel(t, { autoRule: i.autoRule, autoSourceName: i.autoSourceName ?? null }) : i.type === "media" ? i.mediaTitle || i.mediaName || "" : i.type === "block" ? i.childName || "" : i.type === "beeldkrant" ? i.beeldkrantName || "" : i.type === "webcam" ? i.webcamName || "" : i.type === "info" ? i.infoPageName || "" : i.type === "lineup" ? t("mgmt.lineup.item") : i.liveName || "",
           sub: i.type === "media" ? i.mediaPath : i.type === "auto" ? autoSub(i.autoClips) : i.type === "lineup" ? t("mgmt.lineup.itemSub") : undefined,
           category: i.mediaCategory,
           effectiveDurationMs: i.effectiveDurationMs,
@@ -135,12 +138,16 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   };
   const total = items.reduce((s, i) => s + (i.effectiveDurationMs ?? 0), 0);
   /** Library drops. A block cannot contain itself; ad breaks only take other ad breaks. */
+  const infoOf = (b: BlockSummary) => (b.genre === "info" ? infoPages.data?.pages.find((x) => x.block?.id === b.id) : undefined);
   const insert = (at: number | null, p: LibraryPayload) => {
     if (p.kind === "block" && (p.block.id === id || (kind === "commercial" && p.block.kind !== "commercial"))) return setMsg({ tone: "danger", text: t("mgmt.bin.blockNotAllowed") });
     const add: Item[] = payloadItems(p).map((d) =>
       d.type === "media"
         ? { type: "media", mediaId: d.mediaId, label: d.media.title || d.media.name, sub: d.media.path, category: d.media.category, effectiveDurationMs: d.media.durationMs, warning: d.media.durationMs == null ? "no_duration" : null }
-        : { type: "block", childBlockId: d.childBlockId, label: d.block.name, effectiveDurationMs: d.block.durationMs, category: d.block.kind === "commercial" ? "commercial" : undefined },
+        : infoOf(d.block)
+          ? // An info page's own block goes in as the page itself, so its length keeps following the page.
+            { type: "info", infoPageId: infoOf(d.block)!.id, label: infoOf(d.block)!.name, durationMs: null, effectiveDurationMs: infoOf(d.block)!.durationMs }
+          : { type: "block", childBlockId: d.childBlockId, label: d.block.name, effectiveDurationMs: d.block.durationMs, category: d.block.kind === "commercial" ? "commercial" : undefined },
     );
     setItems((cur) => {
       const pos = at ?? cur.length;
@@ -155,7 +162,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
 
   const save = async () => {
     setMsg(null);
-    const body = { ...meta, kind, items: items.map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, autoRule, durationMs, title, audio }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, autoRule: type === "auto" ? autoRule : undefined, durationMs, title, audio: audio ?? null })) };
+    const body = { ...meta, kind, items: items.map(({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, infoPageId, autoRule, durationMs, title, audio }) => ({ type, mediaId, childBlockId, liveSourceId, beeldkrantId, webcamId, infoPageId, autoRule: type === "auto" ? autoRule : undefined, durationMs, title, audio: audio ?? null })) };
     try {
       const r = id === "new" ? await post<{ id: number }>("/api/blocks", body) : await put<{ id: number }>(`/api/blocks/${id}`, body);
       setDirty(false);
@@ -291,11 +298,23 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                 } else if (what === "webcam") {
                   const w = webcams.data?.webcams.find((x) => x.id === n);
                   if (w) change([...items, { type: "webcam", webcamId: w.id, label: w.name, durationMs: null, effectiveDurationMs: w.durationMs }]);
+                } else if (what === "info") {
+                  const p = infoPages.data?.pages.find((x) => x.id === n);
+                  if (p) change([...items, { type: "info", infoPageId: p.id, label: p.name, durationMs: null, effectiveDurationMs: p.durationMs }]);
                 }
               }}
             >
               <option value="">{t("mgmt.blocks.addMore")}</option>
               {kind === "program" && <option value="lineup:0">🗓 {t("mgmt.lineup.add")}</option>}
+              {kind === "program" && !!infoPages.data?.pages.length && (
+                <optgroup label={t("mgmt.blocks.groups.info")}>
+                  {infoPages.data.pages.map((p) => (
+                    <option key={p.id} value={`info:${p.id}`}>
+                      {p.name} ({fmtDuration(p.durationMs)})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               {!!nestable.length && (
                 <optgroup label={t(kind === "program" ? "mgmt.blocks.groups.blocks" : "mgmt.blocks.groups.ads")}>
                   {nestable.map((b) => (
@@ -342,7 +361,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                   <Lock className="-mr-1 size-3.5 shrink-0 text-muted" />
                   <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(openerItems.slice(0, n).reduce((x, y) => x + y.durationMs, 0))}</span>
                   <span className="grid size-7 shrink-0 place-items-center rounded-md bg-brand-light/15 text-brand-dark dark:text-brand-light">
-                    {o.type === "lineup" ? <CalendarClock className="size-3.5" /> : o.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : o.type === "webcam" ? <WebcamIcon className="size-3.5" /> : <Clapperboard className="size-3.5" />}
+                    {o.type === "lineup" ? <CalendarClock className="size-3.5" /> : o.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : o.type === "webcam" ? <WebcamIcon className="size-3.5" /> : o.type === "info" ? <Info className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{o.label}</span>
@@ -361,8 +380,8 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                 <li key={i} {...dnd.rowProps(i, it.title || it.label)} className={cx("flex cursor-grab items-center gap-3 px-3 py-2 text-sm active:cursor-grabbing", indicatorClass(dnd.indicator, i, items.length))}>
                   <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
                   <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(start)}</span>
-                  <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "auto" ? "bg-brand text-white" : it.type === "live" ? "bg-onair/12 text-onair" : it.type === "block" ? "bg-warn/15 text-warn" : it.type === "beeldkrant" ? "bg-ok/12 text-ok" : it.type === "webcam" ? "bg-[#0EA5A4]/12 text-[#0EA5A4]" : it.type === "lineup" ? "bg-brand-light/15 text-brand-dark dark:text-brand-light" : "bg-brand/10 text-brand")}>
-                    {it.type === "auto" ? <Sparkles className="size-3.5" /> : it.type === "live" ? <Radio className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : it.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : it.type === "webcam" ? <WebcamIcon className="size-3.5" /> : it.type === "lineup" ? <CalendarClock className="size-3.5" /> : <Clapperboard className="size-3.5" />}
+                  <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "auto" ? "bg-brand text-white" : it.type === "live" ? "bg-onair/12 text-onair" : it.type === "block" ? "bg-warn/15 text-warn" : it.type === "beeldkrant" ? "bg-ok/12 text-ok" : it.type === "webcam" ? "bg-[#0EA5A4]/12 text-[#0EA5A4]" : it.type === "lineup" ? "bg-brand-light/15 text-brand-dark dark:text-brand-light" : it.type === "info" ? "bg-[var(--tvsm-info)]/12 text-[var(--tvsm-info)]" : "bg-brand/10 text-brand")}>
+                    {it.type === "auto" ? <Sparkles className="size-3.5" /> : it.type === "live" ? <Radio className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : it.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : it.type === "webcam" ? <WebcamIcon className="size-3.5" /> : it.type === "lineup" ? <CalendarClock className="size-3.5" /> : it.type === "info" ? <Info className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{it.title || it.label}</span>
@@ -374,6 +393,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                   {it.type === "beeldkrant" && <Badge tone="ok">{t("mgmt.blocks.types.beeldkrant")}</Badge>}
                   {it.type === "webcam" && <Badge tone="brand">{t("mgmt.blocks.types.webcam")}</Badge>}
                   {it.type === "lineup" && <Badge tone="brand">{t("mgmt.blocks.types.lineup")}</Badge>}
+                  {it.type === "info" && <Badge tone="brand">{t("mgmt.blocks.types.info")}</Badge>}
                   {kind === "program" && it.type !== "block" && !layers[itemLayerKind(it.type, it.category === "commercial")].logo && <Badge tone="neutral">{t("mgmt.plan.block.logoOff")}</Badge>}
                   {it.type === "auto" && (
                     <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setAutoEdit(i)}>
@@ -381,16 +401,16 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                     </Button>
                   )}
                   {hasAudio && it.type !== "live" && <AudioSelect compact scope="item" sources={audioSources} value={it.audio} onChange={(audio) => change(items.map((x, j) => (j === i ? { ...x, audio } : x)))} />}
-                  {it.type === "beeldkrant" || it.type === "webcam" || it.type === "lineup" ? (
+                  {it.type === "beeldkrant" || it.type === "webcam" || it.type === "lineup" || it.type === "info" ? (
                     <Input
                       className="h-8 w-24! text-right font-mono text-xs"
                       defaultValue={it.durationMs != null ? fmtDuration(it.durationMs) : ""}
                       placeholder={fmtDuration(it.effectiveDurationMs)}
-                      title={t(it.type === "webcam" ? "mgmt.blocks.webcamDuration" : it.type === "lineup" ? "mgmt.lineup.duration" : "mgmt.blocks.beeldkrantDuration")}
+                      title={t(it.type === "webcam" ? "mgmt.blocks.webcamDuration" : it.type === "info" ? "mgmt.blocks.infoDuration" : it.type === "lineup" ? "mgmt.lineup.duration" : "mgmt.blocks.beeldkrantDuration")}
                       onBlur={(e) => {
                         const ms = e.target.value.trim() ? parseDuration(e.target.value) : null;
                         if (ms === it.durationMs) return;
-                        const auto = it.type === "lineup" ? LINEUP_MS : (it.type === "webcam" ? webcams.data?.webcams.find((w) => w.id === it.webcamId)?.durationMs : beeldkranten.data?.beeldkranten.find((b) => b.id === it.beeldkrantId)?.durationMs) ?? it.effectiveDurationMs;
+                        const auto = it.type === "lineup" ? LINEUP_MS : (it.type === "info" ? infoPages.data?.pages.find((p) => p.id === it.infoPageId)?.durationMs : it.type === "webcam" ? webcams.data?.webcams.find((w) => w.id === it.webcamId)?.durationMs : beeldkranten.data?.beeldkranten.find((b) => b.id === it.beeldkrantId)?.durationMs) ?? it.effectiveDurationMs;
                         change(items.map((x, j) => (j === i ? { ...x, durationMs: ms, effectiveDurationMs: ms ?? auto } : x)));
                       }}
                     />
@@ -497,7 +517,8 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
       <div className="grid gap-6 @4xl:grid-cols-[240px_minmax(0,1fr)]">
         <Card className="self-start">
           <ul className="max-h-[40vh] divide-y divide-line overflow-y-auto @4xl:max-h-[70vh]">
-            {list.data?.blocks.map((b) => (
+            {/* An info page's own block is made and kept in step by the info page itself (Sources → Info pages). */}
+            {list.data?.blocks.filter((b) => !(b.genre === "info" && b.itemCount === 1)).map((b) => (
               <li key={b.id}>
                 <Link to={`${base}/${b.id}`} className={cx("flex items-center gap-3 px-4 py-3 transition", sel === b.id ? "bg-brand/8" : "hover:bg-surface-2/60")}>
                   <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: b.color }} />

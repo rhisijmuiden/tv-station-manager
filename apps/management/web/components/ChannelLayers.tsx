@@ -1,11 +1,11 @@
 import { Badge, Button, Card, CardBody, CardHeader, Select, Switch, cx, get, post } from "@tvsm/ui";
-import { CalendarClock, Clapperboard, Layers as LayersIcon, Newspaper, Pencil, Plus, Radio, Sparkles, Tv, Webcam as WebcamIcon, Film } from "lucide-react";
+import { CalendarClock, Clapperboard, Info, Layers as LayersIcon, Newspaper, Pencil, Plus, Radio, Sparkles, Tv, Webcam as WebcamIcon, Film } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { fmtDuration, LAYER_KINDS, useGet, type BlockSummary, type Graphics, type LayerKind, type Layers } from "../lib";
 
-const KIND_ICON: Record<LayerKind, typeof Clapperboard> = { media: Clapperboard, beeldkrant: Newspaper, webcam: WebcamIcon, live: Radio, lineup: CalendarClock, commercial: Film, filler: Tv };
+const KIND_ICON: Record<LayerKind, typeof Clapperboard> = { media: Clapperboard, beeldkrant: Newspaper, webcam: WebcamIcon, live: Radio, lineup: CalendarClock, info: Info, commercial: Film, filler: Tv };
 export const kindIcon = (k: LayerKind) => KIND_ICON[k];
 
 /** A switch without its own label, for a table cell. */
