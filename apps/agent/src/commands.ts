@@ -5,9 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import type { AgentCommand, CommandResult } from "@tvsm/platform/agent-protocol";
+import { agentAssetName, type AgentCommand, type CommandResult, type ProvisionPayload } from "@tvsm/platform/agent-protocol";
 import { compareVersions } from "@tvsm/platform/semver";
 import { AGENT_VERSION } from "./config.js";
+import { startProvision } from "./provision.js";
 import { readStudioConfig, restartService } from "./studio.js";
 
 const run = (cmd: string, args: string[]) =>
@@ -18,12 +19,8 @@ const run = (cmd: string, args: string[]) =>
     resolve();
   });
 
-const assetArch = () => ({ x64: "amd64", arm64: "arm64" } as Record<string, string>)[process.arch] ?? process.arch;
 /** Release asset for this platform: a .deb on Linux, the zip that build-zip.sh makes on Windows. */
-export const assetName = (version: string, platform: string = process.platform) => {
-  const v = version.replace(/^v/, "").replace(/[-~]/g, ".");
-  return platform === "win32" ? `tvsm-agent_${v}_windows-x64.zip` : `tvsm-agent_${v}_${assetArch()}.deb`;
-};
+export const assetName = (version: string, platform: string = process.platform) => agentAssetName(version, platform, process.arch);
 
 const capture = (cmd: string, args: string[]) =>
   new Promise<{ code: number | null; out: string }>((resolve, reject) => {
@@ -57,7 +54,7 @@ interface GhRelease {
   assets: { name: string; browser_download_url: string }[];
 }
 
-async function updateAgent(update: { channel: string; repository: string }): Promise<string> {
+export async function updateAgent(update: { channel: string; repository: string }): Promise<string> {
   if (process.platform !== "linux" && process.platform !== "win32") throw new Error(`Agent self-update is not available on ${process.platform}`);
   const res = await fetch(`https://api.github.com/repos/${update.repository}/releases?per_page=50`, { headers: { "User-Agent": "tvsm-agent" } });
   if (!res.ok) throw new Error(`GitHub responded ${res.status}`);
@@ -111,6 +108,9 @@ export async function execute(
         };
       case "update-agent":
         return { result: { id: cmd.id, status: "done", result: await updateAgent(update) } };
+      case "provision":
+        // Long job: runs as a scheduled task; progress and the final result follow in later heartbeats.
+        return { result: { id: cmd.id, status: "running", result: await startProvision(cmd.id, (cmd.payload ?? {}) as unknown as ProvisionPayload) } };
       case "restart-casparcg":
       case "restart-ingest": {
         const studio = readStudioConfig();

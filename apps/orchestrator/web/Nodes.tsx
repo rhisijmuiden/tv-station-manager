@@ -1,7 +1,8 @@
 import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, Mono, PageHeader, Select, Textarea, cx, del, formatBytes, get, post, put } from "@tvsm/ui";
-import { Clapperboard, Clock, Cpu, HardDrive, MemoryStick, Plus, Power, Radio, RefreshCw, RotateCw, ShieldCheck, Trash2, X } from "lucide-react";
+import { Clapperboard, Clock, Cpu, HardDrive, MemoryStick, Plus, Power, Radio, RefreshCw, RotateCw, Settings2, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { AgentSettingsDialog, RoleSoftwarePanel, type CommandRow, type Inventory } from "./Provision";
 
 type Role = "unassigned" | "management" | "studio" | "playout" | "live" | "other";
 interface Metrics {
@@ -12,6 +13,7 @@ interface Metrics {
   disks: { mount: string; total: number; used: number }[];
   uptimeSeconds: number;
   studio?: StudioStatus;
+  inventory?: Inventory;
 }
 interface StudioStatus {
   casparcg: { service: string; connected: boolean; version: string | null; channels: { id: number; format: string; status: string }[] };
@@ -38,11 +40,14 @@ export interface NodeInfo {
   online: boolean;
   lastSeenAt: string | null;
   createdAt: string;
+  capabilities: string[];
+  autoUpdate: boolean;
 }
 interface Detail {
   node: NodeInfo;
   events: { type: string; message: string; at: string }[];
-  commands: { id: number; type: string; status: string; result: string | null; createdAt: string }[];
+  commands: CommandRow[];
+  latestAgent: string | null;
 }
 const ROLES: Role[] = ["management", "playout", "live", "studio", "other", "unassigned"];
 
@@ -224,6 +229,7 @@ function InstallDialog({ open, onClose, install }: { open: boolean; onClose: () 
         <Block title={t("orch.nodes.linux")} cmd={linux} />
         <Block title={t("orch.nodes.studio")} cmd={studio} hint={t("orch.nodes.studioHint")} />
         <Block title={t("orch.nodes.windows")} cmd={win} hint={t("orch.nodes.windowsHint")} />
+        <Alert tone="ok">{t("orch.prov.installAgentOnly")}</Alert>
         <Alert tone="brand">{t("orch.nodes.afterInstall")}</Alert>
       </div>
     </Dialog>
@@ -374,6 +380,8 @@ function NodeDetail({ id, onClose, onChanged }: { id: string; onClose: () => voi
 
         {m?.studio && <StudioPanel s={m.studio} approved={n.status === "approved"} onCommand={(type) => void send(type)} />}
 
+        {n.status === "approved" && <RoleSoftwarePanel node={n} commands={d.commands} latestAgent={d.latestAgent} onChanged={() => void load().then(onChanged)} />}
+
         <div className="mt-6 flex flex-wrap gap-2 border-t border-line pt-5">
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
             {t("orch.nodes.edit")}
@@ -414,10 +422,10 @@ function NodeDetail({ id, onClose, onChanged }: { id: string; onClose: () => voi
             <ul className="max-h-56 space-y-2 overflow-y-auto text-xs">
               {d.commands.map((c) => (
                 <li key={c.id} className="flex items-center gap-2">
-                  <Badge tone={c.status === "done" ? "ok" : c.status === "failed" ? "danger" : "neutral"}>{c.status}</Badge>
+                  <Badge tone={c.status === "done" ? "ok" : c.status === "failed" ? "danger" : "neutral"}>{t(`orch.nodes.cmd_${c.status}`, { defaultValue: c.status })}</Badge>
                   <Mono>{c.type}</Mono>
-                  <span className="flex-1 truncate text-muted" title={c.result ?? ""}>
-                    {c.result}
+                  <span className="flex-1 truncate text-muted" title={c.result ?? c.progress ?? ""}>
+                    {c.result ?? c.progress}
                   </span>
                 </li>
               ))}
@@ -474,6 +482,7 @@ export function NodesPage() {
   const ago = useAgo();
   const [data, setData] = useState<{ nodes: NodeInfo[]; install?: InstallInfo } | null>(null);
   const [install, setInstall] = useState(false);
+  const [agentSettings, setAgentSettings] = useState(false);
   const [approving, setApproving] = useState<NodeInfo | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const load = useCallback(() => get<{ nodes: NodeInfo[] }>("/api/nodes").then(setData), []);
@@ -491,9 +500,14 @@ export function NodesPage() {
         title={t("orch.nodes.title")}
         description={t("orch.nodes.intro")}
         actions={
-          <Button icon={<Plus className="size-4" />} onClick={() => setInstall(true)}>
-            {t("orch.nodes.add")}
-          </Button>
+          <>
+            <Button variant="secondary" icon={<Settings2 className="size-4" />} onClick={() => setAgentSettings(true)}>
+              {t("orch.prov.settingsButton")}
+            </Button>
+            <Button icon={<Plus className="size-4" />} onClick={() => setInstall(true)}>
+              {t("orch.nodes.add")}
+            </Button>
+          </>
         }
       />
 
@@ -580,6 +594,7 @@ export function NodesPage() {
       </Card>
 
       <InstallDialog open={install} onClose={() => setInstall(false)} install={data?.install} />
+      <AgentSettingsDialog open={agentSettings} onClose={() => setAgentSettings(false)} />
       {approving && (
         <EditDialog
           node={approving}

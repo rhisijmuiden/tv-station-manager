@@ -26,6 +26,8 @@ param(
   [string]$MediaPath = "",
   [string]$SmbUser = "",
   [SecureString]$SmbPassword,
+  # Never ask for input (used when the orchestrator runs this script through the agent): a missing password fails.
+  [switch]$NonInteractive,
   # Number of CasparCG channels (one per DeckLink output). Default: the count of the previous install, else 4.
   [ValidateRange(1, 8)][int]$Outputs = 4,
   # CasparCG video mode for every channel, e.g. 1080i5000, 1080p5000, 720p5000, 1080p2500. Must match the ATEM / receiver.
@@ -33,7 +35,8 @@ param(
   [string]$VideoMode = "",
   # DeckLink keyer: default (fill only, HDMI shows the programme), external (fill + key on two connectors), internal.
   [ValidateSet("", "default", "external", "internal")][string]$Keyer = "",
-  # IP address(es) of the management node that may connect to AMCP (TCP 5250). Empty = any address.
+  # IP address(es) of the management node that may connect to AMCP (TCP 5250). Default: those of the previous install,
+  # else any address.
   [string[]]$ManagementHost = @(),
   # URL of the management node; the ingest server checks stream keys there. Default: http://<first -ManagementHost>:8080.
   [string]$ManagementUrl = "",
@@ -66,7 +69,11 @@ function Invoke-Native([string]$exe, [string[]]$arguments) {
   $ErrorActionPreference = "Continue"
   try { & $exe @arguments 2>&1 | Out-Null } finally { $ErrorActionPreference = $prev }
 }
-function Step($m) { Write-Host ""; Write-Host "==> $m" -ForegroundColor Cyan }
+function Step($m) {
+  # Run by provision.ps1 (orchestrator -> Change role): report the step to the orchestrator as well.
+  if (Get-Command Set-ProvisionStep -ErrorAction SilentlyContinue) { Set-ProvisionStep $m; return }
+  Write-Host ""; Write-Host "==> $m" -ForegroundColor Cyan
+}
 function Warn($m) { Write-Host "WARNING: $m" -ForegroundColor Yellow }
 $headers = @{ "User-Agent" = "tvsm-studio-installer" }
 $branch = if ($Channel -eq "test") { "test" } else { "production" }
@@ -84,6 +91,7 @@ icacls $data /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)
 $old = $null
 if (Test-Path (Join-Path $data "studio.json")) { $old = Get-Content (Join-Path $data "studio.json") -Raw | ConvertFrom-Json }
 if (-not $MediaPath -and $old) { $MediaPath = $old.mediaPath }
+if ($ManagementHost.Count -eq 0 -and $old -and $old.managementHosts) { $ManagementHost = @($old.managementHosts | ForEach-Object { [string]$_ }) }
 if (-not $VideoMode -and $old) { $VideoMode = if ($old.videoMode) { $old.videoMode } elseif ($old.outputs) { @($old.outputs)[0].format } else { "" } }
 if (-not $VideoMode) { $VideoMode = "1080i5000" }
 if (-not $Keyer) { $Keyer = if ($old -and $old.keyer) { $old.keyer } else { "default" } }
@@ -243,7 +251,10 @@ if (-not $MediaPath) { New-Item -ItemType Directory (Join-Path $casparDir "media
 # ---- 4. media share credentials ------------------------------------------------------------
 if ($MediaPath.StartsWith("\\") -and $SmbUser) {
   Step "Media share credentials"
-  if (-not $SmbPassword) { $SmbPassword = Read-Host "Password for $SmbUser on $MediaPath" -AsSecureString }
+  if (-not $SmbPassword) {
+    if ($NonInteractive) { throw "No password given for $SmbUser on $MediaPath." }
+    $SmbPassword = Read-Host "Password for $SmbUser on $MediaPath" -AsSecureString
+  }
   Add-Type -AssemblyName System.Security
   $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($SmbPassword))
   $enc = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($plain), $null, "LocalMachine")
@@ -357,6 +368,7 @@ $studioJson = [ordered]@{
   rtmpUrl = if ($PublicHost) { "rtmp://$PublicHost/live" } else { $null }
   ingestAuth = $ingestAuth
   managementUrl = if ($ManagementUrl) { $ManagementUrl } else { $null }
+  managementHosts = @($ManagementHost)
   publishPassword = $publishPass
   mediaPath = if ($MediaPath) { $MediaPath } else { $null }
   videoMode = $VideoMode

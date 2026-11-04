@@ -1,5 +1,10 @@
 import { AGENT_API, fingerprintOf, type CommandResult, type EnrollResponse, type HeartbeatRequest, type HeartbeatResponse } from "@tvsm/platform/agent-protocol";
-import { execute } from "./commands.js";
+import { shouldAutoUpdate } from "./autoupdate.js";
+import { execute, updateAgent } from "./commands.js";
+import { inventory } from "./inventory.js";
+import { writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { activeProvision, pollProvision } from "./provision.js";
 import { AGENT_VERSION, configPath, readConfig, writeConfig, type AgentConfig } from "./config.js";
 import { facts, metrics } from "./metrics.js";
 
@@ -33,7 +38,23 @@ async function enroll(url: string) {
   console.log("Approve this node in the orchestrator (Nodes) and check that the fingerprint matches.");
 }
 
+/**
+ * After the first good heartbeat: health.json next to agent.json says "this version talks to the orchestrator".
+ * update-agent.ps1 waits for it and rolls back to the previous version when it does not appear.
+ */
+function writeHealth() {
+  try {
+    writeFileSync(join(dirname(configPath()), "health.json"), JSON.stringify({ version: AGENT_VERSION, at: new Date().toISOString() }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runLoop() {
+  let lastAutoUpdate = 0;
+  let healthWritten = false;
+  let wasProvisioning = false;
   let interval = 10;
   let pendingResults: CommandResult[] = [];
   let failures = 0;
@@ -56,6 +77,7 @@ async function runLoop() {
       if (r.status !== 200) throw new Error(`heartbeat ${r.status}`);
       pendingResults = [];
       failures = 0;
+      if (!healthWritten) healthWritten = writeHealth();
       const hb = r.data;
       if (hb.status === "pending") {
         interval = hb.intervalSeconds;
@@ -65,6 +87,23 @@ async function runLoop() {
         interval = 300;
       } else {
         interval = hb.intervalSeconds;
+        // Progress / final result of a provisioning job (scheduled task) goes out with the next heartbeat.
+        if (process.platform === "win32") {
+          const prog = await pollProvision().catch(() => null);
+          if (prog) pendingResults.push(prog);
+          const busy = !!activeProvision();
+          if (wasProvisioning && !busy) inventory(true);
+          wasProvisioning = busy;
+        }
+        const now = new Date();
+        if (shouldAutoUpdate({ auto: hb.update.auto, latest: hb.update.latest, current: AGENT_VERSION, now, lastAttempt: lastAutoUpdate, busy: wasProvisioning || hb.commands.length > 0 })) {
+          lastAutoUpdate = now.getTime();
+          log(`Automatic update ${AGENT_VERSION} → ${hb.update.latest}`);
+          void updateAgent(hb.update).then(
+            (r) => log(`Automatic update: ${r}`),
+            (e) => log(`Automatic update failed: ${(e as Error).message}`),
+          );
+        }
         const afters: (() => void)[] = [];
         for (const cmd of hb.commands) {
           log(`Command ${cmd.id}: ${cmd.type}`);

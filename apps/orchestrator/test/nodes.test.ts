@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
-import { NODE_MIGRATIONS, registerNodes } from "../server/nodes.ts";
+import { NODE_MIGRATIONS, PROVISION_MIGRATIONS, latestAgentVersion, registerNodes } from "../server/nodes.ts";
 
 const root = mkdtempSync(join(tmpdir(), "tvsm-orch-"));
 process.env.TVSM_DATA_DIR = join(root, "data");
@@ -12,6 +12,12 @@ process.env.TVSM_CONF_DIR = join(root, "conf");
 process.env.TVSM_DEFAULT_ADMIN = "admin:admin";
 
 let p: Platform;
+let onAirNode: string | null = null;
+const releases = [
+  { tag_name: "v0.3.0-test.9", draft: false, prerelease: true, assets: [{ name: "tvsm-agent_0.3.0.test.9_windows-x64.zip" }, { name: "tvsm-agent_0.3.0.test.9_amd64.deb" }] },
+  { tag_name: "v0.2.0", draft: false, prerelease: false, assets: [{ name: "tvsm-agent_0.2.0_windows-x64.zip" }] },
+  { tag_name: "v0.4.0", draft: true, prerelease: false, assets: [{ name: "tvsm-agent_0.4.0_windows-x64.zip" }] },
+];
 let cookie = "";
 const call = async (method: string, url: string, payload?: unknown, headers: Record<string, string> = {}) => {
   const res = await p.server.inject({ method: method as "GET", url, payload: payload as object, headers: { ...(cookie ? { cookie } : {}), ...headers } });
@@ -23,7 +29,21 @@ const facts = { hostname: "studio-01", platform: "win32", os: "Windows Server 20
 const metrics = { cpuCount: 8, cpuPercent: 12.5, memTotal: 16e9, memUsed: 4e9, disks: [{ mount: "C:\\", total: 5e11, used: 1e11 }], uptimeSeconds: 100, agentUptimeSeconds: 50 };
 
 test.before(async () => {
-  p = await createPlatform({ app: { id: "orchestrator", name: "Orch", defaultPort: 0 }, migrations: NODE_MIGRATIONS, register: (s, pl) => void registerNodes(s, pl) });
+  p = await createPlatform({
+    app: { id: "orchestrator", name: "Orch", defaultPort: 0 },
+    migrations: [...NODE_MIGRATIONS, ...PROVISION_MIGRATIONS],
+    register: (s, pl) =>
+      void registerNodes(s, pl, {
+        releases: async () => releases,
+        atems: () => [
+          {
+            name: "ATEM 4K",
+            snapshot: { program: [8], preview: [2], inputs: [{ id: 8, longName: "Playout" }] },
+            inputs: [{ inputId: 8, nodeId: onAirNode }],
+          },
+        ],
+      }),
+  });
 });
 test.after(async () => {
   await p.server.close();
@@ -96,4 +116,87 @@ test("rejected node is told so", async () => {
   await call("POST", `/api/nodes/${en.body.nodeId}/reject`);
   const hb = await call("POST", "/agent-api/v1/heartbeat", { ...facts, metrics }, { authorization: `Bearer ${en.body.nodeId}:${en.body.secret}` });
   assert.equal(hb.body.status, "rejected");
+});
+
+test("latest agent per channel and platform", () => {
+  assert.equal(latestAgentVersion(releases, "production", "win32"), "0.2.0");
+  assert.equal(latestAgentVersion(releases, "test", "win32"), "0.3.0-test.9");
+  assert.equal(latestAgentVersion(releases, "production", "linux"), null);
+  assert.equal(latestAgentVersion(releases, "test", "linux"), "0.3.0-test.9");
+});
+
+test("provisioning: plan, on-air confirmation, capability gating, password sent once, role after success", async () => {
+  await call("POST", "/api/auth/login", { username: "admin", password: "admin" });
+  const en = await call("POST", "/agent-api/v1/enroll", { ...facts, hostname: "CASPARCG02" });
+  const { nodeId, secret } = en.body;
+  const auth = { authorization: `Bearer ${nodeId}:${secret}` };
+  await call("POST", `/api/nodes/${nodeId}/approve`, { name: "CASPARCG02", role: "playout" });
+  const studio = {
+    casparcg: { service: "running", connected: true, version: "2.4.3", channels: [{ id: 1, format: "1080i5000", status: "PLAYING" }] },
+    ingest: { service: "running", rtmpUrl: null, streams: [] },
+    outputs: [{ device: 1, channel: 1, format: "1080i5000" }],
+    mediaPath: "\\\\unas\\TV",
+    mediaReachable: true,
+    role: "playout",
+  };
+  // Old agent: no capabilities.
+  const first = await call("POST", "/agent-api/v1/heartbeat", { ...facts, hostname: "CASPARCG02", metrics: { ...metrics, studio } }, auth);
+  assert.equal(first.body.update.auto.enabled, true);
+  assert.equal(first.body.update.auto.windowStart, "03:00");
+
+  // On air (ATEM input 8 on program is fed by this node): typing the name is required.
+  onAirNode = nodeId;
+  const body = { role: "live", outputs: 1, components: ["ffmpeg"], managementHosts: ["10.40.6.202"], smbUser: "reinder", smbPassword: "geheim" };
+  const plan = await call("POST", `/api/nodes/${nodeId}/provision/plan`, body);
+  assert.equal(plan.status, 200);
+  assert.equal(plan.body.requireTypedName, true);
+  assert.ok(plan.body.warnings.some((w: { key: string; params: { input: number } }) => w.key === "onAirProgram" && w.params.input === 8));
+  assert.ok(plan.body.steps.some((s: { key: string }) => s.key === "updateAgent"));
+  assert.equal((await call("POST", `/api/nodes/${nodeId}/provision`, body)).body.error, "confirm_name");
+  const q = await call("POST", `/api/nodes/${nodeId}/provision`, { ...body, confirmName: " casparcg02 " });
+  assert.equal(q.status, 200);
+  // A second job is refused while one is queued.
+  assert.equal((await call("POST", `/api/nodes/${nodeId}/provision`, { ...body, confirmName: "CASPARCG02" })).status, 409);
+
+  // The old agent only gets the update; the provision job waits for the capability.
+  const hbOld = await call("POST", "/agent-api/v1/heartbeat", { ...facts, hostname: "CASPARCG02", metrics: { ...metrics, studio } }, auth);
+  assert.deepEqual(hbOld.body.commands.map((c: { type: string }) => c.type), ["update-agent"]);
+  const caps = ["provision", "inventory", "auto-update"];
+  const hbNew = await call("POST", "/agent-api/v1/heartbeat", { ...facts, hostname: "CASPARCG02", agentVersion: "0.3.0-test.9", capabilities: caps, metrics: { ...metrics, studio } }, auth);
+  const job = hbNew.body.commands.find((c: { type: string }) => c.type === "provision");
+  assert.equal(job.payload.role, "ingest");
+  assert.equal(job.payload.smbPassword, "geheim");
+  assert.equal(job.payload.managementUrl, "http://10.40.6.202:8080");
+  assert.deepEqual(job.payload.components.sort(), ["ffmpeg", "vcredist"]);
+  assert.equal(job.payload.nodeRole, undefined);
+  // The password is gone from the database once delivered.
+  const row = p.ctx.db.prepare("SELECT payload FROM node_commands WHERE id = ?").get(job.id) as { payload: string };
+  assert.ok(!row.payload.includes("geheim"));
+  assert.ok(!row.payload.includes("enc:v1"));
+
+  // Progress, then the result: the role follows.
+  await call("POST", "/agent-api/v1/heartbeat", { ...facts, hostname: "CASPARCG02", capabilities: caps, metrics, results: [{ id: job.id, status: "running", result: "ffmpeg" }] }, auth);
+  let d = await call("GET", `/api/nodes/${nodeId}`);
+  const c = d.body.commands.find((x: { id: number }) => x.id === job.id);
+  assert.equal(c.status, "sent");
+  assert.equal(c.progress, "ffmpeg");
+  await call("POST", "/agent-api/v1/heartbeat", { ...facts, hostname: "CASPARCG02", capabilities: caps, metrics, results: [{ id: job.id, status: "done", result: "Node set up as ingest" }] }, auth);
+  d = await call("GET", `/api/nodes/${nodeId}`);
+  assert.equal(d.body.node.role, "live");
+  assert.equal(d.body.commands.find((x: { id: number }) => x.id === job.id).status, "done");
+  assert.equal(d.body.latestAgent, "0.2.0"); // update channel = production
+
+  // Per-node auto update off; agent settings validated.
+  await call("PUT", `/api/nodes/${nodeId}/auto-update`, { enabled: false });
+  const hbOff = await call("POST", "/agent-api/v1/heartbeat", { ...facts, hostname: "CASPARCG02", capabilities: caps, metrics }, auth);
+  assert.equal(hbOff.body.update.auto.enabled, false);
+  assert.equal((await call("PUT", "/api/nodes-settings", { autoUpdate: true, windowStart: "", windowEnd: "", deckLinkSource: "ftp://x" })).status, 400);
+  assert.equal((await call("PUT", "/api/nodes-settings", { autoUpdate: true, windowStart: "", windowEnd: "", deckLinkSource: "\\\\unas\\Software\\dv.zip" })).status, 200);
+
+  // Linux nodes cannot be provisioned.
+  const lin = await call("POST", "/agent-api/v1/enroll", { ...facts, hostname: "tv-manager", platform: "linux" });
+  await call("POST", `/api/nodes/${lin.body.nodeId}/approve`, { name: "tv-manager", role: "management" });
+  const lp = await call("POST", `/api/nodes/${lin.body.nodeId}/provision/plan`, { role: "playout" });
+  assert.equal(lp.body.blocked, true);
+  onAirNode = null;
 });

@@ -10,7 +10,7 @@ import { ATEM_CONTROL_MIGRATIONS, ATEM_MIGRATIONS, registerAtem, type AtemLink }
 import { DIAGRAM_MIGRATIONS, registerDiagram } from "../server/diagram.ts";
 import { HYPERDECK_MIGRATIONS } from "../server/legacy.ts";
 import { MONITOR_MIGRATIONS } from "../server/monitoring.ts";
-import { NODE_MIGRATIONS, registerNodes } from "../server/nodes.ts";
+import { NODE_MIGRATIONS, PROVISION_MIGRATIONS, registerNodes } from "../server/nodes.ts";
 import { realTeranexConnector, registerTeranex, TERANEX_MIGRATIONS, type TeranexLink } from "../server/teranex.ts";
 import { applyBlock, emptySnapshot, normFormat, parseBlocks, sourceKey, teranexPreset, type TeranexSnapshot } from "../server/teranexlogic.ts";
 
@@ -115,9 +115,9 @@ test.before(async () => {
   await old.server.close();
   p = await createPlatform({
     app: { id: "orchestrator", name: "Orch", defaultPort: 0 },
-    migrations: [...BEFORE, ...TERANEX_MIGRATIONS],
+    migrations: [...BEFORE, ...TERANEX_MIGRATIONS, ...PROVISION_MIGRATIONS],
     register: (s, pl) => {
-      registerNodes(s, pl);
+      registerNodes(s, pl, { releases: async () => [] });
       const atem = registerAtem(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, rename: async () => {}, switch: async () => {}, close: async () => {} }) as AtemLink);
       const tx = registerTeranex(s, pl, (host) => {
         const d = new FakeTeranex(host);
