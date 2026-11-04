@@ -14,6 +14,7 @@ import { connect as tcpConnect } from "node:net";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AUTOMATION_API, type PublicSwitcher } from "./atem.js";
+import type { PublicKiloview } from "./kiloview.js";
 import type { PublicTeranex } from "./teranex.js";
 import {
   atemIssues,
@@ -186,6 +187,7 @@ export function registerMonitoring(
     nodes: () => NodeLike[];
     atems: () => PublicSwitcher[];
     teranexes?: () => PublicTeranex[];
+    kiloviews?: () => PublicKiloview[];
     /** Checks the automation token; enables the read-only monitoring routes for management nodes. */
     automationAuthorized?: (req: FastifyRequest) => boolean;
   },
@@ -376,9 +378,42 @@ export function registerMonitoring(
         issues,
       };
     });
+    const kiloviews = (sources.kiloviews?.() ?? []).map((k) => {
+      const s = k.online ? k.snapshot : null;
+      const enc = s?.encoder;
+      const dec = s?.decoder;
+      const watch = new Set(k.watch ?? []);
+      // Decoder: the outputs that are watched (or all with a source when nothing is chosen yet).
+      const outs = (dec?.outputs ?? []).filter((o) => (k.watch ? watch.has(o.id) : o.source));
+      return {
+        id: k.id,
+        name: k.name,
+        kind: k.kind,
+        host: k.host,
+        location: k.location,
+        online: k.online,
+        lastSeenAt: k.lastSeenAt,
+        model: s?.product ?? (k.snapshot?.product ?? null),
+        input: enc ? { source: enc.activeInput, format: enc.input.format, signal: enc.input.signal } : null,
+        bitrateKbps: enc ? (enc.video?.bitrateKbps ?? null) : (outs.find((o) => o.playing)?.bitrateKbps ?? null),
+        streams: enc ? enc.streams.filter((x) => x.enabled).map((x) => ({ name: x.name, type: x.type, running: x.running })) : [],
+        outputs: outs.map((o) => ({ connector: o.connector ?? `Output ${o.id}`, format: o.format, source: o.source?.name ?? null, playing: o.playing, streamFormat: o.streamFormat })),
+        temperature: dec?.temperature ?? null,
+        cpu: dec?.cpu ?? null,
+        health: healthOf(k.issues),
+        issues: k.issues,
+      };
+    });
     const c = core();
-    const all = [c.health, ...nodes.filter((n) => !n.linkedDevice).map((n) => n.health), ...atems.map((a) => a.health), ...teranexes.map((x) => x.health), ...devices.map((d) => d.health)];
-    return { checkedAt: new Date().toISOString(), core: c, nodes, atems, teranexes, devices, summary: countHealth(all) };
+    const all = [
+      c.health,
+      ...nodes.filter((n) => !n.linkedDevice).map((n) => n.health),
+      ...atems.map((a) => a.health),
+      ...teranexes.map((x) => x.health),
+      ...kiloviews.map((k) => k.health),
+      ...devices.map((d) => d.health),
+    ];
+    return { checkedAt: new Date().toISOString(), core: c, nodes, atems, teranexes, kiloviews, devices, summary: countHealth(all) };
   };
   app.get("/api/monitoring", async () => overview());
 

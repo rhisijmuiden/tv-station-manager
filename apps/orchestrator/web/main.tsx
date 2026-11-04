@@ -1,9 +1,10 @@
 import "@tvsm/ui/styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Activity, LayoutDashboard, Network, Server, Repeat, SlidersHorizontal } from "lucide-react";
+import { Activity, ArrowLeftRight, LayoutDashboard, Network, Server, Repeat, SlidersHorizontal } from "lucide-react";
 import { AtemPage } from "./Atem";
 import { Dashboard } from "./Dashboard";
 import { DiagramPage } from "./Diagram";
+import { KiloviewPage } from "./Kiloview";
 import { MonitoringPage } from "./Monitoring";
 import { NodesPage } from "./Nodes";
 import { TeranexPage } from "./Teranex";
@@ -21,6 +22,7 @@ mountPlatformApp({
         { to: "/nodes", label: "orch.nav.nodes", icon: Server },
         { to: "/atem", label: "orch.nav.atem", icon: SlidersHorizontal },
         { to: "/teranex", label: "orch.nav.teranex", icon: Repeat },
+        { to: "/kiloview", label: "orch.nav.kiloview", icon: ArrowLeftRight },
         { to: "/diagram", label: "orch.nav.diagram", icon: Network },
       ],
     },
@@ -33,6 +35,8 @@ mountPlatformApp({
     { path: "/atem/:id", element: <AtemPage /> },
     { path: "/teranex", element: <TeranexPage /> },
     { path: "/teranex/:id", element: <TeranexPage /> },
+    { path: "/kiloview", element: <KiloviewPage /> },
+    { path: "/kiloview/:id", element: <KiloviewPage /> },
     { path: "/diagram", element: <DiagramPage /> },
   ],
 });

@@ -1,5 +1,5 @@
 import { get, Badge, Card, CardBody, CardHeader, PageHeader, cx } from "@tvsm/ui";
-import { CheckCircle2, Circle, DatabaseBackup, Radio, Repeat, Server, SlidersHorizontal } from "lucide-react";
+import { ArrowLeftRight, CheckCircle2, Circle, DatabaseBackup, Radio, Repeat, Server, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -8,6 +8,7 @@ interface Overview {
   nodes: { total: number; online: number; pending: number };
   atem: { total: number; online: number };
   teranex?: { total: number; online: number; noSignal: number };
+  kiloview?: { total: number; online: number; problems: number };
   mailConfigured: boolean;
   backupTargets: number;
   lastBackup: { status: string; startedAt: string; kind: string } | null;
@@ -66,6 +67,21 @@ export function Dashboard() {
               }
               icon={<Repeat className="size-5" />}
               tone={o.teranex.online < o.teranex.total || o.teranex.noSignal > 0 ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
+            />
+          </Link>
+        )}
+        {!!o.kiloview?.total && (
+          <Link to="/kiloview">
+            <Stat
+              label={t("orch.kiloview.dashboard")}
+              value={
+                <span>
+                  {o.kiloview.online} <span className="text-sm font-medium text-muted">/ {o.kiloview.total} {t("orch.dashboard.online").toLowerCase()}</span>
+                  {o.kiloview.problems > 0 && <span className="text-sm font-medium text-danger"> · {o.kiloview.problems} {t("orch.kiloview.problemCount")}</span>}
+                </span>
+              }
+              icon={<ArrowLeftRight className="size-5" />}
+              tone={o.kiloview.online < o.kiloview.total || o.kiloview.problems > 0 ? "bg-danger/12 text-danger" : "bg-brand/10 text-brand"}
             />
           </Link>
         )}

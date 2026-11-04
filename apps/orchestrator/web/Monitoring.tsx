@@ -21,6 +21,7 @@ import {
 import {
   Activity,
   AlertTriangle,
+  ArrowLeftRight,
   Box,
   CheckCircle2,
   ChevronRight,
@@ -653,6 +654,12 @@ function DeviceDialog({
   );
 }
 
+/** Kbit/s as "9.85 Mbit/s". */
+const mbit = (kbps: number) =>
+  kbps >= 1000
+    ? `${(kbps / 1000).toFixed(kbps >= 10000 ? 1 : 2)} Mbit/s`
+    : `${Math.round(kbps)} kbit/s`;
+
 // ---- items ----------------------------------------------------------------------------------------
 
 const LAYER_ICON: Record<LayerId, typeof Tv> = {
@@ -661,6 +668,7 @@ const LAYER_ICON: Record<LayerId, typeof Tv> = {
   nodes: Tv,
   switchers: SlidersHorizontal,
   converters: Repeat,
+  transport: ArrowLeftRight,
   distribution: Radio,
   infrastructure: HardDrive,
 };
@@ -710,6 +718,13 @@ function useItemSub() {
             {i.teranex.model ?? "Teranex"} · <Mono>{i.host}</Mono>
           </>
         );
+      case "kiloview":
+        return (
+          <>
+            {i.kiloview.model ?? "Kiloview"} ·{" "}
+            {t(`orch.kiloview.kind_${i.kiloview.kind}`)} · <Mono>{i.host}</Mono>
+          </>
+        );
       case "device":
         return i.device.checkType === "manual" ? (
           [i.device.location || t("orch.mon.check_manual"), i.device.notes]
@@ -745,6 +760,24 @@ function ItemBadge({ i }: { i: MonItem }) {
     ) : i.teranex.input?.format ? (
       <Badge tone="brand">{i.teranex.input.format}</Badge>
     ) : null;
+  if (i.kind === "kiloview") {
+    const k = i.kiloview;
+    if (!k.online) return null;
+    if (k.kind === "encoder")
+      return k.input?.signal === false ? (
+        <Badge tone="danger">{t("orch.teranex.noSignalShort")}</Badge>
+      ) : k.input?.format ? (
+        <Badge tone="brand">{k.input.format}</Badge>
+      ) : null;
+    const o = k.outputs[0];
+    return o ? (
+      o.playing ? (
+        <Badge tone="brand">{o.format ?? o.connector}</Badge>
+      ) : (
+        <Badge tone="danger">{t("orch.kiloview.noPictureShort")}</Badge>
+      )
+    ) : null;
+  }
   const r = i.device.result;
   if (r?.owncast)
     return (
@@ -1093,6 +1126,44 @@ function DetailPanel({
       [t("orch.teranex.output"), x.output ?? "—"],
     );
     if (x.location) facts.push([t("orch.mon.location"), x.location]);
+  } else if (i.kind === "kiloview") {
+    const k = i.kiloview;
+    facts.push(
+      [t("orch.mon.address"), k.host],
+      [t("orch.mon.model"), `${k.model ?? "Kiloview"} · ${t(`orch.kiloview.kind_${k.kind}`)}`],
+    );
+    if (k.kind === "encoder") {
+      facts.push([
+        t("orch.teranex.input"),
+        k.input
+          ? k.input.signal === false
+            ? t("orch.teranex.noSignal")
+            : [k.input.source, k.input.format].filter(Boolean).join(" · ") ||
+              "—"
+          : "—",
+      ]);
+      if (k.bitrateKbps != null)
+        facts.push([t("orch.kiloview.bitrate"), mbit(k.bitrateKbps)]);
+      for (const s of k.streams)
+        facts.push([
+          `${t("orch.kiloview.stream")} · ${s.type.toUpperCase()}`,
+          `${s.name} · ${s.running ? t("orch.kiloview.running") : t("orch.kiloview.stopped")}`,
+        ]);
+    } else {
+      for (const o of k.outputs)
+        facts.push([
+          `${o.connector}${o.format ? ` · ${o.format}` : ""}`,
+          o.playing
+            ? [o.source, o.streamFormat].filter(Boolean).join(" · ") || "—"
+            : `${t("orch.kiloview.noPicture")}${o.source ? ` (${o.source})` : ""}`,
+        ]);
+      if (k.bitrateKbps != null)
+        facts.push([t("orch.kiloview.bitrate"), mbit(k.bitrateKbps)]);
+      if (k.temperature != null)
+        facts.push([t("orch.kiloview.temperature"), `${k.temperature} °C`]);
+      if (k.cpu != null) facts.push(["CPU", `${Math.round(k.cpu)}%`]);
+    }
+    if (k.location) facts.push([t("orch.mon.location"), k.location]);
   } else {
     const d = i.device;
     facts.push([t("orch.mon.checkType"), t(`orch.mon.check_${d.checkType}`)]);
@@ -1392,6 +1463,7 @@ export function MonitoringPage({
     else if (i.kind === "node") nav("/nodes");
     else if (i.kind === "atem") nav(`/atem/${i.atem.id}`);
     else if (i.kind === "teranex") nav(`/teranex/${i.teranex.id}`);
+    else if (i.kind === "kiloview") nav(`/kiloview/${i.kiloview.id}`);
     else setDialog({ device: i.device, block: i.device.block });
   };
 

@@ -4,7 +4,7 @@ Menu **Monitoring** in the orchestrator shows the status of the whole platform o
 monitored is placed in a **layer of the signal path**:
 
 **Core** (orchestrator) > **Management** (director) > **TV nodes** (role studio / playout / live) > **Switchers** (ATEM) >
-**Converters** (Teranex) > **Distribution** (Owncast, web pages), plus **Infrastructure** as a supporting layer
+**Converters** (Teranex) > **Studio links** (Kiloview, see `docs/kiloview.md`) > **Distribution** (Owncast, web pages), plus **Infrastructure** as a supporting layer
 (monitor devices of the blocks Infrastructure and Extra equipment, nodes with role "Other" and nodes waiting for approval).
 
 The page is built to grow with the platform: the signal path bar sums up each layer (count and worst status) and never
