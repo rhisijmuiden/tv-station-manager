@@ -1,14 +1,36 @@
 import { Alert, Button, Card, CardBody, CardHeader, Field, Input, PageHeader, Select, Switch, cx, post, put } from "@tvsm/ui";
-import { CalendarClock, ImageUp, Save } from "lucide-react";
+import { CalendarClock, ImageUp, RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChannelTabs } from "../components/ChannelPicker";
 import { HourStartCard, LayersCard } from "../components/ChannelLayers";
 import { TickerCard, TickerStrip, useTickerItems } from "../components/TickerCard";
-import { errorText, fmtTime, layersOf, LINEUP_DEFAULTS, tickerOf, useChannelSelection, useChannels, type Graphics, type LineupSettings, type Position } from "../lib";
+import { errorText, fmtTime, layersOf, LINEUP_DEFAULTS, LOGO_OFFSET, LOGO_SIZE, logoOf, tickerOf, useChannelSelection, useChannels, type Graphics, type LineupSettings, type Position } from "../lib";
 
 const POSITIONS: Position[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const corner = (p: Position) => ({ "top-left": "top-[5%] left-[5%]", "top-right": "top-[5%] right-[5%]", "bottom-left": "bottom-[5%] left-[5%]", "bottom-right": "bottom-[5%] right-[5%]" })[p];
+
+/** Pixels on the 1920x1080 frame as a share of the preview's width (the preview is a size container). */
+const px = (n: number) => `${(n / 19.2).toFixed(3)}cqw`;
+
+/** The logo as the overlay draws it: `size` px high, inside the safe area (96 x 54 px), moved by the offsets. */
+function LogoPreview({ logo, url }: { logo: Graphics["logo"]; url: string | null }) {
+  const l = logoOf(logo);
+  if (l.fullFrame) return <div className="absolute inset-0" style={{ opacity: l.opacity }}>{url && <img src={url} alt="" className="size-full" />}</div>;
+  const v = l.position.startsWith("bottom") ? "bottom" : "top";
+  const h = l.position.endsWith("left") ? "left" : "right";
+  return (
+    <div className="absolute" style={{ opacity: l.opacity, [v]: px(54 + l.offsetY), [h]: px(96 + l.offsetX) }}>
+      {url ? (
+        <img src={url} alt="" className="block w-auto" style={{ height: px(l.size), maxWidth: px(1728) }} />
+      ) : (
+        <div className="grid place-items-center rounded bg-white/15 px-3 font-bold" style={{ height: px(l.size), fontSize: px(l.size * 0.35) }}>
+          LOGO
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null; channel: string }) {
   const { t } = useTranslation();
@@ -20,13 +42,9 @@ function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null;
     return () => clearInterval(i);
   }, []);
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950 text-white">
+    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950 text-white" style={{ containerType: "inline-size" }}>
       <div className="absolute inset-0 grid place-items-center text-sm text-white/20">{channel} · 1920×1080</div>
-      {g.enabled && g.logo.enabled && (
-        <div className={cx("absolute", corner(g.logo.position))} style={{ opacity: g.logo.opacity }}>
-          {logoUrl ? <img src={logoUrl} alt="" className="max-h-[9cqh] max-w-[14cqw]" style={{ maxHeight: "9%", maxWidth: 140 }} /> : <div className="rounded bg-white/15 px-3 py-1.5 text-xs font-bold">LOGO</div>}
-        </div>
-      )}
+      {g.enabled && g.logo.enabled && <LogoPreview logo={g.logo} url={logoUrl} />}
       {g.enabled && g.clock.enabled && <div className={cx("absolute font-mono text-lg font-semibold drop-shadow", corner(g.clock.position))}>{fmtTime(now.getTime())}</div>}
       {g.enabled && g.upNext.enabled && (
         <div className="absolute bottom-[16%] left-[5%] flex text-xs sm:text-sm">
@@ -44,6 +62,54 @@ function Preview({ g, logoUrl, channel }: { g: Graphics; logoUrl: string | null;
         </div>
       )}
       {g.enabled && ticker.enabled && tickerItems.length > 0 && <TickerStrip t={ticker} items={tickerItems} className="absolute right-0 bottom-0 left-0" />}
+    </div>
+  );
+}
+
+/** One slider with its value as a number field next to it, for the logo size and position. */
+function Slider({ label, value, min, max, step = 1, unit, onChange }: { label: string; value: number; min: number; max: number; step?: number; unit: string; onChange: (v: number) => void }) {
+  const clamp = (v: number) => Math.max(min, Math.min(max, Math.round(v / step) * step));
+  return (
+    <Field label={label}>
+      {(id) => (
+        <div className="flex items-center gap-3">
+          <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="min-w-0 flex-1 accent-brand" />
+          <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
+            <Input type="number" min={min} max={max} step={step} value={value} onChange={(e) => e.target.value !== "" && onChange(clamp(Number(e.target.value)))} className="h-8 w-20! text-right text-[13px]" aria-label={label} />
+            {unit}
+          </span>
+        </div>
+      )}
+    </Field>
+  );
+}
+
+/** Size, position and opacity of the channel logo. */
+function LogoControls({ logo, onChange }: { logo: Graphics["logo"]; onChange: (l: Graphics["logo"]) => void }) {
+  const { t } = useTranslation();
+  const l = logoOf(logo);
+  const set = (p: Partial<Graphics["logo"]>) => onChange({ ...l, ...p });
+  return (
+    <div className="space-y-3">
+      <Switch checked={l.fullFrame} onChange={(v) => set({ fullFrame: v })} label={t("mgmt.graphics.logoFullFrame")} description={t("mgmt.graphics.logoFullFrameHint")} />
+      {!l.fullFrame && (
+        <>
+          <Slider label={t("mgmt.graphics.logoSize")} value={l.size} min={LOGO_SIZE.min} max={LOGO_SIZE.max} step={2} unit="px" onChange={(size) => set({ size })} />
+          <div className="space-y-3">
+            <Slider label={t("mgmt.graphics.logoOffsetX")} value={l.offsetX} min={LOGO_OFFSET.min} max={LOGO_OFFSET.max} unit="px" onChange={(offsetX) => set({ offsetX })} />
+            <Slider label={t("mgmt.graphics.logoOffsetY")} value={l.offsetY} min={LOGO_OFFSET.min} max={LOGO_OFFSET.max} unit="px" onChange={(offsetY) => set({ offsetY })} />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted">{t("mgmt.graphics.logoSizeHint")}</p>
+            <Button size="sm" variant="secondary" icon={<RotateCcw className="size-3.5" />} onClick={() => set({ size: LOGO_SIZE.default, offsetX: 0, offsetY: 0 })}>
+              {t("mgmt.graphics.logoReset")}
+            </Button>
+          </div>
+        </>
+      )}
+      <Field label={`${t("mgmt.graphics.opacity")} (${Math.round(l.opacity * 100)}%)`}>
+        {(id) => <input id={id} type="range" min={0.1} max={1} step={0.05} value={l.opacity} onChange={(e) => set({ opacity: Number(e.target.value) })} className="accent-brand" />}
+      </Field>
     </div>
   );
 }
@@ -187,9 +253,7 @@ export function GraphicsPage() {
                 </label>
                 <span className="text-xs text-muted">{t("mgmt.graphics.logoHint")}</span>
               </div>
-              <Field label={`${t("mgmt.graphics.opacity")} (${Math.round(g.logo.opacity * 100)}%)`}>
-                {(id) => <input id={id} type="range" min={0.1} max={1} step={0.05} value={g.logo.opacity} onChange={(e) => setG({ ...g, logo: { ...g.logo, opacity: Number(e.target.value) } })} className="accent-brand" />}
-              </Field>
+              <LogoControls logo={g.logo} onChange={(logo) => setG({ ...g, logo })} />
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
               <Switch checked={g.clock.enabled} onChange={(v) => setG({ ...g, clock: { ...g.clock, enabled: v } })} label={t("mgmt.graphics.clock")} />

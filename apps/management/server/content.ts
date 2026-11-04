@@ -16,13 +16,32 @@ import { stationDay } from "./hourclock.js";
 
 // ---- graphics settings (per channel) ------------------------------------------
 
+/** Logo height in pixels on the 1920x1080 frame (96 = the size the overlay always used). */
+export const LOGO_SIZE = { min: 24, max: 600, default: 96 } as const;
+/** How far the logo may move from its corner, in pixels (the safe margin is 96 px wide and 54 px high). */
+export const LOGO_OFFSET = { min: -96, max: 900 } as const;
 const position = z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]);
 export const graphicsSchema = z.object({
   enabled: z.boolean().default(true),
   /** CasparCG template name (HTML template shipped with the studio node). */
   template: z.string().max(200).default("tvsm/overlay"),
   layer: z.number().int().min(1).max(999).default(20),
-  logo: z.object({ enabled: z.boolean().default(true), position: position.default("top-right"), file: z.string().max(200).nullable().default(null), opacity: z.number().min(0.1).max(1).default(0.9) }).default({ enabled: true, position: "top-right", file: null, opacity: 0.9 }),
+  /**
+   * Channel logo (bug). `size` is its height in pixels on the 1920x1080 frame; `offsetX`/`offsetY` move it from its corner
+   * towards the middle (negative = into the safe margin). `fullFrame` plays a 1920x1080 file (logo already in place) as is.
+   */
+  logo: z
+    .object({
+      enabled: z.boolean().default(true),
+      position: position.default("top-right"),
+      file: z.string().max(200).nullable().default(null),
+      opacity: z.number().min(0.1).max(1).default(0.9),
+      size: z.number().int().min(LOGO_SIZE.min).max(LOGO_SIZE.max).default(LOGO_SIZE.default),
+      offsetX: z.number().int().min(LOGO_OFFSET.min).max(LOGO_OFFSET.max).default(0),
+      offsetY: z.number().int().min(LOGO_OFFSET.min).max(LOGO_OFFSET.max).default(0),
+      fullFrame: z.boolean().default(false),
+    })
+    .default({ enabled: true, position: "top-right", file: null, opacity: 0.9, size: LOGO_SIZE.default, offsetX: 0, offsetY: 0, fullFrame: false }),
   clock: z.object({ enabled: z.boolean().default(true), position: position.default("top-left") }).default({ enabled: true, position: "top-left" }),
   upNext: z.object({ enabled: z.boolean().default(true), secondsBeforeEnd: z.number().int().min(5).max(600).default(60), durationSeconds: z.number().int().min(3).max(120).default(12) }).default({ enabled: true, secondsBeforeEnd: 60, durationSeconds: 12 }),
   /** News ticker: fixed text and/or RSS headlines, see tickerlogic.ts. */
