@@ -26,6 +26,7 @@ Monorepo (pnpm workspaces, TypeScript, Node 24).
 - Subtitles: `.srt`/`.vtt` next to a clip (`apps/management/server/subtitles.ts`), served at `/graphics/subtitles/:mediaId`.
 - SSO: `packages/platform/src/sso.ts` (Microsoft Entra ID via openid-client, settings key `sso`, routes `/api/auth/sso/*` and `/api/settings/sso`). Users have `auth_provider` (`local`/`entra`) and `external_id` (`<tid>:<oid>`); Entra users have password_hash `!`. Tests use a mock provider via `TVSM_SSO_AUTHORITY`. Docs: `docs/sso.md`.
 - Roles: `admin` > `editor` (editor-in-chief) > `operator`. Use `requireRole(req, ...)` from `@tvsm/platform` on write routes.
+- Agent self-update + provisioning (`docs/agent-provisioning.md`): heartbeat `update.latest`/`update.auto` (settings key `agents`, per node `nodes.auto_update`), agent `src/autoupdate.ts`; `update-agent.ps1` rolls back when `health.json` does not appear. Orchestrator `server/provisionlogic.ts` is pure (plan, warnings, on-air via `atem_inputs.node_id`, typed-name confirm), routes `/api/nodes/:id/provision{,/plan}`; command `provision` is held until the agent reports capability `provision`; result status `running` fills `node_commands.progress`. Agent `src/provision.ts` starts `packaging/windows/provision.ps1` as scheduled task (status.json), `src/inventory.ts` runs `inventory.ps1`. Orchestrator migrations end with `...PROVISION_MIGRATIONS`. UI `web/Provision.tsx`.
 - `packaging/`: .deb builder (bundles Node), systemd unit, update helper, `install.sh`.
 
 Rules:

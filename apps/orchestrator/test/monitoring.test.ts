@@ -12,7 +12,7 @@ import { DIAGRAM_MIGRATIONS, registerDiagram } from "../server/diagram.ts";
 import { HYPERDECK_MIGRATIONS } from "../server/legacy.ts";
 import { MONITOR_MIGRATIONS, realProbes, registerMonitoring, type Probes } from "../server/monitoring.ts";
 import { deviceIssues, nodeGroup, teranexIssues, nodeIssues, owncastBase, parseHostPort, parseOwncast, targetError, worst } from "../server/monitorlogic.ts";
-import { NODE_MIGRATIONS, registerNodes } from "../server/nodes.ts";
+import { NODE_MIGRATIONS, PROVISION_MIGRATIONS, registerNodes } from "../server/nodes.ts";
 import { registerTeranex, TERANEX_MIGRATIONS, type TeranexLink } from "../server/teranex.ts";
 
 const root = mkdtempSync(join(tmpdir(), "tvsm-monitor-"));
@@ -116,9 +116,9 @@ const call = async (method: string, url: string, payload?: unknown) => {
 test.before(async () => {
   p = await createPlatform({
     app: { id: "orchestrator", name: "Orch", defaultPort: 0 },
-    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS, ...HYPERDECK_MIGRATIONS, ...MONITOR_MIGRATIONS, ...TERANEX_MIGRATIONS],
+    migrations: [...NODE_MIGRATIONS, ...ATEM_MIGRATIONS, ...ATEM_CONTROL_MIGRATIONS, ...DIAGRAM_MIGRATIONS, ...HYPERDECK_MIGRATIONS, ...MONITOR_MIGRATIONS, ...TERANEX_MIGRATIONS, ...PROVISION_MIGRATIONS],
     register: (s, pl) => {
-      const nodes = registerNodes(s, pl);
+      const nodes = registerNodes(s, pl, { releases: async () => [] });
       const atem = registerAtem(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, rename: async () => {}, switch: async () => {}, close: async () => {} }) as AtemLink);
       const tx = registerTeranex(s, pl, () => Object.assign(new EventEmitter(), { connected: false, snapshot: () => null, close: async () => {} }) as TeranexLink);
       registerDiagram(s, pl, atem.list, tx.list);

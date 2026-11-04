@@ -26,6 +26,8 @@ unzip -q -j "$NODE_ZIP" "node-v$NODE_VERSION-win-x64/node.exe" -d "$STAGE"
 cp "$DIST" "$STAGE/agent.mjs"
 cp "$WINSW" "$STAGE/tvsm-agent-service.exe"
 cp "$ROOT/packaging/windows/tvsm-agent-service.xml" "$ROOT/packaging/windows/tvsm-agent.cmd" "$ROOT/packaging/windows/update-agent.ps1" "$STAGE/"
+# Provisioning from the orchestrator (Change role): the job script, the studio installer it runs and the inventory.
+cp "$ROOT/packaging/windows/provision.ps1" "$ROOT/packaging/windows/install-studio.ps1" "$ROOT/packaging/windows/inventory.ps1" "$STAGE/"
 # Studio node files (used by install-studio.ps1; CasparCG loads the templates straight from here, so agent
 # updates also update the overlay).
 mkdir -p "$STAGE/studio/templates"

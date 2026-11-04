@@ -1,7 +1,9 @@
 import { statfs } from "node:fs/promises";
 import { cpus, freemem, hostname, loadavg, networkInterfaces, release, totalmem, type, uptime, arch, platform } from "node:os";
 import { readFileSync } from "node:fs";
-import type { NodeFacts, NodeMetrics } from "@tvsm/platform/agent-protocol";
+import { AGENT_CAPABILITIES, type NodeFacts, type NodeMetrics } from "@tvsm/platform/agent-protocol";
+import { inventory } from "./inventory.js";
+import { activeProvision } from "./provision.js";
 import { AGENT_VERSION } from "./config.js";
 import { readStudioConfig, studioStatus } from "./studio.js";
 
@@ -33,7 +35,7 @@ export function facts(): NodeFacts {
     .flat()
     .filter((i) => i && !i.internal && i.family === "IPv4")
     .map((i) => i!.address);
-  return { hostname: hostname(), platform: platform(), os: osName(), arch: arch(), agentVersion: AGENT_VERSION, ips };
+  return { hostname: hostname(), platform: platform(), os: osName(), arch: arch(), agentVersion: AGENT_VERSION, ips, capabilities: AGENT_CAPABILITIES };
 }
 
 async function disks() {
@@ -80,5 +82,6 @@ export async function metrics(): Promise<NodeMetrics> {
     uptimeSeconds: Math.round(uptime()),
     agentUptimeSeconds: Math.round((Date.now() - started) / 1000),
     ...(studio ? { studio: await studioStatus(studio) } : {}),
+    ...(process.platform === "win32" ? { inventory: inventory() ?? undefined, provisioning: activeProvision() } : {}),
   };
 }
