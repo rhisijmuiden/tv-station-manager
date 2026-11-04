@@ -52,7 +52,7 @@ interface Detail {
   items: RawItem[];
 }
 interface RawItem {
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup" | "info";
   autoRule?: AutoRule | null;
   autoSourceName?: string | null;
   autoClips?: AutoInfo["autoClips"];
@@ -75,7 +75,7 @@ interface RawItem {
   effectiveDurationMs: number | null;
 }
 interface Item {
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup" | "info";
   /** "Newest clips" rule, kept as set in the block editor. */
   autoRule?: AutoRule | null;
   mediaId?: number | null;

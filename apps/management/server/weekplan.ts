@@ -472,13 +472,14 @@ const slotBase = z.object({
   inEpg: z.boolean().default(true),
 });
 const fillItemIn = z.object({
-  type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup"]),
+  type: z.enum(["media", "block", "live", "beeldkrant", "webcam", "auto", "lineup", "info"]),
   autoRule: autoRuleSchema.nullable().optional(),
   mediaId: z.number().int().nullable().optional(),
   childBlockId: z.number().int().nullable().optional(),
   liveSourceId: z.number().int().nullable().optional(),
   beeldkrantId: z.number().int().nullable().optional(),
   webcamId: z.number().int().nullable().optional(),
+  infoPageId: z.number().int().nullable().optional(),
   durationMs: z.number().int().min(0).max(24 * 3600_000).nullable().optional(),
   title: z.string().max(200).nullable().optional(),
   audio: z.union([z.string().max(12), z.number().int()]).nullable().optional(),
@@ -870,10 +871,10 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
       p.content.blockId != null && p.content.state !== "block"
         ? (db
             .prepare(
-              `SELECT i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.auto_rule AS autoRule, i.duration_ms AS durationMs, i.title, i.audio,
+              `SELECT i.type, i.media_id AS mediaId, i.child_block_id AS childBlockId, i.live_source_id AS liveSourceId, i.beeldkrant_id AS beeldkrantId, i.webcam_id AS webcamId, i.info_page_id AS infoPageId, i.auto_rule AS autoRule, i.duration_ms AS durationMs, i.title, i.audio,
                       m.name AS mediaName, m.title AS mediaTitle, m.path AS mediaPath, m.duration_ms AS mediaDurationMs, m.missing AS mediaMissing,
-                      cb.name AS childName, ls.name AS liveName, bk.name AS beeldkrantName, wc.name AS webcamName
-                 FROM block_items i LEFT JOIN media m ON m.id = i.media_id LEFT JOIN blocks cb ON cb.id = i.child_block_id LEFT JOIN live_sources ls ON ls.id = i.live_source_id LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id LEFT JOIN webcams wc ON wc.id = i.webcam_id
+                      cb.name AS childName, ls.name AS liveName, bk.name AS beeldkrantName, wc.name AS webcamName, ip.name AS infoPageName
+                 FROM block_items i LEFT JOIN media m ON m.id = i.media_id LEFT JOIN blocks cb ON cb.id = i.child_block_id LEFT JOIN live_sources ls ON ls.id = i.live_source_id LEFT JOIN beeldkranten bk ON bk.id = i.beeldkrant_id LEFT JOIN webcams wc ON wc.id = i.webcam_id LEFT JOIN info_pages ip ON ip.id = i.info_page_id
                 WHERE i.block_id = ? ORDER BY i.position, i.id`,
             )
             .all(p.content.blockId) as Record<string, unknown>[])
@@ -888,7 +889,7 @@ export function registerWeek(app: FastifyInstance, platform: Platform, planner: 
         ...i,
         mediaMissing: !!i.mediaMissing,
         ...(i.type === "auto" ? autoItemInfo(db, i.autoRule, occ.start, { key: `occ:${occ.key}`, path: `b${p.content.blockId}/${idx}` }, picks) : {}),
-        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "lineup" ? DEFAULT_LINEUP_MS : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : null)),
+        effectiveDurationMs: i.type === "block" && i.childBlockId ? safeDuration(loader, Number(i.childBlockId)) : ((i.durationMs as number | null) ?? (i.mediaDurationMs as number | null) ?? (i.type === "live" ? 30 * 60_000 : i.type === "lineup" ? DEFAULT_LINEUP_MS : i.type === "beeldkrant" && i.beeldkrantId ? (loader.beeldkrant?.(Number(i.beeldkrantId))?.durationMs ?? null) : i.type === "webcam" && i.webcamId ? (loader.webcam?.(Number(i.webcamId))?.durationMs ?? null) : i.type === "info" && i.infoPageId ? (loader.infoPage?.(Number(i.infoPageId))?.durationMs ?? null) : null)),
       })),
       windowsMs: p.windows.map((w) => w.end - w.start),
     };

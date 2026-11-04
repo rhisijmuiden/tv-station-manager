@@ -5,26 +5,27 @@
  */
 import { z } from "zod";
 
-export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "commercial", "filler"] as const;
+export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "info", "commercial", "filler"] as const;
 export type LayerKind = (typeof LAYER_KINDS)[number];
 
 const part = (on: boolean) => z.object({ logo: z.boolean().default(on), clock: z.boolean().default(on), ticker: z.boolean().default(on) }).default({ logo: on, clock: on, ticker: on });
 export type LayerRule = { logo: boolean; clock: boolean; ticker: boolean };
 
-/** The defaults keep what the director always did: a beeldkrant, webcam, coming-up slide or commercial hides the overlay. */
+/** The defaults keep what the director always did: a beeldkrant, webcam, coming-up slide, info page or commercial hides the overlay. */
 export const layersSchema = z.object({
   media: part(true),
   beeldkrant: part(false),
   webcam: part(false),
   live: part(true),
   lineup: part(false),
+  info: part(false),
   commercial: part(false),
   filler: part(true),
 });
 export type Layers = z.infer<typeof layersSchema>;
 
 export interface LayerEvent {
-  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "info" | "filler";
   leaf?: { blockKind?: "program" | "commercial"; category?: string; showOverlay?: boolean };
 }
 
@@ -43,6 +44,6 @@ const ALL_ON: LayerRule = { logo: true, clock: true, ticker: true };
  */
 export function baseLayer(layers: Layers, e: LayerEvent | null | undefined): LayerRule & { kind: LayerKind } {
   const kind = layerKind(e);
-  const keep = (kind === "beeldkrant" || kind === "webcam") && !!e?.leaf?.showOverlay;
+  const keep = (kind === "beeldkrant" || kind === "webcam" || kind === "info") && !!e?.leaf?.showOverlay;
   return { kind, ...(keep ? ALL_ON : layers[kind]) };
 }

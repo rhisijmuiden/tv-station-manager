@@ -478,4 +478,36 @@ export const MANAGEMENT_MIGRATIONS = [
   `ALTER TABLE blocks ADD COLUMN fill TEXT;`,
   // Hour blocks begin with the channel's fixed hour start (graphics.hourStart); existing blocks keep playing as before.
   `ALTER TABLE blocks ADD COLUMN hour_start INTEGER NOT NULL DEFAULT 0;`,
+  // Info pages: fixed full-screen pages (title, text, picture) made by the editors, block item type 'info'.
+  // block_items gets the 'info' type and an info_page_id column: the CHECK constraint needs a rebuild again.
+  `CREATE TABLE info_pages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     -- Content, layout and default length (JSON, see infoPageSchema in infopagelogic.ts).
+     settings TEXT NOT NULL DEFAULT '{}',
+     image TEXT,
+     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+   );
+   CREATE TABLE block_items_new (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
+     position INTEGER NOT NULL,
+     type TEXT NOT NULL CHECK (type IN ('media','block','live','beeldkrant','webcam','auto','lineup','info')),
+     media_id INTEGER REFERENCES media(id) ON DELETE CASCADE,
+     child_block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+     live_source_id INTEGER REFERENCES live_sources(id) ON DELETE CASCADE,
+     beeldkrant_id INTEGER REFERENCES beeldkranten(id) ON DELETE CASCADE,
+     webcam_id INTEGER REFERENCES webcams(id) ON DELETE CASCADE,
+     info_page_id INTEGER REFERENCES info_pages(id) ON DELETE CASCADE,
+     auto_rule TEXT,
+     duration_ms INTEGER,
+     title TEXT,
+     audio TEXT
+   );
+   INSERT INTO block_items_new (id, block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio)
+     SELECT id, block_id, position, type, media_id, child_block_id, live_source_id, beeldkrant_id, webcam_id, auto_rule, duration_ms, title, audio FROM block_items;
+   DROP TABLE block_items;
+   ALTER TABLE block_items_new RENAME TO block_items;
+   CREATE INDEX block_items_block ON block_items(block_id, position);`,
 ];

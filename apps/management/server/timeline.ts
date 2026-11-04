@@ -21,12 +21,14 @@ export interface LiveRef {
 }
 export interface BlockItemRow {
   id?: number;
-  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup";
+  type: "media" | "block" | "live" | "beeldkrant" | "webcam" | "auto" | "lineup" | "info";
   mediaId: number | null;
   childBlockId: number | null;
   liveSourceId: number | null;
   beeldkrantId?: number | null;
   webcamId?: number | null;
+  /** Info page (type info). */
+  infoPageId?: number | null;
   /** "Newest clips" rule (type auto), stored as JSON. */
   autoRule?: string | null;
   durationMs: number | null;
@@ -56,6 +58,8 @@ export interface Loader {
   beeldkrant?(id: number): BeeldkrantRef | undefined;
   /** Webcams and external streams; `durationMs` is the default length set on the webcam. */
   webcam?(id: number): WebcamRef | undefined;
+  /** Fixed info pages made by the editors; `durationMs` is the default length set on the page. */
+  infoPage?(id: number): InfoPageRef | undefined;
   /**
    * Dynamic item: the clips its rule picks at `asOf` (ms), in play order. `slot` names the broadcast (`key`) and the
    * item's place in it (`path`), so a pick is remembered and clips are not repeated within one broadcast.
@@ -63,6 +67,12 @@ export interface Loader {
   autoMedia?(rule: string | null | undefined, asOf: number | undefined, slot?: { key: string; path: string }): MediaRef[];
   /** The block every hour of this channel begins with (graphics setting `hourStart`), or null when switched off. */
   hourStart?(channelId: number): number | null;
+}
+export interface InfoPageRef {
+  id: number;
+  name: string;
+  durationMs: number;
+  showOverlay: boolean;
 }
 export interface WebcamRef {
   id: number;
@@ -80,14 +90,15 @@ export interface BeeldkrantRef {
 }
 
 export interface Leaf {
-  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "info";
   durationMs: number;
   title: string;
   mediaId?: number;
   liveSourceId?: number;
   beeldkrantId?: number;
   webcamId?: number;
-  /** Beeldkrant / webcam: the channel overlay (logo, clock, ticker) stays on top. */
+  infoPageId?: number;
+  /** Beeldkrant / webcam / info page: the channel overlay (logo, clock, ticker) stays on top. */
   showOverlay?: boolean;
   /** Path relative to the media source root, e.g. "Programmas/Journaal.mp4". */
   path?: string;
@@ -178,6 +189,11 @@ export function expandBlock(loader: Loader, blockId: number, stack: number[] = [
       const w = loader.webcam?.(it.webcamId);
       if (!w) continue;
       out.push({ type: "webcam", durationMs: it.durationMs ?? w.durationMs, title: it.title || w.name, webcamId: w.id, showOverlay: w.showOverlay, blockKind: block.kind, blockName: block.name, audioSourceId });
+    } else if (it.type === "info" && it.infoPageId != null) {
+      // Fixed page made by the editors; its length is set on the page unless the item sets its own.
+      const ip = loader.infoPage?.(it.infoPageId);
+      if (!ip) continue;
+      out.push({ type: "info", durationMs: it.durationMs ?? ip.durationMs, title: it.title || ip.name, infoPageId: ip.id, showOverlay: ip.showOverlay, blockKind: block.kind, blockName: block.name, audioSourceId });
     }
   }
   return out;
@@ -284,7 +300,7 @@ export interface TimelineEvent {
   scheduleId: number | null;
   start: number;
   end: number;
-  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "filler";
+  type: "media" | "live" | "beeldkrant" | "webcam" | "lineup" | "info" | "filler";
   title: string;
   programTitle: string;
   /** Offset into the item when the event starts (only non-zero when the window cuts it). */
@@ -453,7 +469,7 @@ export function programAt(events: TimelineEvent[], t: number, info: (scheduleId:
  */
 const eventSig = (e: TimelineEvent, from: number, to: number) => {
   const l = e.leaf;
-  return [e.type, Math.max(e.start, from), Math.min(e.end, to), e.start - e.offsetMs, e.title, l?.path ?? null, l?.mediaId ?? null, l?.liveSourceId ?? null, l?.beeldkrantId ?? null, l?.webcamId ?? null, l?.audioSourceId ?? null, l?.showOverlay ?? null].join("|");
+  return [e.type, Math.max(e.start, from), Math.min(e.end, to), e.start - e.offsetMs, e.title, l?.path ?? null, l?.mediaId ?? null, l?.liveSourceId ?? null, l?.beeldkrantId ?? null, l?.webcamId ?? null, l?.infoPageId ?? null, l?.audioSourceId ?? null, l?.showOverlay ?? null].join("|");
 };
 
 /**

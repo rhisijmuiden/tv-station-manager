@@ -136,7 +136,7 @@ export const TICKER_DEFAULTS: TickerSettings = {
   backgroundOpacity: 0.92,
 };
 export const tickerOf = (g: Graphics | undefined | null): TickerSettings => ({ ...TICKER_DEFAULTS, ...(g?.ticker ?? {}), colors: { ...TICKER_COLORS, ...(g?.ticker?.colors ?? {}) } });
-export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "commercial", "filler"] as const;
+export const LAYER_KINDS = ["media", "beeldkrant", "webcam", "live", "lineup", "info", "commercial", "filler"] as const;
 export type LayerKind = (typeof LAYER_KINDS)[number];
 export interface LayerRule {
   logo: boolean;
@@ -146,12 +146,12 @@ export interface LayerRule {
 export type Layers = Record<LayerKind, LayerRule>;
 const on = { logo: true, clock: true, ticker: true };
 const off = { logo: false, clock: false, ticker: false };
-/** The server's defaults (server/layers.ts): a beeldkrant, webcam, coming-up slide or commercial hides the base layer. */
-export const LAYER_DEFAULTS: Layers = { media: on, beeldkrant: off, webcam: off, live: on, lineup: off, commercial: off, filler: on };
+/** The server's defaults (server/layers.ts): a beeldkrant, webcam, coming-up slide, info page or commercial hides the base layer. */
+export const LAYER_DEFAULTS: Layers = { media: on, beeldkrant: off, webcam: off, live: on, lineup: off, info: off, commercial: off, filler: on };
 export const layersOf = (g: Graphics | undefined | null): Layers => ({ ...LAYER_DEFAULTS, ...(g?.layers ?? {}) });
 /** The kind of content a block item is, for the layer rules (items of an ad break count as commercials). */
 export const itemLayerKind = (type: string, commercial?: boolean): LayerKind =>
-  commercial ? "commercial" : type === "beeldkrant" || type === "webcam" || type === "live" || type === "lineup" ? type : "media";
+  commercial ? "commercial" : type === "beeldkrant" || type === "webcam" || type === "live" || type === "lineup" || type === "info" ? type : "media";
 export interface LineupSettings {
   heading: string;
   language: "nl" | "en";

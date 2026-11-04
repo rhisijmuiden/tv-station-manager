@@ -1,6 +1,6 @@
 import "./styles.css";
 import { mountPlatformApp } from "@tvsm/ui";
-import { Activity, AudioLines, Cable, CalendarDays, CalendarRange, Cast, ClipboardList, Clock3, Layers, LayoutGrid, Library, MonitorPlay, Newspaper, Radio, Rss, SlidersHorizontal, Tags, ToggleRight, Tv, WandSparkles, Wrench } from "lucide-react";
+import { Activity, AudioLines, Cable, CalendarDays, CalendarRange, Cast, ClipboardList, Clock3, Info, Layers, LayoutGrid, Library, MonitorPlay, Newspaper, Radio, Rss, SlidersHorizontal, Tags, ToggleRight, Tv, WandSparkles, Wrench } from "lucide-react";
 import { AudioSourcesPage } from "./pages/AudioSources";
 import { BeeldkrantPage } from "./pages/Beeldkrant";
 import { BlocksPage } from "./pages/Blocks";
@@ -22,6 +22,7 @@ import { RundownsPage } from "./pages/Rundowns";
 import { SchedulePage } from "./pages/Schedule";
 import { SwitchButtonsPage, SwitchPage } from "./pages/Switch";
 import { WebcamsPage } from "./pages/Webcams";
+import { InfoPagesPage } from "./pages/InfoPages";
 import { WeekPage } from "./pages/Week";
 import { WeekPlanPage } from "./pages/WeekPlan";
 import { LibraryTabs } from "./components/LibraryTabs";
@@ -67,6 +68,7 @@ mountPlatformApp({
           icon: Rss,
           minRole: "editor",
           children: [
+            { to: "/infopages", label: "mgmt.nav.infoPages", icon: Info },
             { to: "/audio", label: "mgmt.nav.audio", icon: AudioLines },
             { to: "/categories", label: "mgmt.nav.categories", icon: Tags },
           ],
@@ -116,6 +118,7 @@ mountPlatformApp({
     { path: "/beeldkrant", element: <LibraryTabs><BeeldkrantPage /></LibraryTabs> },
     { path: "/beeldkrant/:id", element: <LibraryTabs><BeeldkrantPage /></LibraryTabs> },
     { path: "/webcams", element: <LibraryTabs><WebcamsPage /></LibraryTabs> },
+    { path: "/infopages", element: <InfoPagesPage /> },
     { path: "/epg", element: <EpgPage /> },
     { path: "/graphics", element: <GraphicsPage /> },
     { path: "/channels", element: <ChannelsPage /> },

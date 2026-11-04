@@ -29,7 +29,8 @@
       "audio": "Geluid",
       "webcams": "Webcams & streams",
       "mediaSources": "Mediabronnen",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "infoPages": "Infopagina’s"
     },
     "categories": {
       "program": "Programma",
@@ -185,20 +186,23 @@
         "beeldkrant": "Beeldkrant",
         "webcam": "Webcam",
         "auto": "Dynamisch uit map",
-        "lineup": "Slide"
+        "lineup": "Slide",
+        "info": "Infopagina"
       },
       "addBeeldkrant": "+ Beeldkrant",
       "beeldkrantDuration": "Duur (u:mm:ss); leeg = volgens de beeldkrant",
       "addWebcam": "+ Webcam",
       "webcamDuration": "Duur (u:mm:ss); leeg = van de webcam",
-      "addMore": "Meer: blok, live, beeldkrant…",
+      "addMore": "Meer: blok, infopagina, live…",
       "groups": {
         "blocks": "Reclameblokken en blokken",
         "ads": "Andere reclameblokken",
         "live": "Live bronnen",
         "beeldkrant": "Beeldkrant",
-        "webcam": "Webcams & streams"
-      }
+        "webcam": "Webcams & streams",
+        "info": "Infopagina’s"
+      },
+      "infoDuration": "Duur (leeg = de duur die op de infopagina staat)"
     },
     "ads": {
       "title": "Reclameblokken",
@@ -445,7 +449,9 @@
       "webcam_in_use": "Deze webcam wordt in programma's gebruikt.",
       "webcam_required": "Kies een webcam.",
       "inspect_failed": "Deze link kon niet geopend worden: {{message}}",
-      "auto_source_required": "Kies een categorie of map voor de nieuwste clips."
+      "auto_source_required": "Kies een categorie of map voor de nieuwste clips.",
+      "info_page_required": "Kies een infopagina.",
+      "info_page_in_use": "Deze infopagina wordt nog gebruikt in blokken of de planning."
     },
     "remote": {
       "title": "Remote bronnen",
@@ -896,7 +902,10 @@
       "added": "“{{what}}” toegevoegd aan de rundown van {{date}}.",
       "openRundown": "Rundown openen",
       "tab_webcams": "Webcams",
-      "noWebcams": "Nog geen webcams. Voeg ze toe onder Redactie → Webcams & streams."
+      "noWebcams": "Nog geen webcams. Voeg ze toe onder Redactie → Webcams & streams.",
+      "tab_info": "Info",
+      "infoSub": "Infopagina",
+      "noInfo": "Nog geen infopagina’s. Maak ze onder Inrichting → Bronnen → Infopagina’s."
     },
     "bk": {
       "title": "Beeldkrant",
@@ -1594,7 +1603,8 @@
         "live": "Live stream",
         "lineup": "Straks-slide",
         "commercial": "Reclame",
-        "filler": "Opvulling"
+        "filler": "Opvulling",
+        "info": "Infopagina"
       },
       "layers": {
         "title": "Wat blijft er in beeld, per soort content",
@@ -1782,6 +1792,61 @@
       "orchestrator_outdated_hint": "Werk de orchestrator bij naar de nieuwste versie (Info > Controleren op updates in de orchestrator).",
       "openLink": "Koppeling openen",
       "askAdmin": "Vraag een beheerder om de koppeling met de orchestrator in te stellen."
+    },
+    "info": {
+      "pageTitle": "Infopagina’s",
+      "intro": "Vaste pagina’s met informatie voor kijkers, zoals contactgegevens of informatie over de zender. Ze komen schermvullend in de huisstijl van de zender in beeld.",
+      "howToPlan": "Zet een infopagina in een uurblok: sleep hem uit de bibliotheek (tab Info) of kies hem in de lijst “Meer…” van het blok. Hij staat zo lang in beeld als op de pagina is ingesteld.",
+      "add": "Nieuwe infopagina",
+      "new": "Nieuwe infopagina",
+      "edit": "Bewerken",
+      "duplicate": "Kopiëren",
+      "back": "Terug naar de lijst",
+      "untitled": "Infopagina",
+      "emptyTitle": "Nog geen infopagina’s",
+      "emptyText": "Maak een pagina met vaste informatie, bijvoorbeeld hoe je de redactie bereikt. Zet hem daarna in een uurblok, net als een clip.",
+      "editorIntro": "Wat je aanpast zie je meteen in het voorbeeld. Sla op om de pagina op tv te gebruiken.",
+      "saved": "Opgeslagen. Uurblokken met deze pagina laten hem vanaf nu zo zien.",
+      "discard": "Weggaan zonder je wijzigingen op te slaan?",
+      "preview": "Voorbeeld",
+      "previewHint": "Voorbeeld in de kleuren en het logo van het kanaal (Inrichting → Kanaal & lagen → Straks-slide).",
+      "name": "Naam in de bibliotheek",
+      "nameHint": "Alleen redacteuren zien deze naam.",
+      "namePlaceholder": "bijv. Contact redactie",
+      "layout": "Indeling",
+      "layouts": {
+        "text": "Alleen tekst",
+        "imageRight": "Foto rechts",
+        "imageLeft": "Foto links",
+        "imageBackground": "Foto erachter",
+        "imageOnly": "Alleen foto"
+      },
+      "imageChoose": "Kies afbeelding",
+      "imageReplace": "Andere afbeelding",
+      "imageRemove": "Weghalen",
+      "imageMissing": "Kies een afbeelding voor deze indeling. Zonder afbeelding toont de pagina alleen tekst.",
+      "imageHint": "Grote afbeeldingen worden vanzelf kleiner gemaakt (full HD).",
+      "title": "Kop",
+      "titlePlaceholder": "bijv. Contact met de redactie",
+      "subtitle": "Regel onder de kop",
+      "subtitlePlaceholder": "bijv. Elke werkdag staan we voor je klaar",
+      "body": "Tekst",
+      "bodyHint": "Een lege regel begint een nieuwe alinea. Begin een regel met “- ” voor een opsomming. Zet **twee sterretjes** om woorden om ze vet te maken.",
+      "bodyPlaceholder": "- Telefoon: **0255 123 456**\n- E-mail: redactie@voorbeeld.nl\n\nTip ons over nieuws uit je buurt!",
+      "footer": "Onderregel",
+      "footerHint": "Staat onderaan, bijvoorbeeld website of telefoonnummer.",
+      "footerPlaceholder": "bijv. www.voorbeeld.nl",
+      "duration": "Duur in beeld",
+      "durationHint": "Zo lang staat de pagina in beeld in een uurblok (minuten:seconden). Een blok kan hem nog een eigen duur geven.",
+      "showLogo": "Kanaallogo bij de kop",
+      "showLogoHint": "Het logo dat bij het kanaal is geüpload, naast de kop.",
+      "showOverlay": "Logo, klok en ticker erover laten staan",
+      "showOverlayHint": "Uit: de pagina staat alleen in beeld, net als de beeldkrant.",
+      "confirmDelete": "Infopagina “{{name}}” verwijderen?",
+      "confirmDeleteUsed": "“{{name}}” wordt op {{count}} plek(ken) gebruikt. Daar ook weghalen?",
+      "usedIn_one": "op {{count}} plek gebruikt",
+      "usedIn_other": "op {{count}} plekken gebruikt",
+      "copyName": "{{name}} (kopie)"
     }
   }
 }

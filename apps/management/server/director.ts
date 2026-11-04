@@ -381,6 +381,15 @@ export class Director {
         s.standby = null;
         await this.stopRtmp(s);
         await this.switchTo(ch, ch.playout_input);
+      } else if (ev.type === "info" && ev.leaf?.infoPageId) {
+        // Fixed info page made by the editors: a static page in the channel's house style.
+        const p = this.playout(ch);
+        if (!p) throw new Error("no studio node configured for this channel");
+        this.remote.forget(ch.studio_id, ch.caspar_channel);
+        await p.playHtml(ch.caspar_channel, PLAYOUT_LAYER, infoPageUrl(this.platform, ev.leaf.infoPageId, ch.id));
+        s.standby = null;
+        await this.stopRtmp(s);
+        await this.switchTo(ch, ch.playout_input);
       } else if (ev.type === "webcam" && ev.leaf?.webcamId) {
         await this.playWebcam(ch, s, ev.leaf.webcamId);
       } else if (ev.type === "live" && ev.leaf?.liveSourceId) {
@@ -481,7 +490,7 @@ export class Director {
 
   /** The audio source that should sound now: only while the playout node itself is on air (clip, beeldkrant or webcam). */
   private wantedAudio(s: ChannelState, current: TimelineEvent | null) {
-    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam" && current.type !== "lineup")) return null;
+    if (s.override || s.standby || !current || (current.type !== "media" && current.type !== "beeldkrant" && current.type !== "webcam" && current.type !== "lineup" && current.type !== "info")) return null;
     return current.leaf?.audioSourceId ?? null;
   }
 
@@ -828,6 +837,9 @@ export function publicUrl(platform: Platform) {
 
 /** Page CasparCG plays for a "coming up" slide: `at` is the slide's start, the list shows what starts after it. */
 export const lineupUrl = (platform: Platform, channelId: number, at: number) => `${publicUrl(platform)}/lineup/page.html?channel=${channelId}&at=${Math.round(at)}`;
+
+/** Page CasparCG plays for an info page, in the house style (colours, logo) of the channel it is on. */
+export const infoPageUrl = (platform: Platform, id: number, channelId: number) => `${publicUrl(platform)}/infopage/page.html?id=${id}&channel=${channelId}`;
 
 /** Page CasparCG plays for a beeldkrant: `start` is the wall-clock time of its first page, so a restart shows the right page. */
 export const beeldkrantUrl = (platform: Platform, id: number, start: number, tickerSpace = 0) =>
