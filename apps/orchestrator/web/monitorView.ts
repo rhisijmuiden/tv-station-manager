@@ -65,6 +65,27 @@ export interface MonTeranex {
   health: Health;
   issues: Issue[];
 }
+export interface MonKiloview {
+  id: string;
+  name: string;
+  kind: "encoder" | "decoder";
+  host: string;
+  location: string;
+  online: boolean;
+  lastSeenAt?: string | null;
+  model: string | null;
+  /** Encoder only. */
+  input: { source: string | null; format: string | null; signal: boolean | null } | null;
+  bitrateKbps: number | null;
+  /** Encoder: enabled streams. */
+  streams: { name: string; type: string; running: boolean }[];
+  /** Decoder: watched outputs. */
+  outputs: { connector: string; format: string | null; source: string | null; playing: boolean | null; streamFormat: string | null }[];
+  temperature: number | null;
+  cpu: number | null;
+  health: Health;
+  issues: Issue[];
+}
 export interface MonDevice {
   id: string;
   name: string;
@@ -107,6 +128,8 @@ export interface Overview {
   atems: MonAtem[];
   /** Older servers do not send it. */
   teranexes?: MonTeranex[];
+  /** Older servers do not send it. */
+  kiloviews?: MonKiloview[];
   devices: MonDevice[];
   summary: Record<Health, number>;
 }
@@ -120,6 +143,7 @@ export const LAYERS = [
   "nodes",
   "switchers",
   "converters",
+  "transport",
   "distribution",
   "infrastructure",
 ] as const;
@@ -131,6 +155,7 @@ export const SIGNAL_LAYERS: LayerId[] = [
   "nodes",
   "switchers",
   "converters",
+  "transport",
   "distribution",
 ];
 
@@ -178,6 +203,17 @@ export type MonItem =
       issues: Issue[];
       metrics: null;
       teranex: MonTeranex;
+    }
+  | {
+      key: string;
+      kind: "kiloview";
+      layer: LayerId;
+      name: string;
+      host: string;
+      health: Health;
+      issues: Issue[];
+      metrics: null;
+      kiloview: MonKiloview;
     }
   | {
       key: string;
@@ -261,6 +297,18 @@ export function toItems(o: Overview): MonItem[] {
       metrics: null,
       teranex: x,
     });
+  for (const k of o.kiloviews ?? [])
+    items.push({
+      key: `kiloview:${k.id}`,
+      kind: "kiloview",
+      layer: "transport",
+      name: k.name,
+      host: k.host,
+      health: k.health,
+      issues: k.issues,
+      metrics: null,
+      kiloview: k,
+    });
   for (const d of o.devices)
     items.push({
       key: `device:${d.id}`,
@@ -301,6 +349,8 @@ export function matches(i: MonItem, f: Filter): boolean {
         ? `${i.atem.model ?? ""} ${i.atem.location}`
         : i.kind === "teranex"
           ? `${i.teranex.model ?? ""} ${i.teranex.location} ${i.teranex.input?.format ?? ""}`
+          : i.kind === "kiloview"
+            ? `kiloview ${i.kiloview.model ?? ""} ${i.kiloview.location} ${i.kiloview.input?.format ?? ""} ${i.kiloview.outputs.map((x) => `${x.connector} ${x.source ?? ""}`).join(" ")}`
           : i.kind === "device"
             ? `${i.device.checkType} ${i.device.location} ${i.device.notes}`
             : "";
@@ -376,7 +426,7 @@ export function sparkPoints(values: number[], w: number, h: number): string {
 /** Rows of platforms in the room, following the signal path. */
 export const ROOM_ROWS: LayerId[][] = [
   ["core", "management", "nodes"],
-  ["switchers", "converters", "distribution"],
+  ["switchers", "converters", "transport", "distribution"],
   ["infrastructure"],
 ];
 export const CELL = 104;
@@ -453,7 +503,8 @@ export const ROOM_LINKS: [LayerId, LayerId][] = [
   ["management", "nodes"],
   ["nodes", "switchers"],
   ["switchers", "converters"],
-  ["converters", "distribution"],
+  ["converters", "transport"],
+  ["transport", "distribution"],
   ["core", "infrastructure"],
 ];
 
@@ -462,6 +513,7 @@ export function boxSize(i: MonItem): [w: number, d: number, h: number] {
   if (i.kind === "core") return [64, 64, 84];
   if (i.kind === "atem") return [86, 46, 22];
   if (i.kind === "teranex") return [76, 44, 20];
+  if (i.kind === "kiloview") return [60, 40, 16];
   if (i.kind === "node")
     return i.layer === "management"
       ? [62, 62, 70]
