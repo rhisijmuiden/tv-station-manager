@@ -7,6 +7,11 @@ House style of IJmond360, the regional public broadcaster for the IJmond (Velsen
 - `logo-on-dark.svg`: same wordmark with "ijmond" in white. For the sidebar, login page and other dark backgrounds.
 - `logo-mark.svg`: the app icon. Pink ring and white "360" on a purple rounded square (as the site's app icon).
 - `favicon.svg`: the pink ring on purple, readable at 16 px.
+- `tv/`: the on-screen logo (station bug) for broadcast, transparent PNG (alpha) and SVG:
+  - `logo-white-pink.*`: "ijmond" white, "o" and "360" pink. The default on-air logo.
+  - `logo-white.*`: all white, for a quieter bug or when pink clashes with the picture.
+  - `logo-colour.*`: purple and pink, only on light backgrounds.
+  - `*.png` are 1832×704; `*-bug-1920x1080.png` are full-frame overlays with the logo top right inside the title-safe area (white versions with a soft shadow), ready to put on the top CasparCG layer.
 - The SVGs are traced from the 468 px logo on the website. If IJmond360 supplies the original vector logo, replace the files with it (same names, same viewBox ratio).
 - Keep clear space of at least the height of the "o" around the logo. Do not recolour or stretch it.
 
