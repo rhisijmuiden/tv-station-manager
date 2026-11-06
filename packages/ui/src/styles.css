@@ -47,3 +47,41 @@ body {
 main[data-phone] .grid > * {
   min-width: 0;
 }
+
+/* Login page: a TV without signal (components/TvStatic.tsx). */
+.tv-scanlines {
+  background: repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.28) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+}
+.tv-logo {
+  filter: drop-shadow(3px 0 0 rgb(255 0 80 / 0.55)) drop-shadow(-3px 0 0 rgb(0 220 255 / 0.55));
+}
+.tv-logo-on {
+  animation: tv-logo-through 2.4s steps(1, end) both;
+}
+@keyframes tv-logo-through {
+  0% { opacity: 0; transform: translateX(0); }
+  6% { opacity: 0.7; transform: translateX(-14px) skewX(-8deg); }
+  10% { opacity: 0.15; transform: translateX(10px); }
+  14% { opacity: 0.85; transform: translateX(-4px) scaleY(1.04); clip-path: inset(0 0 45% 0); }
+  18% { opacity: 0.4; transform: translateX(6px); clip-path: inset(40% 0 0 0); }
+  22% { opacity: 0.95; transform: none; clip-path: none; }
+  48% { opacity: 0.9; transform: translateX(2px); }
+  52% { opacity: 1; transform: none; }
+  70% { opacity: 0.95; transform: translateX(-8px) skewX(6deg); clip-path: inset(20% 0 50% 0); }
+  74% { opacity: 0.9; transform: none; clip-path: none; }
+  84% { opacity: 0.45; transform: translateX(12px); }
+  88% { opacity: 0.8; transform: translateX(-3px); }
+  94% { opacity: 0.2; transform: translateX(16px) skewX(-10deg); }
+  100% { opacity: 0; transform: none; }
+}
+.tv-led {
+  animation: tv-led 2.8s ease-in-out infinite;
+}
+@keyframes tv-led {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-led { animation: none; }
+}

@@ -59,7 +59,7 @@
     "createAccount": "Account aanmaken",
     "defaultPasswordWarning": "Het lokale account \"{{username}}\" heeft nog het standaardwachtwoord. Wijzig het voordat je live gaat.",
     "changeNow": "Wachtwoord wijzigen",
-    "signInMicrosoft": "Inloggen met Microsoft",
+    "signInMicrosoft": "Inloggen met Microsoft 365",
     "useLocalAccount": "Liever inloggen met een lokaal account",
     "orLocal": "of met een lokaal account",
     "ssoErrors": {

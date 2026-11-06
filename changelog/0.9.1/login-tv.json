@@ -1,0 +1,14 @@
+{
+  "apps": [
+    "management",
+    "orchestrator"
+  ],
+  "pr": [],
+  "changes": [
+    {
+      "kind": "changed",
+      "en": "New sign-in page: a television without signal, flickering snow with the station logo breaking through now and then, and Sign in with Microsoft 365 at the bottom of the set.",
+      "nl": "Nieuwe inlogpagina: een televisie zonder signaal, knipperende sneeuw waar af en toe het logo van de zender doorheen komt, en onderin de tv Inloggen met Microsoft 365."
+    }
+  ]
+}
