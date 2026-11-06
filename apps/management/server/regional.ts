@@ -303,8 +303,10 @@ export function registerRegional(app: FastifyInstance, platform: Platform, rss: 
     const lang = (JSON.parse((db.prepare("SELECT config FROM rss_feeds WHERE id = ?").get(f.id) as { config: string }).config || "{}").language ?? "nl") as "nl" | "en";
     const settings = {
       layout: "text",
-      secondsPerPage: source === "traffic" ? 10 : 12,
-      maxItems: source === "p2000" ? 6 : 12,
+      // Short messages: several on one screen (the editor can change it on the beeldkrant).
+      itemsPerPage: source === "events" ? 3 : 4,
+      secondsPerPage: 15,
+      maxItems: source === "p2000" ? 12 : 16,
       maxAgeHours: source === "p2000" ? 6 : 0,
       maxTextChars: 300,
       headerText: d.header[lang],

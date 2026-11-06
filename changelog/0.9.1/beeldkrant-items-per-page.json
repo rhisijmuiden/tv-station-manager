@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    75
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Beeldkrant setting Items per page (1 to 6): more than one shows a list of headlines, for example traffic or 112 alerts. New regional beeldkranten show 4 per page.",
+      "nl": "Beeldkrantinstelling Berichten per pagina (1 tot 6): bij meer dan één komt er een lijst met koppen in beeld, bijvoorbeeld voor verkeer of 112-meldingen. Nieuwe regionale beeldkranten tonen er 4 per pagina."
+    }
+  ]
+}

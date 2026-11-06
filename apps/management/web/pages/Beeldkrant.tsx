@@ -13,6 +13,7 @@ type Layout = "photo-left" | "photo-right" | "photo-top" | "photo-full" | "text"
 const LAYOUTS: Layout[] = ["photo-left", "photo-right", "photo-top", "photo-full", "text"];
 interface Settings {
   secondsPerPage: number;
+  itemsPerPage: number;
   maxItems: number;
   maxAgeHours: number;
   maxTitleChars: number;
@@ -73,6 +74,7 @@ interface PageData {
 
 const defaults = (): Settings => ({
   secondsPerPage: 12,
+  itemsPerPage: 1,
   maxItems: 10,
   maxAgeHours: 72,
   maxTitleChars: 90,
@@ -202,21 +204,23 @@ function Preview({ settings, feedIds, onInfo }: { settings: Settings; feedIds: n
       void post<{ pages: PageData[]; durationMs: number }>("/api/beeldkranten/preview", { settings, feedIds })
         .then((r) => {
           setPages(r.pages);
-          onInfo({ pages: r.pages.length, durationMs: r.durationMs });
+          onInfo({ pages: Math.ceil(r.pages.length / Math.max(1, settings.itemsPerPage)), durationMs: r.durationMs });
         })
         .catch(() => undefined);
     }, 250);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  // Screens on air: itemsPerPage items share one screen; the pin holds a screen.
+  const screens = Math.ceil(pages.length / Math.max(1, settings.itemsPerPage));
   useEffect(() => {
-    if (pin != null && pin >= pages.length) setPin(pages.length ? pages.length - 1 : null);
-  }, [pages.length, pin]);
+    if (pin != null && pin >= screens) setPin(screens ? screens - 1 : null);
+  }, [screens, pin]);
   useEffect(() => {
     if (ready) frame.current?.contentWindow?.postMessage({ type: "beeldkrant", settings, pages, logoUrl, pin }, location.origin);
   }, [ready, settings, pages, logoUrl, pin]);
 
-  const step = (d: number) => pages.length && setPin(((pin ?? 0) + d + pages.length) % pages.length);
+  const step = (d: number) => screens && setPin(((pin ?? 0) + d + screens) % screens);
   return (
     <div className="space-y-2">
       <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-line bg-black shadow-sm">
@@ -228,7 +232,7 @@ function Preview({ settings, feedIds, onInfo }: { settings: Settings; feedIds: n
           {pin == null ? t("mgmt.bk.hold") : t("mgmt.bk.play")}
         </Button>
         <Button size="sm" variant="secondary" icon={<ChevronRight className="size-3.5" />} onClick={() => step(1)} disabled={!pages.length} title={t("mgmt.bk.nextPage")} />
-        <span className="ml-1 text-muted">{pin != null ? t("mgmt.bk.pageOf", { n: pin + 1, total: pages.length }) : t("mgmt.bk.pages", { count: pages.length })}</span>
+        <span className="ml-1 text-muted">{pin != null ? t("mgmt.bk.pageOf", { n: pin + 1, total: screens }) : t("mgmt.bk.pages", { count: screens })}</span>
       </div>
     </div>
   );
@@ -392,6 +396,15 @@ function Editor({ id, feeds, onSaved }: { id: number | "new"; feeds: Feed[]; onS
           <CardHeader icon={<RefreshCw className="size-4" />} title={t("mgmt.bk.timing")} description={t("mgmt.bk.timingHint")} />
           <CardBody className="space-y-4">
             <Num label={t("mgmt.bk.secondsPerPage")} value={s.secondsPerPage} min={3} max={120} suffix="s" onChange={(v) => set({ secondsPerPage: v })} />
+            <Field label={t("mgmt.bk.itemsPerPage")} hint={t("mgmt.bk.itemsPerPageHint")}>
+              {() => (
+                <Segmented
+                  value={String(s.itemsPerPage ?? 1)}
+                  onChange={(v) => set({ itemsPerPage: Number(v) })}
+                  options={["1", "2", "3", "4", "5", "6"].map((v) => ({ value: v, label: v }))}
+                />
+              )}
+            </Field>
             <Field label={t("mgmt.bk.length")} hint={t("mgmt.bk.lengthHint")}>
               {() => (
                 <Segmented

@@ -950,7 +950,7 @@
       "editFeed": "Feed bewerken",
       "itemCount_one": "{{count}} bericht",
       "itemCount_other": "{{count}} berichten",
-      "maxItems": "Maximaal aantal pagina's",
+      "maxItems": "Maximaal aantal berichten",
       "maxItemsHint": "De nieuwste berichten van alle gekozen feeds samen.",
       "maxAge": "Maximale leeftijd",
       "maxAgeHint": "Oudere berichten vallen weg (0 = geen grens).",
@@ -1040,7 +1040,9 @@
       "testFeed": "Testen",
       "testOk": "{{count}} berichten gevonden",
       "viaRest": "via de WordPress-API",
-      "viaRss": "via RSS"
+      "viaRss": "via RSS",
+      "itemsPerPage": "Berichten per pagina",
+      "itemsPerPageHint": "1 = één groot bericht met foto. Meer = een lijst met koppen en een korte tekst, zonder foto's. Handig voor verkeer en 112-meldingen."
     },
     "newHour": {
       "title": "Nieuwe uurprogrammering",

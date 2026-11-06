@@ -950,7 +950,7 @@
       "editFeed": "Edit feed",
       "itemCount_one": "{{count}} item",
       "itemCount_other": "{{count}} items",
-      "maxItems": "Maximum number of pages",
+      "maxItems": "Maximum number of items",
       "maxItemsHint": "The newest items of all chosen feeds together.",
       "maxAge": "Maximum age",
       "maxAgeHint": "Older items are left out (0 = no limit).",
@@ -1040,7 +1040,9 @@
       "testFeed": "Test",
       "testOk": "{{count}} items found",
       "viaRest": "via the WordPress API",
-      "viaRss": "via RSS"
+      "viaRss": "via RSS",
+      "itemsPerPage": "Items per page",
+      "itemsPerPageHint": "1 = one large item with a photo. More = a list of headlines with a short text, without photos. Handy for traffic and 112 alerts."
     },
     "newHour": {
       "title": "New hour programme",
