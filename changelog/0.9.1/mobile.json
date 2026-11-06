@@ -3,7 +3,9 @@
     "management",
     "orchestrator"
   ],
-  "pr": [],
+  "pr": [
+    77
+  ],
   "changes": [
     {
       "kind": "added",
