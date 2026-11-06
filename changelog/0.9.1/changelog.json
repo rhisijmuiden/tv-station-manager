@@ -2,6 +2,9 @@
   "apps": [
     "platform"
   ],
+  "pr": [
+    72
+  ],
   "changes": [
     {
       "kind": "added",
