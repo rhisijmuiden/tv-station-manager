@@ -4,6 +4,7 @@ import { post } from "../api";
 import { Alert, Button, Field, Input } from "../components/ui";
 import { LANGUAGES } from "../i18n";
 import { useSession } from "../session";
+import { TvStatic } from "../components/TvStatic";
 
 function AuthLayout({ logo, title, intro, children }: { logo: string; title: string; intro?: string; children: React.ReactNode }) {
   const { i18n } = useTranslation();
@@ -24,6 +25,55 @@ function AuthLayout({ logo, title, intro, children }: { logo: string; title: str
           {intro && <p className="mt-1 text-sm text-muted">{intro}</p>}
           <div className="mt-6">{children}</div>
         </div>
+        <div className="mt-6 flex justify-center gap-4 text-xs">
+          {LANGUAGES.map((l) => (
+            <button key={l.code} onClick={() => void i18n.changeLanguage(l.code)} className={i18n.language === l.code ? "font-semibold text-white" : "text-white/50 hover:text-white"}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The login page: a big television without signal, the sign-in in the bottom of the cabinet. */
+function TvLayout({ logo, title, children }: { logo: string; title: string; children: React.ReactNode }) {
+  const { i18n } = useTranslation();
+  return (
+    <div className="relative grid min-h-full place-items-center overflow-hidden bg-sidebar px-3 py-8 sm:px-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          background:
+            "radial-gradient(60rem 40rem at 10% -10%, color-mix(in srgb, var(--tvsm-primary) 35%, transparent), transparent 60%), radial-gradient(40rem 30rem at 110% 110%, color-mix(in srgb, var(--tvsm-accent) 22%, transparent), transparent 60%)",
+        }}
+      />
+      <div className="relative w-full max-w-3xl">
+        <div
+          className="rounded-[1.6rem] p-2.5 shadow-[0_40px_80px_-30px_rgb(0_0_0/0.8)] sm:rounded-[2.2rem] sm:p-5"
+          style={{
+            background: "linear-gradient(180deg, color-mix(in srgb, var(--tvsm-ink) 70%, #000) 0%, color-mix(in srgb, var(--tvsm-ink) 35%, #000) 100%)",
+            boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.08), 0 40px 80px -30px rgb(0 0 0 / 0.8)",
+          }}
+        >
+          <div className="relative aspect-video overflow-hidden rounded-[1rem] border-4 border-black/70 sm:rounded-[1.6rem]" style={{ boxShadow: "inset 0 0 40px rgb(0 0 0 / 0.9)" }}>
+            <TvStatic logo={logo} />
+          </div>
+          <div className="relative flex flex-col items-center px-2 pt-5 pb-4 sm:pt-6 sm:pb-5">
+            <span aria-hidden className="tv-led absolute top-6 right-3 hidden size-2 rounded-full bg-onair shadow-[0_0_8px_var(--tvsm-on-air)] sm:block" />
+            <span aria-hidden className="absolute top-5 left-3 hidden gap-1.5 sm:flex">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="size-3.5 rounded-full border border-white/10 bg-black/40 shadow-inner" />
+              ))}
+            </span>
+            <h1 className="mb-4 text-center font-display text-sm font-semibold tracking-wide text-white/70">{title}</h1>
+            <div className="w-full max-w-sm">{children}</div>
+          </div>
+        </div>
+        <div aria-hidden className="mx-auto h-5 w-24 sm:h-7 sm:w-32" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--tvsm-ink) 30%, #000), #000)" }} />
+        <div aria-hidden className="mx-auto h-2 w-56 rounded-full bg-black/70 sm:w-72" />
         <div className="mt-6 flex justify-center gap-4 text-xs">
           {LANGUAGES.map((l) => (
             <button key={l.code} onClick={() => void i18n.changeLanguage(l.code)} className={i18n.language === l.code ? "font-semibold text-white" : "text-white/50 hover:text-white"}>
@@ -83,7 +133,7 @@ export function LoginPage({ appName, logo }: { appName: string; logo: string }) 
     }
   };
   return (
-    <AuthLayout logo={logo} title={t("auth.signInTitle", { app: appName })}>
+    <TvLayout logo={logo} title={t("auth.signInTitle", { app: appName })}>
       {ssoError && (
         <Alert tone="danger" className="mb-4">
           {t(`auth.ssoErrors.${ssoError}`, { defaultValue: t("auth.ssoErrors.generic") })}
@@ -93,26 +143,26 @@ export function LoginPage({ appName, logo }: { appName: string; logo: string }) 
         <>
           <a
             href={`/api/auth/sso/login?returnTo=${encodeURIComponent(returnTo || "/")}`}
-            className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-line bg-surface-2 text-sm font-semibold transition hover:border-brand hover:bg-surface"
+            className="flex h-12 w-full items-center justify-center gap-3 rounded-lg bg-white text-sm font-semibold text-[#1b1b1b] shadow-lg ring-1 ring-black/10 transition hover:-translate-y-px hover:shadow-xl focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-onair"
           >
             <MicrosoftLogo />
             {sso.label || t("auth.signInMicrosoft")}
           </a>
           {!showLocal && (
-            <button type="button" onClick={() => setShowLocal(true)} className="mt-4 w-full text-center text-xs text-muted hover:text-fg">
+            <button type="button" onClick={() => setShowLocal(true)} className="mt-4 w-full text-center text-xs text-white/55 hover:text-white">
               {t("auth.useLocalAccount")}
             </button>
           )}
           {showLocal && (
-            <div className="my-5 flex items-center gap-3 text-xs text-muted">
-              <span className="h-px flex-1 bg-line" />
+            <div className="my-5 flex items-center gap-3 text-xs text-white/55">
+              <span className="h-px flex-1 bg-white/15" />
               {t("auth.orLocal")}
-              <span className="h-px flex-1 bg-line" />
+              <span className="h-px flex-1 bg-white/15" />
             </div>
           )}
         </>
       )}
-      {showLocal && <form onSubmit={submit} className="space-y-4">
+      {showLocal && <form onSubmit={submit} className="space-y-4 rounded-xl bg-surface p-5 shadow-lg">
         {error && <Alert tone="danger">{t("auth.invalid")}</Alert>}
         <Field label={t("auth.username")}>{(id) => <Input id={id} autoFocus={!sso} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />}</Field>
         <Field label={t("auth.password")}>
@@ -122,7 +172,7 @@ export function LoginPage({ appName, logo }: { appName: string; logo: string }) 
           {t("auth.signIn")}
         </Button>
       </form>}
-    </AuthLayout>
+    </TvLayout>
   );
 }
 
