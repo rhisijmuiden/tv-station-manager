@@ -26,11 +26,15 @@ import { InfoPagesPage } from "./pages/InfoPages";
 import { WeekPage } from "./pages/Week";
 import { WeekPlanPage } from "./pages/WeekPlan";
 import { LibraryTabs } from "./components/LibraryTabs";
+import { installTouchDrag } from "./components/touchDrag";
 import en from "./i18n/en.json";
 import nl from "./i18n/nl.json";
 // The monitoring page is the orchestrator's own (read-only here), so its texts come along.
 import orchEn from "../../orchestrator/web/i18n/en.json";
 import orchNl from "../../orchestrator/web/i18n/nl.json";
+
+// Long press and move on a phone or tablet drags rows like a mouse does.
+installTouchDrag();
 
 mountPlatformApp({
   appName: "TV Station Manager",
@@ -41,10 +45,10 @@ mountPlatformApp({
       // The editors' work in three ideas: what can go on air (library), hour blocks, and the week they are planned in.
       label: "mgmt.nav.editorial",
       items: [
-        { to: "/", label: "mgmt.plan.nav.now", icon: MonitorPlay, end: true },
-        { to: "/week", label: "mgmt.plan.nav.week", icon: CalendarRange, end: true },
-        { to: "/blocks", label: "mgmt.plan.nav.blocks", icon: LayoutGrid, also: ["/ads"] },
-        { to: "/media", label: "mgmt.plan.nav.library", icon: Library, also: ["/recordings", "/beeldkrant", "/webcams", "/remote"] },
+        { to: "/", label: "mgmt.plan.nav.now", icon: MonitorPlay, end: true, mobile: true },
+        { to: "/week", label: "mgmt.plan.nav.week", icon: CalendarRange, end: true, mobile: true, mobileLabel: "mgmt.plan.nav.weekShort" },
+        { to: "/blocks", label: "mgmt.plan.nav.blocks", icon: LayoutGrid, also: ["/ads"], mobile: true },
+        { to: "/media", label: "mgmt.plan.nav.library", icon: Library, also: ["/recordings", "/beeldkrant", "/webcams", "/remote"], mobile: true },
       ],
     },
     {

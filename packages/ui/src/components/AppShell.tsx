@@ -1,10 +1,11 @@
-import { BookOpen, ChevronDown, ChevronsLeft, Info, LogOut, Menu, Moon, ShieldAlert, Sun, UserRound } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronsLeft, Info, LogOut, Menu, Monitor, Moon, ShieldAlert, Smartphone, Sun, UserRound, X } from "lucide-react";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
 import { post } from "../api";
 import { LANGUAGES } from "../i18n";
 import { useSession, useTheme } from "../session";
+import { useMobile, useViewChoice } from "../mobile";
 import { InfoDialog } from "./InfoDialog";
 import { cx } from "./ui";
 
@@ -21,6 +22,10 @@ export interface NavItem {
   also?: string[];
   /** A submenu: the item folds open to show these (opens by itself when one of them is the current page). */
   children?: NavItem[];
+  /** Also a button in the bar at the bottom of the phone layout (keep it to four). */
+  mobile?: boolean;
+  /** Shorter i18n key for that button, when the menu name is too long for it. */
+  mobileLabel?: string;
 }
 export interface NavGroup {
   /** i18n key, omit for the first unlabeled group */
@@ -57,6 +62,8 @@ export function AppShell({ nav, logo, logoMark, helpUrl, children }: { nav: NavG
     }
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const phone = useMobile();
+  const view = useViewChoice();
   // Submenus start folded, groups start open; the page you are on always stays visible.
   const [folded, setFolded] = useState(readFolded);
   const isFolded = (key: string, def: boolean) => folded[key] ?? def;
@@ -97,7 +104,7 @@ export function AppShell({ nav, logo, logoMark, helpUrl, children }: { nav: NavG
         const isActive = own || !!item.also?.some((p) => under(location.pathname, p));
         return cx(
           "group relative flex items-center gap-3 rounded-md font-medium transition",
-          sub ? "py-1.5 text-[13px]" : "py-2 text-[13.5px]",
+          phone ? (sub ? "py-2.5 text-[15px]" : "py-3 text-base") : sub ? "py-1.5 text-[13px]" : "py-2 text-[13.5px]",
           mini ? "justify-center px-0" : sub ? "px-2.5" : "px-3",
           isActive ? "bg-brand text-white shadow-md shadow-brand/30" : "text-sidebar-fg/80 hover:bg-white/5 hover:text-white",
         );
@@ -112,12 +119,17 @@ export function AppShell({ nav, logo, logoMark, helpUrl, children }: { nav: NavG
     <aside
       className={cx(
         "flex h-full flex-col bg-sidebar text-sidebar-fg transition-[width] duration-200",
-        mini ? "w-[72px]" : "w-64",
+        mini ? "w-[72px]" : phone ? "w-full" : "w-64",
       )}
     >
       <div className={cx("flex h-16 items-center border-b border-white/5", mini ? "justify-center px-2" : "justify-between px-5")}>
         {mini ? <img src={logoMark} alt={info?.app.name} className="size-9" /> : <img src={logo} alt={info?.app.name} className="h-9 text-white" style={{ color: "white" }} />}
-        {!mini && (
+        {phone && (
+          <button onClick={() => setMobileOpen(false)} className="rounded-md p-2 text-white/70 hover:bg-white/5 hover:text-white" aria-label={t("nav.close")}>
+            <X className="size-5" />
+          </button>
+        )}
+        {!mini && !phone && (
           <button onClick={toggleCollapsed} className="hidden rounded-md p-1.5 text-white/40 hover:bg-white/5 hover:text-white lg:block" aria-label={t("nav.collapse")}>
             <ChevronsLeft className="size-4" />
           </button>
@@ -264,6 +276,19 @@ export function AppShell({ nav, logo, logoMark, helpUrl, children }: { nav: NavG
           </button>
         )}
 
+        {view.smallScreen && !mini && (
+          <button
+            onClick={() => {
+              setMobileOpen(false);
+              view.setChoice(view.choice === "desktop" ? "auto" : "desktop");
+            }}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-[13.5px] text-sidebar-fg/70 hover:bg-white/5 hover:text-white"
+          >
+            {view.choice === "desktop" ? <Smartphone className="size-[18px]" /> : <Monitor className="size-[18px]" />}
+            <span>{t(view.choice === "desktop" ? "nav.mobileView" : "nav.desktopView")}</span>
+          </button>
+        )}
+
         <div className={cx("flex items-center gap-3 rounded-md py-2", mini ? "justify-center" : "px-3")}>
           <NavLink to="/account" className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-light to-brand-dark text-xs font-bold text-white" title={t("nav.account")}>
             {user?.username.slice(0, 2).toUpperCase() ?? <UserRound className="size-4" />}
@@ -283,6 +308,59 @@ export function AppShell({ nav, logo, logoMark, helpUrl, children }: { nav: NavG
       </div>
     </aside>
   );
+
+  if (phone) {
+    // Phone layout: a slim bar on top, the editors' main pages as buttons at the bottom, the rest under "More".
+    const tabs = nav
+      .filter((g) => roleAtLeast(user?.role, g.minRole))
+      .flatMap((g) => g.items)
+      .filter((i) => i.mobile && !i.children && roleAtLeast(user?.role, i.minRole))
+      .slice(0, 4);
+    const onTab = tabs.some((i) => pathMatches(location.pathname, i));
+    return (
+      <div className="flex h-full flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-3 bg-sidebar px-4 text-white" style={{ paddingTop: "env(safe-area-inset-top, 0px)", height: "calc(3.5rem + env(safe-area-inset-top, 0px))" }}>
+          <img src={logo} alt={info?.app.name} className="h-8" />
+          <span className="flex-1" />
+          <NavLink to="/account" className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-brand-light to-brand-dark text-xs font-bold text-white" title={t("nav.account")}>
+            {user?.username.slice(0, 2).toUpperCase() ?? <UserRound className="size-4" />}
+          </NavLink>
+        </header>
+        {defaultPasswordAccount && (
+          <div className="flex items-center gap-2 border-b border-warn/30 bg-warn/15 px-4 py-2 text-xs">
+            <ShieldAlert className="size-4 shrink-0 text-warn" />
+            <span className="flex-1">{t("auth.defaultPasswordWarning", { username: defaultPasswordAccount })}</span>
+          </div>
+        )}
+        <main key={location.pathname} className="min-h-0 flex-1 overflow-y-auto" data-phone>
+          <div className="w-full px-4 py-5">{children}</div>
+        </main>
+        <nav className="grid shrink-0 border-t border-line bg-surface" style={{ gridTemplateColumns: `repeat(${tabs.length + 1}, minmax(0, 1fr))`, paddingBottom: "env(safe-area-inset-bottom, 0px)" }} aria-label={t("nav.menu")}>
+          {tabs.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className={() => cx("flex flex-col items-center gap-1 py-2 text-[11px] font-medium", pathMatches(location.pathname, item) ? "text-brand" : "text-muted")}>
+              {() => (
+                <>
+                  <span className={cx("grid h-7 w-12 place-items-center rounded-full transition", pathMatches(location.pathname, item) && "bg-brand/12")}>
+                    <item.icon className="size-5" />
+                  </span>
+                  <span className="max-w-full truncate px-1">{t(item.mobileLabel ?? item.label)}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+          <button onClick={() => setMobileOpen(true)} className={cx("flex flex-col items-center gap-1 py-2 text-[11px] font-medium", !onTab ? "text-brand" : "text-muted")}>
+            <span className={cx("relative grid h-7 w-12 place-items-center rounded-full", !onTab && "bg-brand/12")}>
+              <Menu className="size-5" />
+              {lastCheck?.available && <span className="absolute top-0.5 right-2.5 size-2 rounded-full bg-onair" />}
+            </span>
+            <span>{t("nav.more")}</span>
+          </button>
+        </nav>
+        {mobileOpen && <div className="fixed inset-0 z-40" style={{ paddingTop: "env(safe-area-inset-top, 0px)", background: "var(--color-sidebar)" }}>{sidebar}</div>}
+        <InfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} logo={logoMark} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">

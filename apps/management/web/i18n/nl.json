@@ -1599,7 +1599,8 @@
         "library": "Bibliotheek",
         "channel": "Kanaal & lagen",
         "sources": "Bronnen",
-        "advanced": "Geavanceerd plannen"
+        "advanced": "Geavanceerd plannen",
+        "weekShort": "Week"
       },
       "tabHour": "Uurblokken",
       "tabAds": "Reclameblokken",
@@ -1700,7 +1701,11 @@
         "noBlocks": "Nog geen blokken. Maak er eerst een.",
         "withStart": "met vaste start",
         "resized": "Nu {{time}}, op alle dagen van deze reeks.",
-        "resizeHint": "Sleep de onderrand om het blok langer of korter te maken"
+        "resizeHint": "Sleep de onderrand om het blok langer of korter te maken",
+        "pickBlock": "Blok kiezen",
+        "pickTitle": "{{day}} {{time}}: kies een blok",
+        "showNight": "00:00–06:00 tonen",
+        "introPhone": "Kies een dag en tik op een uur om er een blok in te zetten. Tik op een blok om te kiezen op welke dagen het terugkomt."
       },
       "live": {
         "button": "Live plannen",
@@ -1724,7 +1729,8 @@
         "beeldkrant": "Beeldkranten",
         "webcams": "Webcams",
         "live": "Live"
-      }
+      },
+      "allBlocks": "Alle blokken"
     },
     "ticker": {
       "title": "Nieuwsticker",

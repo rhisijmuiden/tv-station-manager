@@ -1,5 +1,6 @@
 import { Loader2, X } from "lucide-react";
 import { useEffect, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useMobile } from "../mobile";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -60,11 +61,12 @@ export function CardHeader({ title, description, actions, icon }: { title: React
 export const CardBody = ({ className, children }: { className?: string; children: ReactNode }) => <div className={cx("p-5", className)}>{children}</div>;
 
 export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
+  const phone = useMobile();
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-muted">{description}</p>}
+    <div className={cx("flex flex-wrap items-end justify-between", phone ? "mb-4 gap-3" : "mb-6 gap-4")}>
+      <div className="min-w-0">
+        <h1 className={cx("font-display font-semibold tracking-tight", phone ? "text-xl" : "text-2xl")}>{title}</h1>
+        {description && <p className={cx("mt-1 text-muted", phone && "line-clamp-2 text-sm")}>{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -140,23 +142,29 @@ export function Dialog({ open, onClose, title, children, footer, wide }: { open:
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose]);
+  const phone = useMobile();
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4 backdrop-blur-sm" style={{ background: "rgb(10 14 26 / 0.55)" }} onMouseDown={onClose}>
+    <div className={cx("fixed inset-0 z-50 grid bg-ink/60 backdrop-blur-sm", phone ? "items-end" : "place-items-center p-4")} style={{ background: "rgb(10 14 26 / 0.55)" }} onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
-        className={cx("max-h-[90vh] w-full overflow-auto rounded-xl border border-line bg-surface shadow-2xl", wide ? "max-w-3xl" : "max-w-lg")}
+        className={cx(
+          "w-full overflow-auto border border-line bg-surface shadow-2xl",
+          // On a phone a dialog slides up from the bottom, full width, so thumbs reach its buttons.
+          phone ? "max-h-[88vh] rounded-t-2xl pb-[env(safe-area-inset-bottom,0px)]" : cx("max-h-[90vh] rounded-xl", wide ? "max-w-3xl" : "max-w-lg"),
+        )}
       >
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        {phone && <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-line" />}
+        <div className={cx("flex items-center justify-between border-b border-line", phone ? "px-4 py-3" : "px-6 py-4")}>
           <h2 className="text-base font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-md p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close">
             <X className="size-4" />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-line px-6 py-4">{footer}</div>}
+        <div className={phone ? "px-4 py-4" : "px-6 py-5"}>{children}</div>
+        {footer && <div className={cx("flex flex-wrap justify-end gap-2 border-t border-line", phone ? "sticky bottom-0 bg-surface px-4 py-3" : "px-6 py-4")}>{footer}</div>}
       </div>
     </div>
   );

@@ -3,3 +3,20 @@
 @source "../../orchestrator/web/Monitoring.tsx";
 @source "../../orchestrator/web/MonitoringRoom.tsx";
 @source "../../orchestrator/web/monitorView.ts";
+
+/* Touch drag and drop (components/touchDrag.ts): no text selection or copy menu on a long press of a row. */
+@media (pointer: coarse) {
+  [draggable="true"] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+  }
+}
+.touch-drag-source {
+  opacity: 0.35;
+}
+.touch-dragging,
+.touch-dragging body {
+  overscroll-behavior: none;
+}

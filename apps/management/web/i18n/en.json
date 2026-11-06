@@ -1599,7 +1599,8 @@
         "library": "Library",
         "channel": "Channel & layers",
         "sources": "Sources",
-        "advanced": "Advanced planning"
+        "advanced": "Advanced planning",
+        "weekShort": "Week"
       },
       "tabHour": "Hour blocks",
       "tabAds": "Ad breaks",
@@ -1700,7 +1701,11 @@
         "noBlocks": "No blocks yet. Make one first.",
         "withStart": "with fixed start",
         "resized": "Now {{time}}, on every day of this series.",
-        "resizeHint": "Drag the bottom edge to make it longer or shorter"
+        "resizeHint": "Drag the bottom edge to make it longer or shorter",
+        "pickBlock": "Choose a block",
+        "pickTitle": "{{day}} {{time}}: choose a block",
+        "showNight": "Show 00:00–06:00",
+        "introPhone": "Choose a day, then tap an hour to put a block in it. Tap a block to choose the days it runs."
       },
       "live": {
         "button": "Plan live",
@@ -1724,7 +1729,8 @@
         "beeldkrant": "Beeldkranten",
         "webcams": "Webcams",
         "live": "Live"
-      }
+      },
+      "allBlocks": "All blocks"
     },
     "ticker": {
       "title": "News ticker",

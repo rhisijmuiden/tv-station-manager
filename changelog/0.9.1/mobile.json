@@ -1,0 +1,24 @@
+{
+  "apps": [
+    "management",
+    "orchestrator"
+  ],
+  "pr": [],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Phone layout: on a phone the app shows a bottom menu (Now on TV, Week, Blocks, Library, More), dialogs slide up from the bottom, and Use desktop layout in the menu switches back to the full screen.",
+      "nl": "Telefoonweergave: op een telefoon heeft de app een menu onderin (Nu op TV, Week, Blokken, Bibliotheek, Meer), vensters schuiven van onderen omhoog, en met Desktopweergave gebruiken in het menu krijg je het volledige scherm terug."
+    },
+    {
+      "kind": "added",
+      "en": "Drag with your finger: hold an item in a block, the week planning or a clock for half a second, then move it.",
+      "nl": "Slepen met je vinger: houd een item in een blok, de weekplanning of een klok een halve seconde vast en schuif het dan."
+    },
+    {
+      "kind": "improved",
+      "en": "On a phone, blocks open full screen, clips are added by ticking them in a list, and the week planning shows one day at a time with Choose a block on empty hours.",
+      "nl": "Op een telefoon opent een blok schermvullend, voeg je clips toe door ze aan te vinken, en toont de weekplanning één dag tegelijk met Blok kiezen bij lege uren."
+    }
+  ]
+}
