@@ -1,9 +1,10 @@
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Dialog, Field, Input, PageHeader, Select, Switch, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Copy, Globe, Image as ImageIcon, LayoutTemplate, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, Save, Trash2, Type } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Copy, Globe, MapPin, Image as ImageIcon, LayoutTemplate, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, Save, Trash2, Type } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AudioSelect, useAudioSources } from "../components/AudioSelect";
+import { RegionalTab } from "../components/RegionalInfo";
 import { errorText, fmtDateTime, fmtDuration, useChannels, useGet } from "../lib";
 
 // ---- types -------------------------------------------------------------------------
@@ -59,7 +60,8 @@ interface Feed {
   lastFetchAt: string | null;
   lastOkAt: string | null;
   lastError: string | null;
-  via: "wp-json" | "rss" | null;
+  via: "wp-json" | "rss" | "regional" | null;
+  source: "traffic" | "events" | "council" | "p2000" | null;
   itemCount: number;
 }
 interface PageData {
@@ -707,7 +709,7 @@ function FeedsTab({ feeds, reload, canEdit }: { feeds: Feed[]; reload: () => voi
               <span className="flex items-center gap-2">
                 <span className="truncate text-sm font-semibold">{f.name}</span>
                 {!f.enabled && <Badge>{t("mgmt.bk.paused")}</Badge>}
-                {f.via && <Badge tone="neutral">{f.via === "wp-json" ? "WordPress API" : "RSS"}</Badge>}
+                {f.source ? <Badge tone="brand">{t("mgmt.reg.badge")}</Badge> : f.via && <Badge tone="neutral">{f.via === "wp-json" ? "WordPress API" : "RSS"}</Badge>}
               </span>
               <span className="block truncate text-xs text-muted">
                 {f.url}
@@ -725,7 +727,13 @@ function FeedsTab({ feeds, reload, canEdit }: { feeds: Feed[]; reload: () => voi
             {canEdit && (
               <span className="flex">
                 <Button size="sm" variant="ghost" icon={<RefreshCw className={cx("size-3.5", busy === f.id && "animate-spin")} />} onClick={() => void refresh(f)} title={t("mgmt.bk.refreshNow")} />
-                <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEdit(f)} title={t("common.edit")} />
+                {f.source ? (
+                  <Link to="/beeldkrant/regional">
+                    <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} title={t("common.edit")} />
+                  </Link>
+                ) : (
+                  <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEdit(f)} title={t("common.edit")} />
+                )}
                 <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={() => void remove(f)} title={t("common.delete")} />
               </span>
             )}
@@ -747,8 +755,8 @@ export function BeeldkrantPage() {
   const canEdit = roleAtLeast(user?.role, "editor");
   const list = useGet<{ beeldkranten: Beeldkrant[] }>("/api/beeldkranten");
   const feeds = useGet<{ feeds: Feed[] }>("/api/rss/feeds", 30_000);
-  const tab = params.id === "feeds" ? "feeds" : "pages";
-  const sel = params.id === "new" ? "new" : params.id && params.id !== "feeds" ? Number(params.id) : null;
+  const tab = params.id === "feeds" ? "feeds" : params.id === "regional" ? "regional" : "pages";
+  const sel = params.id === "new" ? "new" : params.id && tab === "pages" ? Number(params.id) : null;
   const feedList = useMemo(() => feeds.data?.feeds ?? [], [feeds.data]);
 
   return (
@@ -770,6 +778,7 @@ export function BeeldkrantPage() {
           [
             ["pages", "/beeldkrant", t("mgmt.bk.tabPages"), <Newspaper key="i" className="size-4" />],
             ["feeds", "/beeldkrant/feeds", t("mgmt.bk.tabFeeds"), <Rss key="i" className="size-4" />],
+            ["regional", "/beeldkrant/regional", t("mgmt.reg.tab"), <MapPin key="i" className="size-4" />],
           ] as const
         ).map(([k, to, label, icon]) => (
           <Link key={k} to={to} className={cx("-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition", tab === k ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg")}>
@@ -781,6 +790,8 @@ export function BeeldkrantPage() {
       </div>
       {tab === "feeds" ? (
         <FeedsTab feeds={feedList} reload={() => void feeds.reload()} canEdit={canEdit} />
+      ) : tab === "regional" ? (
+        <RegionalTab canEdit={canEdit} />
       ) : (
         <div className="@container" data-wide-page>
           <div className="grid gap-6 @4xl:grid-cols-[260px_1fr]">

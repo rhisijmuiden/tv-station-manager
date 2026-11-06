@@ -17,6 +17,8 @@ import { z } from "zod";
 import { BEELDKRANT_PAGE } from "./beeldkrant-page.js";
 import { publicUrl } from "./director.js";
 import { beeldkrantPages, beeldkrantSettings } from "./beeldkrantdb.js";
+import { loadRegional } from "./regional.js";
+import type { RegionalItem, RegionalSource } from "./regionallogic.js";
 import { beeldkrantDuration, beeldkrantSchema, mergeItems, parseFeed, wpPostsToItems, wpSite, wpUrls, type BeeldkrantSettings, type FeedItem, type WpCategory } from "./rsslogic.js";
 
 const FETCH_TIMEOUT_MS = 15_000;
@@ -38,6 +40,9 @@ export interface FeedRow {
   last_ok_at: string | null;
   last_error: string | null;
   via: string | null;
+  /** Regional source (traffic / events / council / p2000), NULL = an ordinary feed. */
+  source: RegionalSource | null;
+  config: string;
 }
 const feedOut = (r: FeedRow, itemCount: number) => ({
   id: r.id,
@@ -52,6 +57,8 @@ const feedOut = (r: FeedRow, itemCount: number) => ({
   lastOkAt: r.last_ok_at,
   lastError: r.last_error,
   via: r.via,
+  source: r.source ?? null,
+  config: r.source ? (JSON.parse(r.config || "{}") as Record<string, unknown>) : null,
   itemCount,
 });
 
@@ -110,6 +117,15 @@ export class RssFeeds {
     if (this.timer) clearInterval(this.timer);
   }
 
+  feedInfo(id: number) {
+    const r = this.platform.ctx.db.prepare("SELECT * FROM rss_feeds WHERE id = ?").get(id) as FeedRow | undefined;
+    if (!r) throw new HttpError(404, "not_found");
+    return feedOut(r, this.count(id));
+  }
+  parseSettings(s: unknown) {
+    return beeldkrantSchema.parse(s);
+  }
+
   private feeds() {
     return this.platform.ctx.db.prepare("SELECT * FROM rss_feeds ORDER BY name COLLATE NOCASE").all() as unknown as FeedRow[];
   }
@@ -134,10 +150,18 @@ export class RssFeeds {
     this.busy.add(id);
     const at = new Date().toISOString();
     try {
-      const r = await loadFeed(f.kind, f.url, JSON.parse(f.categories || "[]"), f.max_items);
+      let r: { items: (FeedItem | RegionalItem)[]; via: string; warning?: string | null };
+      let keepSince: string | null = null;
+      if (f.source) {
+        const config = JSON.parse(f.config || "{}") as Record<string, unknown>;
+        const loaded = await loadRegional(f.source, config, this.platform.ctx.settings.get("station.timezone", "Europe/Amsterdam") as string);
+        r = { items: loaded.items.slice(0, f.max_items), via: "regional", warning: loaded.warning };
+        // P2000 alerts drop out of the site's feed quickly: keep them (and the editor's approval) for their maximum age.
+        if (f.source === "p2000") keepSince = new Date(Date.now() - Number(config.maxAgeHours ?? 6) * 3600_000).toISOString();
+      } else r = await loadFeed(f.kind, f.url, JSON.parse(f.categories || "[]"), f.max_items);
       const before = this.signature(id);
-      this.store(id, r.items);
-      db.prepare("UPDATE rss_feeds SET last_fetch_at = ?, last_ok_at = ?, last_error = NULL, via = ? WHERE id = ?").run(at, at, r.via, id);
+      this.store(id, r.items, keepSince);
+      db.prepare("UPDATE rss_feeds SET last_fetch_at = ?, last_ok_at = ?, last_error = ?, via = ? WHERE id = ?").run(at, at, r.warning ? r.warning.slice(0, 500) : null, r.via, id);
       // A beeldkrant without a fixed length lasts one pass of its pages: the schedule may shift.
       if (this.signature(id) !== before) this.onChange();
       return this.count(id);
@@ -158,20 +182,26 @@ export class RssFeeds {
     return (this.platform.ctx.db.prepare("SELECT group_concat(guid, '|') AS s FROM (SELECT guid FROM rss_items WHERE feed_id = ? ORDER BY guid)").get(id) as { s: string | null }).s ?? "";
   }
 
-  /** Keeps exactly the items of the last fetch; existing items keep their id (and cached picture). */
-  store(feedId: number, items: FeedItem[]) {
+  /**
+   * Keeps exactly the items of the last fetch; existing items keep their id (and cached picture). Regional items also
+   * keep their approval and delay. `keepSince`: items published after it stay even when the fetch no longer has them.
+   */
+  store(feedId: number, items: (FeedItem | Partial<RegionalItem>)[], keepSince: string | null = null) {
     const { db } = this.platform.ctx;
     const valid = items.filter((i) => i.guid && i.title);
     db.exec("BEGIN");
     try {
       const up = db.prepare(
-        `INSERT INTO rss_items (feed_id, guid, title, summary, body, link, image_url, author, categories, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO rss_items (feed_id, guid, title, summary, body, link, image_url, author, categories, published_at, rank, hold, show_from, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (feed_id, guid) DO UPDATE SET title = excluded.title, summary = excluded.summary, body = excluded.body, link = excluded.link,
-           image_url = excluded.image_url, author = excluded.author, categories = excluded.categories, published_at = excluded.published_at`,
+           image_url = excluded.image_url, author = excluded.author, categories = excluded.categories, published_at = excluded.published_at,
+           rank = excluded.rank, note = excluded.note`,
       );
-      for (const i of valid) up.run(feedId, i.guid.slice(0, 1000), i.title.slice(0, 1000), i.summary.slice(0, 5000), i.body.slice(0, 20000), i.link, i.imageUrl, i.author, JSON.stringify(i.categories.slice(0, 20)), i.publishedAt);
-      const keep = new Set(valid.map((i) => i.guid.slice(0, 1000)));
-      for (const r of db.prepare("SELECT id, guid FROM rss_items WHERE feed_id = ?").all(feedId) as { id: number; guid: string }[]) if (!keep.has(r.guid)) db.prepare("DELETE FROM rss_items WHERE id = ?").run(r.id);
+      for (const i of valid as (FeedItem & Partial<RegionalItem>)[])
+        up.run(feedId, i.guid.slice(0, 1000), i.title.slice(0, 1000), i.summary.slice(0, 5000), i.body.slice(0, 20000), i.link, i.imageUrl, i.author, JSON.stringify(i.categories.slice(0, 20)), i.publishedAt, i.rank ?? null, i.hold ?? null, i.showFrom ?? null, i.note ?? null);
+      const keep = new Set(valid.map((i) => i.guid!.slice(0, 1000)));
+      for (const r of db.prepare("SELECT id, guid, published_at FROM rss_items WHERE feed_id = ?").all(feedId) as { id: number; guid: string; published_at: string | null }[])
+        if (!keep.has(r.guid) && !(keepSince && r.published_at && r.published_at >= keepSince)) db.prepare("DELETE FROM rss_items WHERE id = ?").run(r.id);
       db.exec("COMMIT");
     } catch (e) {
       db.exec("ROLLBACK");
@@ -254,6 +284,7 @@ export function registerRss(app: FastifyInstance, platform: Platform, rss: RssFe
   app.put("/api/rss/feeds/:id", async (req) => {
     requireRole(req, "editor");
     const f = getFeed(pid(req));
+    if (f.source) throw new HttpError(409, "regional_feed");
     const b = normal(feedIn.parse(req.body));
     const source = f.kind !== b.kind || f.url !== b.url || f.categories !== JSON.stringify(b.categories) || f.max_items !== b.maxItems;
     db.prepare("UPDATE rss_feeds SET name = ?, kind = ?, url = ?, categories = ?, enabled = ?, refresh_min = ?, max_items = ? WHERE id = ?").run(b.name, b.kind, b.url, JSON.stringify(b.categories), b.enabled ? 1 : 0, b.refreshMinutes, b.maxItems, f.id);

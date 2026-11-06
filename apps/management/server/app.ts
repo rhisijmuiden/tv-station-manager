@@ -15,6 +15,7 @@ import { registerOutputs, StreamOutputs } from "./outputs.js";
 import { registerPreview } from "./preview.js";
 import { Recorder, registerRecordings } from "./recorder.js";
 import { RemoteSources } from "./remote.js";
+import { registerRegional } from "./regional.js";
 import { RssFeeds, registerRss } from "./rss.js";
 import { registerSwitching } from "./switching.js";
 import { Webcams, registerWebcams } from "./webcams.js";
@@ -68,6 +69,7 @@ export function managementOptions(
       director.register(server);
       registerOutputs(server, platform, outputs, hub);
       registerRss(server, platform, rss, changed);
+      registerRegional(server, platform, rss, changed);
       registerWebcams(server, platform, webcams, changed);
       registerRecordings(server, platform, recorder);
       registerOrchestratorLink(server, orchestrator);

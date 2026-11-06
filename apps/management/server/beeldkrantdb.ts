@@ -14,7 +14,10 @@ export function beeldkrantSettings(db: Db, id: number): { name: string; settings
 export function beeldkrantPages(db: Db, settings: BeeldkrantSettings, feedIds: number[], imageBase = "", now = Date.now()) {
   if (!feedIds.length) return [];
   const marks = feedIds.map(() => "?").join(",");
-  const rows = db.prepare(`SELECT id, feed_id, title, summary, body, image_url, categories, published_at, seen_at FROM rss_items WHERE feed_id IN (${marks})`).all(...feedIds) as Record<string, unknown>[];
+  // Regional items waiting for an editor, rejected or still delayed are not on air.
+  const rows = db
+    .prepare(`SELECT id, feed_id, title, summary, body, image_url, categories, published_at, seen_at, rank FROM rss_items WHERE feed_id IN (${marks}) AND hold IS NULL AND (show_from IS NULL OR show_from <= ?)`)
+    .all(...feedIds, new Date(now).toISOString()) as Record<string, unknown>[];
   const items: StoredItem[] = rows.map((r) => ({
     id: Number(r.id),
     feedId: Number(r.feed_id),
@@ -25,6 +28,7 @@ export function beeldkrantPages(db: Db, settings: BeeldkrantSettings, feedIds: n
     categories: JSON.parse(String(r.categories || "[]")),
     publishedAt: (r.published_at as string) || null,
     seenAt: String(r.seen_at),
+    rank: r.rank == null ? null : Number(r.rank),
   }));
   const names = new Map((db.prepare(`SELECT id, name FROM rss_feeds WHERE id IN (${marks})`).all(...feedIds) as { id: number; name: string }[]).map((f) => [f.id, f.name]));
   return buildPages(items, settings, names, now, (i) => `${imageBase}/beeldkrant/img/${i.id}`);

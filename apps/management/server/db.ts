@@ -510,4 +510,13 @@ export const MANAGEMENT_MIGRATIONS = [
    DROP TABLE block_items;
    ALTER TABLE block_items_new RENAME TO block_items;
    CREATE INDEX block_items_block ON block_items(block_id, position);`,
+  // Regional information (docs/regional-info.md): feeds can be a regional source (traffic / events / council / p2000)
+  // with their settings as JSON. Items get a fixed order (rank), an editor's approval (hold = 'pending'/'rejected'),
+  // a delay (show_from) and an editors-only note (the original P2000 text).
+  `ALTER TABLE rss_feeds ADD COLUMN source TEXT;
+   ALTER TABLE rss_feeds ADD COLUMN config TEXT NOT NULL DEFAULT '{}';
+   ALTER TABLE rss_items ADD COLUMN rank INTEGER;
+   ALTER TABLE rss_items ADD COLUMN hold TEXT;
+   ALTER TABLE rss_items ADD COLUMN show_from TEXT;
+   ALTER TABLE rss_items ADD COLUMN note TEXT;`,
 ];
