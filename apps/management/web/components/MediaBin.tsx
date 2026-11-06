@@ -1,4 +1,4 @@
-import { Card, Input, Select, cx } from "@tvsm/ui";
+import { Card, Input, Select, cx, useMobile } from "@tvsm/ui";
 import { AlertTriangle, Check, Film, FolderOpen, GripVertical, Info, Library, PanelRightClose, PanelRightOpen, Plus, Search, Webcam } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +23,8 @@ const readOpen = () => {
 export function WithMediaBin({ children, onAdd, categoryId, blocks = true, hint, wide }: { children: ReactNode; onAdd?: (p: LibraryPayload) => void; categoryId?: number | null; blocks?: boolean; hint?: ReactNode; /** A wider library, for pages where dragging from it is the main work. */ wide?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(readOpen);
+  // A phone has no room beside the page: clips are added with the page's own "Add media" list instead.
+  const phone = useMobile();
   const toggle = () => {
     setOpen(!open);
     try {
@@ -31,6 +33,7 @@ export function WithMediaBin({ children, onAdd, categoryId, blocks = true, hint,
       /* private mode */
     }
   };
+  if (phone) return <div className="@container min-w-0">{children}</div>;
   return (
     <div data-wide-page className={cx("grid items-start gap-6", open ? (wide ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-[minmax(0,1fr)_340px]") : "xl:grid-cols-[minmax(0,1fr)_44px]")}>
       {/* A container, so the page inside lays out by its own width rather than the window's. */}

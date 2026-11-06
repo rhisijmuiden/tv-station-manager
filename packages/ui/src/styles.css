@@ -42,3 +42,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 ::selection { background: color-mix(in srgb, var(--tvsm-primary) 30%, transparent); }
+
+/* Phone layout: grid items may shrink below their content, so wide tables scroll inside their own box. */
+main[data-phone] .grid > * {
+  min-width: 0;
+}

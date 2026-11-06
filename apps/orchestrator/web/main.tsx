@@ -17,9 +17,9 @@ mountPlatformApp({
   nav: [
     {
       items: [
-        { to: "/", label: "nav.dashboard", icon: LayoutDashboard, end: true },
-        { to: "/monitoring", label: "orch.nav.monitoring", icon: Activity },
-        { to: "/nodes", label: "orch.nav.nodes", icon: Server },
+        { to: "/", label: "nav.dashboard", icon: LayoutDashboard, end: true, mobile: true },
+        { to: "/monitoring", label: "orch.nav.monitoring", icon: Activity, mobile: true },
+        { to: "/nodes", label: "orch.nav.nodes", icon: Server, mobile: true },
         { to: "/atem", label: "orch.nav.atem", icon: SlidersHorizontal },
         { to: "/teranex", label: "orch.nav.teranex", icon: Repeat },
         { to: "/kiloview", label: "orch.nav.kiloview", icon: ArrowLeftRight },
