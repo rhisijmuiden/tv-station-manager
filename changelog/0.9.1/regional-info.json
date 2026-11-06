@@ -1,0 +1,25 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    73
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Regional information for Velsen, Beverwijk and Heemskerk as ready-made beeldkranten: traffic jams and roadworks, events, council meetings and 112 alerts (P2000).",
+      "nl": "Regionale informatie voor Velsen, Beverwijk en Heemskerk als kant-en-klare beeldkranten: files en wegwerkzaamheden, evenementen, gemeenteraadsvergaderingen en 112-meldingen (P2000)."
+    },
+    {
+      "kind": "added",
+      "en": "112 alerts are filtered for privacy (only type and place), wait 20 minutes and need an editor's approval by default.",
+      "nl": "112-meldingen worden veilig gefilterd (alleen soort en plaats), wachten standaard 20 minuten en moeten door een redacteur worden goedgekeurd."
+    },
+    {
+      "kind": "added",
+      "en": "New chapter Regional info in the editor guide.",
+      "nl": "Nieuw hoofdstuk Regionale info in de handleiding."
+    }
+  ]
+}
