@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 export type Db = DatabaseSync;
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   `CREATE TABLE users (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -48,6 +48,22 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local';
    ALTER TABLE users ADD COLUMN external_id TEXT;
    CREATE UNIQUE INDEX users_external_id ON users(external_id) WHERE external_id IS NOT NULL;`,
+  // More backup protocols (SMB, OneDrive): drop the protocol CHECK, the API validates it. Rebuilding the table fires
+  // ON DELETE SET NULL on backup_runs, so the run -> target links are saved and put back.
+  `CREATE TEMP TABLE _run_targets AS SELECT id, target_id FROM backup_runs;
+   CREATE TABLE backup_targets_new (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     protocol TEXT NOT NULL,
+     config TEXT NOT NULL,
+     enabled INTEGER NOT NULL DEFAULT 1,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   INSERT INTO backup_targets_new (id, name, protocol, config, enabled, created_at) SELECT id, name, protocol, config, enabled, created_at FROM backup_targets;
+   DROP TABLE backup_targets;
+   ALTER TABLE backup_targets_new RENAME TO backup_targets;
+   UPDATE backup_runs SET target_id = (SELECT r.target_id FROM _run_targets r WHERE r.id = backup_runs.id);
+   DROP TABLE _run_targets;`,
 ];
 
 export function openDb(dataDir: string): Db {

@@ -1,10 +1,10 @@
-import { CalendarClock, DatabaseBackup, History, Pencil, Plus, PlugZap, RotateCcw, Server, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { CalendarClock, Check, Cloud, Copy, DatabaseBackup, ExternalLink, History, LogIn, Pencil, Plus, PlugZap, RotateCcw, Server, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { del, formatBytes, get, post, put } from "../api";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Dialog, Field, Input, Mono, PageHeader, Select, Switch, Textarea } from "../components/ui";
 
-type Protocol = "ftp" | "ftps" | "scp";
+type Protocol = "ftp" | "ftps" | "scp" | "smb" | "onedrive";
 interface Target {
   id?: number;
   name: string;
@@ -47,13 +47,166 @@ const defaults: Record<Protocol, Target["config"]> = {
   ftp: { host: "", port: 21, username: "", password: "", directory: "/backups" },
   ftps: { host: "", port: 21, username: "", password: "", directory: "/backups", tlsMode: "explicit", verifyCertificate: true },
   scp: { host: "", port: 22, username: "", authMethod: "key", password: "", privateKey: "", passphrase: "", directory: "backups", hostKeySha256: "" },
+  smb: { host: "", share: "", directory: "tvsm-backups", username: "", password: "", domain: "", protocol: "SMB3", encrypt: false },
+  onedrive: { tenant: "common", clientId: "", folder: "TVSM-backups", refreshToken: "", account: "" },
 };
+
+const PROTOCOL_LABEL: Record<Protocol, string> = { smb: "SMB", onedrive: "OneDrive", scp: "SCP", ftps: "FTPS", ftp: "FTP" };
+
+/** Splits a pasted Windows path (\\nas\share\folder or //nas/share/folder) into server, share and folder. */
+function parseUncPath(v: string): { host: string; share: string; directory: string } | null {
+  const m = /^(?:\\\\|\/\/|smb:\/\/)([^\\/]+)[\\/]+([^\\/]+)(?:[\\/]+(.*))?$/.exec(v.trim());
+  if (!m) return null;
+  return { host: m[1]!, share: m[2]!, directory: (m[3] ?? "").replace(/\\/g, "/").replace(/\/+$/, "") };
+}
+
+/** One line under the target name: where the backups go. */
+function targetWhere(tg: Target): string {
+  const c = tg.config;
+  if (tg.protocol === "smb") return `\\\\${c.host}\\${c.share}${c.directory ? `\\${String(c.directory).replace(/\//g, "\\")}` : ""}`;
+  if (tg.protocol === "onedrive") return `${c.account || "–"} · /${String(c.folder ?? "").replace(/^\/+/, "")}`;
+  return `${String(c.username)}@${String(c.host)}:${String(c.directory)}`;
+}
+
+function targetReady(tg: Target): boolean {
+  const c = tg.config;
+  if (!tg.name) return false;
+  if (tg.protocol === "smb") return !!c.host && !!c.share;
+  if (tg.protocol === "onedrive") return !!c.clientId && !!c.refreshToken;
+  return !!c.host;
+}
+
+interface DeviceFlow {
+  flowId: string;
+  userCode: string;
+  verificationUri: string;
+  interval: number;
+}
+
+/** "Connect to Microsoft": device-code sign-in, then the dialog holds a reference to the new sign-in. */
+function OneDriveConnect({ config, onConnected }: { config: Target["config"]; onConnected: (refreshToken: string, account: string) => void }) {
+  const { t } = useTranslation();
+  const [flow, setFlow] = useState<DeviceFlow | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!flow) return;
+    let stop = false;
+    const tick = async () => {
+      if (stop || !alive.current) return;
+      try {
+        const r = await post<{ status: "pending" | "done" | "error"; refreshToken?: string; account?: string; error?: string }>("/api/backup/onedrive/poll", { flowId: flow.flowId });
+        if (stop) return;
+        if (r.status === "done") {
+          setFlow(null);
+          onConnected(r.refreshToken!, r.account ?? "");
+          return;
+        }
+        if (r.status === "error") {
+          setFlow(null);
+          setError(r.error ?? "error");
+          return;
+        }
+      } catch (e) {
+        setError((e as Error).message);
+      }
+      setTimeout(() => void tick(), Math.max(2, flow.interval) * 1000);
+    };
+    const first = setTimeout(() => void tick(), Math.max(2, flow.interval) * 1000);
+    return () => {
+      stop = true;
+      clearTimeout(first);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow]);
+
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await post<{ ok: boolean; error?: string } & DeviceFlow>("/api/backup/onedrive/start", { tenant: config.tenant || "common", clientId: config.clientId });
+      if (r.ok) setFlow(r);
+      else setError(r.error ?? "error");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connected = !!config.refreshToken;
+  return (
+    <div className="space-y-3 rounded-lg border border-line p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <Cloud className="size-5 text-brand" />
+        <p className="min-w-0 flex-1 text-sm">
+          {connected ? (
+            <span className="font-medium">{t("backup.onedriveConnected", { account: config.account || "Microsoft" })}</span>
+          ) : (
+            <span className="text-muted">{t("backup.onedriveNotConnected")}</span>
+          )}
+        </p>
+        <Button size="sm" variant={connected ? "secondary" : "primary"} icon={<LogIn className="size-4" />} loading={busy} disabled={!config.clientId || !!flow} onClick={start}>
+          {connected ? t("backup.onedriveReconnect") : t("backup.onedriveConnect")}
+        </Button>
+      </div>
+      {!config.clientId && <p className="text-xs text-muted">{t("backup.onedriveNeedsClient")}</p>}
+      {flow && (
+        <div className="space-y-3 rounded-md bg-brand/5 p-4">
+          <p className="text-sm">
+            1. {t("backup.onedriveStep1")}{" "}
+            <a href={flow.verificationUri} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand underline">
+              {flow.verificationUri.replace(/^https?:\/\//, "")}
+              <ExternalLink className="size-3.5" />
+            </a>
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm">2. {t("backup.onedriveStep2")}</p>
+            <span className="rounded-md border border-line bg-surface px-3 py-1.5 font-mono text-lg font-semibold tracking-widest">{flow.userCode}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              onClick={() => {
+                void navigator.clipboard?.writeText(flow.userCode);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? t("backup.copied") : t("backup.copy")}
+            </Button>
+          </div>
+          <p className="text-xs text-muted">{t("backup.onedriveWaiting")}</p>
+        </div>
+      )}
+      {error && <Alert tone="danger">{error}</Alert>}
+    </div>
+  );
+}
 
 const statusTone = { success: "ok", failed: "danger", running: "brand" } as const;
 
 function TargetDialog({ initial, onClose, onSaved }: { initial: Target | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation();
-  const [tg, setTg] = useState<Target>(initial ?? { name: "", protocol: "scp", enabled: true, config: { ...defaults.scp } });
+  const [tg, setTg] = useState<Target>(initial ?? { name: "", protocol: "smb", enabled: true, config: { ...defaults.smb } });
+  const pickProtocol = async (protocol: Protocol) => {
+    let config = { ...defaults[protocol] };
+    if (protocol === "onedrive") {
+      // Reuse the Office 365 sign-in app registration when it is set up.
+      const d = await get<{ tenant: string; clientId: string }>("/api/backup/onedrive/defaults").catch(() => null);
+      if (d) config = { ...config, tenant: d.tenant, clientId: d.clientId };
+    }
+    setTg((cur) => ({ ...cur, protocol, config }));
+    setMsg(null);
+  };
   const [msg, setMsg] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const c = tg.config;
@@ -94,7 +247,7 @@ function TargetDialog({ initial, onClose, onSaved }: { initial: Target | null; o
           <Button variant="secondary" icon={<PlugZap className="size-4" />} loading={busy === "test"} onClick={test}>
             {t("common.test")}
           </Button>
-          <Button loading={busy === "save"} onClick={save} disabled={!tg.name || !c.host}>
+          <Button loading={busy === "save"} onClick={save} disabled={!targetReady(tg)}>
             {t("common.save")}
           </Button>
         </>
@@ -111,13 +264,85 @@ function TargetDialog({ initial, onClose, onSaved }: { initial: Target | null; o
         </Field>
         <Field label={t("backup.protocol")} className="sm:col-span-2">
           {(id) => (
-            <Select id={id} value={tg.protocol} disabled={!!initial} onChange={(e) => setTg({ ...tg, protocol: e.target.value as Protocol, config: { ...defaults[e.target.value as Protocol] } })}>
+            <Select id={id} value={tg.protocol} disabled={!!initial} onChange={(e) => void pickProtocol(e.target.value as Protocol)}>
+              <option value="smb">{t("backup.proto_smb")}</option>
+              <option value="onedrive">OneDrive</option>
               <option value="scp">SCP (SSH)</option>
               <option value="ftps">FTPS</option>
               <option value="ftp">FTP</option>
             </Select>
           )}
         </Field>
+        {tg.protocol === "smb" && (
+          <>
+            <Field label={t("backup.smbHost")} hint={t("backup.smbHostHint")} className="sm:col-span-3">
+              {(id) => (
+                <Input
+                  id={id}
+                  value={str("host")}
+                  placeholder="unas.local"
+                  onChange={(e) => {
+                    const unc = parseUncPath(e.target.value);
+                    if (unc) setTg({ ...tg, config: { ...c, host: unc.host, share: unc.share, directory: unc.directory || String(c.directory ?? "") } });
+                    else setC("host", e.target.value);
+                  }}
+                />
+              )}
+            </Field>
+            <Field label={t("backup.share")} className="sm:col-span-3">
+              {(id) => <Input id={id} value={str("share")} placeholder="backup" onChange={(e) => setC("share", e.target.value)} />}
+            </Field>
+            <Field label={t("backup.folder")} hint={t("backup.folderHint")} className="sm:col-span-6">
+              {(id) => <Input id={id} value={str("directory")} onChange={(e) => setC("directory", e.target.value)} />}
+            </Field>
+            <Field label={t("backup.username")} className="sm:col-span-2">
+              {(id) => <Input id={id} value={str("username")} onChange={(e) => setC("username", e.target.value)} autoComplete="off" />}
+            </Field>
+            <Field label={t("backup.password")} className="sm:col-span-2">
+              {(id) => <Input id={id} type="password" value={str("password")} onChange={(e) => setC("password", e.target.value)} autoComplete="new-password" />}
+            </Field>
+            <Field label={`${t("backup.domain")} (${t("common.optional")})`} className="sm:col-span-2">
+              {(id) => <Input id={id} value={str("domain")} placeholder="WORKGROUP" onChange={(e) => setC("domain", e.target.value)} />}
+            </Field>
+            <Field label={t("backup.smbProtocol")} className="sm:col-span-3">
+              {(id) => (
+                <Select id={id} value={str("protocol") || "SMB3"} onChange={(e) => setC("protocol", e.target.value)}>
+                  <option value="SMB3">{t("backup.smb3")}</option>
+                  <option value="SMB2">{t("backup.smb2")}</option>
+                </Select>
+              )}
+            </Field>
+            <div className="flex items-end sm:col-span-3">
+              <Switch checked={c.encrypt === true} onChange={(v) => setC("encrypt", v)} label={t("backup.smbEncrypt")} />
+            </div>
+          </>
+        )}
+
+        {tg.protocol === "onedrive" && (
+          <>
+            <div className="sm:col-span-6">
+              <OneDriveConnect config={c} onConnected={(refreshToken, account) => setTg((cur) => ({ ...cur, config: { ...cur.config, refreshToken, account } }))} />
+            </div>
+            <Field label={t("backup.onedriveFolder")} hint={t("backup.folderHint")} className="sm:col-span-6">
+              {(id) => <Input id={id} value={str("folder")} onChange={(e) => setC("folder", e.target.value)} />}
+            </Field>
+            <details className="rounded-lg border border-line px-4 py-3 sm:col-span-6" open={!c.clientId}>
+              <summary className="cursor-pointer text-[13px] font-medium">{t("backup.onedriveAdvanced")}</summary>
+              <p className="mt-2 text-xs text-muted">{t("backup.onedriveAppHint")}</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label={t("backup.tenant")}>
+                  {(id) => <Input id={id} className="font-mono text-xs" value={str("tenant")} placeholder="common" onChange={(e) => setC("tenant", e.target.value)} />}
+                </Field>
+                <Field label={t("backup.clientId")}>
+                  {(id) => <Input id={id} className="font-mono text-xs" value={str("clientId")} onChange={(e) => setC("clientId", e.target.value)} />}
+                </Field>
+              </div>
+            </details>
+          </>
+        )}
+
+        {(tg.protocol === "ftp" || tg.protocol === "ftps" || tg.protocol === "scp") && (
+          <>
         <Field label={t("backup.host")} className="sm:col-span-4">
           {(id) => <Input id={id} value={str("host")} onChange={(e) => setC("host", e.target.value)} />}
         </Field>
@@ -130,6 +355,8 @@ function TargetDialog({ initial, onClose, onSaved }: { initial: Target | null; o
         <Field label={t("backup.directory")} className="sm:col-span-3">
           {(id) => <Input id={id} value={str("directory")} onChange={(e) => setC("directory", e.target.value)} />}
         </Field>
+          </>
+        )}
 
         {tg.protocol === "ftps" && (
           <Field label={t("backup.tlsMode")} className="sm:col-span-3">
@@ -145,7 +372,7 @@ function TargetDialog({ initial, onClose, onSaved }: { initial: Target | null; o
             )}
           </Field>
         )}
-        {tg.protocol !== "scp" && (
+        {(tg.protocol === "ftp" || tg.protocol === "ftps") && (
           <Field label={t("backup.password")} className="sm:col-span-3">
             {(id) => <Input id={id} type="password" value={str("password")} onChange={(e) => setC("password", e.target.value)} autoComplete="new-password" />}
           </Field>
@@ -291,13 +518,11 @@ export function BackupPage() {
             {targets.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">{t("backup.noTargets")}</li>}
             {targets.map((tg) => (
               <li key={tg.id} className="flex items-center gap-4 px-5 py-3">
-                <Badge tone="brand">{tg.protocol.toUpperCase()}</Badge>
+                <Badge tone="brand">{PROTOCOL_LABEL[tg.protocol] ?? tg.protocol.toUpperCase()}</Badge>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{tg.name}</p>
                   <p className="truncate text-xs text-muted">
-                    <Mono>
-                      {String(tg.config.username)}@{String(tg.config.host)}:{String(tg.config.directory)}
-                    </Mono>
+                    <Mono>{targetWhere(tg)}</Mono>
                   </p>
                 </div>
                 {!tg.enabled && <Badge>{t("common.disabled")}</Badge>}

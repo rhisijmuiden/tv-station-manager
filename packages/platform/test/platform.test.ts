@@ -1,7 +1,8 @@
 /**
  * End-to-end test of the platform API: setup/login, mail settings masking, and
  * full + incremental backup and restore against real FTP, FTPS and SCP servers.
- * The backup part needs TVSM_IT_FTP_* / TVSM_IT_SCP_* env vars (see packages/platform/test/README.md).
+ * The backup part needs TVSM_IT_FTP_* / TVSM_IT_SCP_* / TVSM_IT_SMB_* env vars (see packages/platform/test/README.md);
+ * OneDrive always runs, against an in-process Microsoft Graph mock.
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
@@ -9,6 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { applyPendingRestore, createPlatform, type Platform } from "../src/index.ts";
+import { _clearOneDriveTokenCache } from "../src/backup/targets/onedrive.ts";
+import { startGraphMock, type GraphMock } from "./graph-mock.ts";
 
 const root = mkdtempSync(join(tmpdir(), "tvsm-test-"));
 process.env.TVSM_DATA_DIR = join(root, "data");
@@ -147,7 +150,24 @@ test("default admin is created on first start and flagged until the password cha
   }
 });
 
-const targets: { name: string; protocol: "ftp" | "ftps" | "scp"; config: Record<string, unknown> }[] = [];
+const targets: { name: string; protocol: "ftp" | "ftps" | "scp" | "smb" | "onedrive"; config: Record<string, unknown> }[] = [];
+let graph: GraphMock | undefined;
+targets.push({ name: "onedrive", protocol: "onedrive", config: { tenant: "contoso", clientId: "app-1", folder: "Back-ups/TV station" } });
+if (process.env.TVSM_IT_SMB_HOST) {
+  targets.push({
+    name: "smb",
+    protocol: "smb",
+    config: {
+      host: process.env.TVSM_IT_SMB_HOST,
+      port: process.env.TVSM_IT_SMB_PORT ? Number(process.env.TVSM_IT_SMB_PORT) : undefined,
+      share: process.env.TVSM_IT_SMB_SHARE,
+      username: process.env.TVSM_IT_SMB_USER,
+      password: process.env.TVSM_IT_SMB_PASS,
+      encrypt: process.env.TVSM_IT_SMB_ENCRYPT === "1",
+      directory: "it-smb/backups",
+    },
+  });
+}
 if (process.env.TVSM_IT_FTP_HOST) {
   const base = {
     host: process.env.TVSM_IT_FTP_HOST,
@@ -187,20 +207,38 @@ for (const t of targets) {
     cookie = "";
     await api("POST", "/api/auth/setup", { username: "admin", password: "correct horse battery" });
     // Unique remote directory per run.
-    t.config.directory = `${t.config.directory}-${Date.now()}`;
+    if (t.config.directory) t.config.directory = `${t.config.directory}-${Date.now()}`;
     writeFileSync(join(media, "keep.txt"), "unchanged");
     writeFileSync(join(media, "change.txt"), "version 1");
     writeFileSync(join(media, "delete.txt"), "will be deleted");
     p.ctx.settings.set("marker", "before-full");
 
+    if (t.protocol === "onedrive") {
+      graph ??= await startGraphMock();
+      process.env.TVSM_SSO_AUTHORITY = `${graph.base}/login`;
+      process.env.TVSM_GRAPH_URL = `${graph.base}/graph/v1.0`;
+      const start = await api("POST", "/api/backup/onedrive/start", { tenant: "contoso", clientId: "app-1" });
+      assert.equal(start.body.ok, true, start.body.error);
+      assert.equal(start.body.userCode, "ABCD-1234");
+      assert.equal((await api("POST", "/api/backup/onedrive/poll", { flowId: start.body.flowId })).body.status, "pending");
+      const done = await api("POST", "/api/backup/onedrive/poll", { flowId: start.body.flowId });
+      assert.equal(done.body.status, "done");
+      assert.equal(done.body.account, "backup@ijmond360.nl");
+      // The browser only ever sees a reference to the sign-in, never the token.
+      assert.match(done.body.refreshToken, /^flow:/);
+      t.config.refreshToken = done.body.refreshToken;
+      t.config.account = done.body.account;
+    }
     const tested = await api("POST", "/api/backup/targets/test", { name: t.name, protocol: t.protocol, config: t.config });
     assert.equal(tested.body.ok, true, tested.body.error);
     const config = t.protocol === "scp" ? { ...t.config, hostKeySha256: tested.body.hostKeySha256 } : t.config;
     const created = await api("POST", "/api/backup/targets", { name: t.name, protocol: t.protocol, enabled: true, config });
     assert.equal(created.status, 200, JSON.stringify(created.body));
-    assert.equal(created.body.config.privateKey ?? created.body.config.password, "********");
+    assert.equal(created.body.config.privateKey ?? created.body.config.password ?? created.body.config.refreshToken, "********");
     const targetId = created.body.id as number;
 
+    // Forget cached access tokens: the backup must work with the stored (rotated) refresh token alone.
+    _clearOneDriveTokenCache();
     const full = await p.backup.run(targetId, "full");
     assert.equal(full.kind, "full");
 
@@ -233,5 +271,14 @@ for (const t of targets) {
     const restored = new DatabaseSync(join(p.ctx.config.dataDir, "app.db"));
     assert.equal((restored.prepare("SELECT value FROM settings WHERE key = 'marker'").get() as { value: string }).value, '"after-incremental"');
     restored.close();
+    if (graph && t.protocol === "onedrive") {
+      // Rotated refresh tokens were written back, so the stored one is still accepted.
+      assert.ok(graph.refreshes >= 1);
+      assert.ok(graph.validRefresh.has(String(p.backup.getTarget(targetId).config.refreshToken)));
+      assert.ok([...graph.files.keys()].every((f) => f.startsWith("Back-ups/TV station/")));
+    }
   });
 }
+test.after(async () => {
+  await graph?.close();
+});

@@ -243,6 +243,8 @@ const CH = [
   video: { src: 'video/video-4-opnames.mp4', poster: 'video/video-4-opnames.jpg', len: '0:44', title: 'Een opname knippen en herhalen', text: 'Begin en einde zetten, naar de bibliotheek, en met een snelknop een herhaling inplannen.' } },
 { id: 'regionaal', short: 'Regionale info', title: 'Verkeer, evenementen, raad en 112', eyebrow: 'Hoofdstuk 5', where: ['Bibliotheek', 'Beeldkranten', 'Regionaal'],
   lead: 'Kant-en-klare beeldkranten met regionale informatie voor Velsen, Beverwijk en Heemskerk: files en wegwerkzaamheden, evenementen, de agenda van de gemeenteraden en 112-meldingen. Je zet een bron aan, maakt er met één klik een beeldkrant van en zet die in een uurblok. Daarna ververst alles vanzelf.' },
+{ id: 'backup', short: 'Back-ups', title: 'Back-ups naar de NAS of OneDrive', eyebrow: 'Hoofdstuk 6 · beheer', where: ['Systeem', 'Back-up en herstel'],
+  lead: 'Voor beheerders. De app maakt zelf back-ups van de planning, instellingen en bestanden, en zet ze op een veilige plek buiten de server: een share op de NAS (SMB) of een OneDrive. Ook de orchestrator heeft dit scherm. Gaat er iets mis, dan zet je met een paar klikken een back-up terug.' },
 { id: 'vragen', short: 'Vragen', title: 'Vragen en problemen', eyebrow: 'Naslag', lead: 'Iets werkt anders dan je verwacht? Hier staan de meest gestelde vragen, en een spiekbriefje met waar alles staat.' },
 ];
 
@@ -342,6 +344,21 @@ regionaal: [
    b: `<ol><li>Klik op de kaart op ${ui('Maak beeldkrant')}. Er komt een beeldkrant in de huisstijl, en een blok met dezelfde naam.</li><li>Zet dat blok in een uurblok, net als elke andere beeldkrant (hoofdstuk 1, stap 6), of kies hem bij ${ui('Vul de rest van het uur met')}.</li></ol>
    <p>De berichten verversen vanzelf. Je hoeft de beeldkrant nooit opnieuw te maken.</p><p><b>Meer berichten tegelijk:</b> open de beeldkrant onder de tab ${ui('Beeldkranten')} en kies bij ${ui('Berichten per pagina')} 1 tot 6. Bij meer dan 1 komt er een lijst met koppen in beeld, zonder foto’s. Een nieuwe regionale beeldkrant toont er standaard 4 (evenementen 3).</p><div class="tip"><b>Ook in de nieuwsticker</b>Een regionale bron kan ook onderin beeld meelopen: kies hem bij ${ui('Kanaal &amp; lagen')} → Nieuwsticker → Feeds.</div>` },
 ],
+backup: [
+ { t: 'Open Back-up en herstel', img: ['67-backup-locaties', 'De pagina Back-up en herstel met twee externe locaties: een SMB-share op de UNAS en een OneDrive.'],
+   b: `<p>Klik in het menu links onder Systeem op ${ui('Back-up en herstel')}. Alleen beheerders zien deze pagina.</p><ol><li>Onder <b>Externe locaties</b> staan de plekken waar back-ups heen gaan.</li><li>Met ${ui('Locatie toevoegen')} maak je een nieuwe.</li></ol>
+   <div class="tip"><b>Volledig en incrementeel</b>Een volledige back-up bevat alles. Een incrementele back-up bevat alleen wat er sinds de vorige is veranderd, en is dus klein en snel. Bij terugzetten worden ze vanzelf aan elkaar geplakt.</div>` },
+ { t: 'Een share op de NAS (SMB)', img: ['68-backup-smb', 'Het venster voor een SMB-locatie met server, share, map, gebruiker, wachtwoord, SMB3 en versleuteling. Bovenaan staat Verbinding OK.'],
+   b: `<p>Kies bij Protocol ${ui('SMB-share (NAS)')}.</p><ol><li>Vul de <b>server</b> en de <b>share</b> in. Je mag ook het hele pad plakken, zoals <code>\\\\unas\\backup</code>: de app splitst het zelf.</li><li>Kies een <b>map</b>. Die wordt vanzelf aangemaakt.</li><li>Vul de gebruikersnaam en het wachtwoord van de NAS in. Het domein mag leeg blijven.</li><li>Laat <b>SMB3</b> staan en zet <b>Verbinding versleutelen</b> aan als de NAS dat kan.</li><li>Klik op ${ui('Testen')}. Zie je <b>Verbinding OK</b>, klik dan op ${ui('Opslaan')}.</li></ol>
+   <div class="warn"><b>Gebruik een aparte gebruiker</b>Maak op de NAS een gebruiker die alleen in de back-upshare mag schrijven. Dan kan een fout in de app nooit bij de video’s komen.</div>` },
+ { t: 'OneDrive koppelen', img: ['69-backup-onedrive', 'Het venster voor OneDrive met de knop Verbinden met Microsoft, de link microsoft.com/devicelogin en een code.'],
+   b: `<p>Kies bij Protocol ${ui('OneDrive')}.</p><ol><li>Klik op ${ui('Verbinden met Microsoft')}. Er verschijnt een link en een code.</li><li>Open de link op een computer of telefoon, typ de code over en meld je aan met het Microsoft-account waarvan de OneDrive de back-ups moet bewaren.</li><li>Het venster ziet vanzelf dat je bent aangemeld en toont <b>Verbonden als …</b>.</li><li>Kies de <b>map in OneDrive</b>, klik op ${ui('Testen')} en daarna op ${ui('Opslaan')}.</li></ol>
+   <p>Het wachtwoord van het account wordt nergens bewaard. De app krijgt alleen toegang tot de bestanden van dat ene account, en blijft verbonden zolang er regelmatig back-ups worden gemaakt.</p>
+   <div class="tip"><b>Microsoft-appregistratie</b>De app gebruikt dezelfde registratie als het aanmelden met Office 365. Daar moet eenmalig <b>Openbare clientstromen toestaan</b> aan staan, met de machtiging Files.ReadWrite. Krijg je een melding met AADSTS7000218, dan staat dat nog uit.</div>` },
+ { t: 'Automatisch laten draaien en terugzetten', img: ['70-backup-herstel', 'Planning met beide locaties aangevinkt, de geschiedenis en rechts een back-up op OneDrive met de knop Herstellen.'],
+   b: `<ol><li>Zet onder <b>Planning</b> ${ui('Back-ups automatisch uitvoeren')} aan en klik de locaties aan bij <b>Back-up naar</b>. Standaard: op zondag om 03:00 een volledige back-up, de andere dagen een incrementele.</li><li>Onder <b>Geschiedenis</b> zie je of het gelukt is. Mislukt er een, dan krijgt de beheerder een mail.</li><li>Terugzetten: kies rechts de locatie, klik op ${ui('Back-ups tonen')} en daarna op ${ui('Herstellen')} bij de goede datum.</li></ol>
+   <div class="warn"><b>Herstellen vervangt alles</b>De huidige planning en instellingen worden vervangen door die van de back-up en de app start opnieuw op. Dit werkt ook op een nieuwe, lege installatie.</div>` },
+],
 };
 
 const FAQ = [
@@ -355,6 +372,7 @@ const FAQ = [
  ['Kan ik een fout ongedaan maken?', 'Een blok van één dag haal je weg met Deze dag weghalen; een live-uitzending met het kruisje. Een opname verwijderen kan niet ongedaan worden gemaakt: het bestand in de bibliotheek en ingeplande herhalingen blijven wel staan.'],
  ['Een 112-melding komt niet op de beeldkrant', 'Meldingen wachten standaard 20 minuten en moeten eerst worden goedgekeurd (hoofdstuk 5, stap 5). Kijk bij Regionaal → Meldingen keuren of hij op Wacht staat. Ambulance en politie staan standaard uit.'],
  ['Bij een regionale bron staat een waarschuwing', 'De bron kon (deels) niet worden opgehaald, bijvoorbeeld omdat de website van een gemeente even niet bereikbaar is. De laatst bekende berichten blijven op het scherm. Blijft het zo, meld het dan aan de beheerder.'],
+ ['Een back-up naar OneDrive mislukt met “opnieuw verbinden”', 'De koppeling met Microsoft is verlopen, bijvoorbeeld omdat er maanden geen back-up is gemaakt of het wachtwoord is veranderd. Open de locatie, klik op Opnieuw aanmelden en daarna op Opslaan (hoofdstuk 6, stap 3).'],
  ['De app staat in het Engels', 'Linksonder in de app staat de taalknop EN / NL.'],
  ['Wat is er nieuw in de app?', 'Klik linksonder op Info en daarna op Wat is er nieuw. Per versie zie je wat er is toegevoegd, gewijzigd, verbeterd, opgelost en verwijderd. Een versie met de melding In test draait alleen nog op de testomgeving.'],
 ];
@@ -364,6 +382,7 @@ const CHEAT = [
  ['Blokken', 'Uurblokken en reclameblokken maken en aanpassen.'], ['Bibliotheek', 'Video’s, Opnames, Beeldkranten, Webcams, Live bronnen.'],
  ['Schakelen', 'Onverwacht live beeld met één knop op zender.'], ['Uitzendschema', 'Alles wat per dag gepland staat, ook herhalingen.'],
  ['Programmagids', 'Wat de kijker in de gids ziet.'], ['Regionaal', 'Bibliotheek → Beeldkranten → Regionaal: verkeer, evenementen, raad, 112.'], ['Kanaal & lagen', 'Logo, klok, ticker en de vaste start van elk uur.'],
+ ['Back-up en herstel', 'Systeem → Back-up en herstel: back-ups naar de NAS (SMB), OneDrive, SCP of FTP, en terugzetten.'],
  ['Info › Wat is er nieuw', 'Per versie wat er in de app veranderd is.'],
 ];
 

@@ -92,9 +92,10 @@ SUDO
     chmod 0755 "$STAGE/DEBIAN/$s"
   done
   echo "/etc/sudoers.d/$PKG" > "$STAGE/DEBIAN/conffiles"
-  DEPENDS="adduser, sudo, systemd, ca-certificates, openssh-client"
+  # smbclient: SMB backup locations (both apps).
+  DEPENDS="adduser, sudo, systemd, ca-certificates, openssh-client, smbclient"
   # Management node: smbclient reads the UNAS share, ffprobe measures clip durations.
-  [[ "$APP" == management ]] && DEPENDS="$DEPENDS, smbclient, ffmpeg"
+  [[ "$APP" == management ]] && DEPENDS="$DEPENDS, ffmpeg"
   DESCRIPTION="Web interface on port 8080 by default
  (change TVSM_PORT in /etc/tvsm/$APP/env)."
 fi
