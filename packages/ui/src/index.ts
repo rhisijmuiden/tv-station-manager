@@ -5,3 +5,4 @@ export { useSession } from "./session";
 export { api, get, post, put, del, formatBytes } from "./api";
 export { ApiError } from "./api";
 export { brandColor } from "./brand";
+export { useMobile, useViewChoice, setViewChoice, isMobileView } from "./mobile";

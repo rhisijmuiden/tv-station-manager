@@ -38,7 +38,11 @@
     "collapse": "Menu inklappen",
     "menu": "Menu",
     "users": "Gebruikers",
-    "sso": "Single sign-on"
+    "sso": "Single sign-on",
+    "close": "Menu sluiten",
+    "more": "Meer",
+    "desktopView": "Desktopweergave gebruiken",
+    "mobileView": "Mobiele weergave gebruiken"
   },
   "auth": {
     "signIn": "Inloggen",

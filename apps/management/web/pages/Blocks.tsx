@@ -1,5 +1,5 @@
-import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Clapperboard, Copy, Film, GripVertical, Info, Lock, Newspaper, Pencil, Plus, Radio, Save, Sparkles, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, brandColor, Input, PageHeader, Select, Textarea, cx, del, get, post, put, roleAtLeast, useMobile, useSession } from "@tvsm/ui";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, ChevronLeft, Clapperboard, Copy, Film, GripVertical, Info, Lock, Newspaper, Pencil, Plus, Radio, Save, Sparkles, Trash2, Webcam as WebcamIcon, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -52,6 +52,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const base = kind === "program" ? "/blocks" : "/ads";
+  const phone = useMobile();
   const [meta, setMeta] = useState({ name: "", color: kind === "program" ? brandColor("primary") : brandColor("warning", "#F5A524"), genre: "", description: "", categoryId: null as number | null, audio: null as string | null, fill: null as string | null, hourStart: kind === "program" });
   const { categories } = useCategories();
   const [items, setItems] = useState<Item[]>([]);
@@ -377,14 +378,15 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
               const start = offset;
               offset += it.effectiveDurationMs ?? 0;
               return (
-                <li key={i} {...dnd.rowProps(i, it.title || it.label)} className={cx("flex cursor-grab items-center gap-3 px-3 py-2 text-sm active:cursor-grabbing", indicatorClass(dnd.indicator, i, items.length))}>
-                  <GripVertical className="-mr-1 size-3.5 shrink-0 text-muted/50" />
-                  <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(start)}</span>
+                <li key={i} {...dnd.rowProps(i, it.title || it.label)} className={cx("flex cursor-grab items-center text-sm active:cursor-grabbing", phone ? "flex-wrap gap-x-2.5 gap-y-1.5 px-2.5 py-2.5" : "gap-3 px-3 py-2", indicatorClass(dnd.indicator, i, items.length))}>
+                  <GripVertical className={cx("-mr-1 shrink-0 text-muted/50", phone ? "size-5" : "size-3.5")} />
+                  {!phone && <span className="w-14 font-mono text-xs text-muted">+{fmtDuration(start)}</span>}
                   <span className={cx("grid size-7 shrink-0 place-items-center rounded-md", it.type === "auto" ? "bg-brand text-white" : it.type === "live" ? "bg-onair/12 text-onair" : it.type === "block" ? "bg-warn/15 text-warn" : it.type === "beeldkrant" ? "bg-ok/12 text-ok" : it.type === "webcam" ? "bg-[#0EA5A4]/12 text-[#0EA5A4]" : it.type === "lineup" ? "bg-brand-light/15 text-brand-dark dark:text-brand-light" : it.type === "info" ? "bg-[var(--tvsm-info)]/12 text-[var(--tvsm-info)]" : "bg-brand/10 text-brand")}>
                     {it.type === "auto" ? <Sparkles className="size-3.5" /> : it.type === "live" ? <Radio className="size-3.5" /> : it.type === "block" ? <Film className="size-3.5" /> : it.type === "beeldkrant" ? <Newspaper className="size-3.5" /> : it.type === "webcam" ? <WebcamIcon className="size-3.5" /> : it.type === "lineup" ? <CalendarClock className="size-3.5" /> : it.type === "info" ? <Info className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                   </span>
-                  <span className="min-w-0 flex-1">
+                  <span className={cx("min-w-0 flex-1", phone && "basis-[calc(100%-5rem)]")}>
                     <span className="block truncate font-medium">{it.title || it.label}</span>
+                    {phone && <span className="block font-mono text-[11px] text-muted">+{fmtDuration(start)}</span>}
                     {it.sub && <span className="block truncate text-xs text-muted">{it.type === "auto" ? `${t("mgmt.auto.now")}: ${it.sub}` : it.sub}</span>}
                     {it.type === "auto" && !it.autoClips?.length && <span className="block text-xs text-warn">{t("mgmt.auto.noneYet")}</span>}
                   </span>
@@ -427,7 +429,7 @@ function Editor({ id, kind, onSaved, onInsertRef }: { id: number | "new"; kind: 
                   ) : (
                     <span className="w-16 text-right font-mono text-xs text-muted">{fmtDuration(it.effectiveDurationMs)}</span>
                   )}
-                  <span className="flex shrink-0">
+                  <span className={cx("flex shrink-0", phone && "ml-auto gap-1 [&>button]:p-2")}>
                     <button className="rounded p-1 text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="up">
                       <ArrowUp className="size-3.5" />
                     </button>
@@ -492,6 +494,10 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
   const k = kind === "program" ? "blocks" : "ads";
   const insertRef = useRef<((p: LibraryPayload) => void) | null>(null);
   const editing = sel != null && canEdit;
+  // On a phone the list and the block take turns: tap a block to open it, "All blocks" goes back.
+  const phone = useMobile();
+  const showList = !phone || sel == null || !canEdit;
+  const showEditor = !phone || editing;
   return (
     <>
       <PageHeader
@@ -506,17 +512,23 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
         }
       />
       <PendingChanges />
-      <div className="mb-4 inline-flex rounded-lg bg-surface-2 p-1">
+      {phone && editing && (
+        <Link to={base} className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-brand">
+          <ChevronLeft className="size-4" />
+          {t("mgmt.plan.allBlocks")}
+        </Link>
+      )}
+      {showList && <div className="mb-4 inline-flex rounded-lg bg-surface-2 p-1">
         {(["program", "commercial"] as const).map((x) => (
           <Link key={x} to={x === "program" ? "/blocks" : "/ads"} className={cx("rounded-md px-3 py-1.5 text-sm font-semibold transition", x === kind ? "bg-surface shadow-sm" : "text-muted hover:text-fg")}>
             {t(x === "program" ? "mgmt.plan.tabHour" : "mgmt.plan.tabAds")}
           </Link>
         ))}
-      </div>
+      </div>}
       <WithMediaBin onAdd={editing ? (p) => insertRef.current?.(p) : undefined} hint={editing ? t("mgmt.bin.hintBlock") : t("mgmt.bin.hintBlockSelect")}>
       <div className="grid gap-6 @4xl:grid-cols-[240px_minmax(0,1fr)]">
-        <Card className="self-start">
-          <ul className="max-h-[40vh] divide-y divide-line overflow-y-auto @4xl:max-h-[70vh]">
+        {showList && <Card className="self-start">
+          <ul className={cx("divide-y divide-line overflow-y-auto @4xl:max-h-[70vh]", !phone && "max-h-[40vh]")}>
             {/* An info page's own block is made and kept in step by the info page itself (Sources → Info pages). */}
             {list.data?.blocks.filter((b) => !(b.genre === "info" && b.itemCount === 1)).map((b) => (
               <li key={b.id}>
@@ -534,8 +546,8 @@ export function BlocksPage({ kind }: { kind: "program" | "commercial" }) {
             ))}
             {list.data && !list.data.blocks.length && <li className="px-4 py-8 text-center text-sm text-muted">{t(`mgmt.${k}.none`)}</li>}
           </ul>
-        </Card>
-        {sel != null && canEdit ? (
+        </Card>}
+        {!showEditor ? null : sel != null && canEdit ? (
           <Editor id={sel} kind={kind} onSaved={() => void list.reload()} onInsertRef={insertRef} />
         ) : (
           <Card>

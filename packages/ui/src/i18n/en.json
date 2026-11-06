@@ -38,7 +38,11 @@
     "collapse": "Collapse menu",
     "menu": "Menu",
     "users": "Users",
-    "sso": "Single sign-on"
+    "sso": "Single sign-on",
+    "close": "Close menu",
+    "more": "More",
+    "desktopView": "Use desktop layout",
+    "mobileView": "Use phone layout"
   },
   "auth": {
     "signIn": "Sign in",

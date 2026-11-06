@@ -1,6 +1,6 @@
-import { Alert, Button, Card, CardBody, Dialog, Field, Input, PageHeader, Select, Switch, cx, del, get, post, put, roleAtLeast, useSession } from "@tvsm/ui";
+import { Alert, Button, Card, CardBody, Dialog, Field, Input, PageHeader, Select, Switch, cx, del, get, post, put, roleAtLeast, useMobile, useSession } from "@tvsm/ui";
 import { CalendarDays, Clapperboard, Lock, Pencil, Plus, Radio, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { PendingChanges } from "../components/PendingChanges";
 import { Link } from "react-router-dom";
@@ -150,6 +150,11 @@ export function WeekPlanPage() {
   const [msg, setMsg] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [liveOpen, setLiveOpen] = useState(false);
+  // Phone: one day at a time, and an hour is filled by tapping it and picking a block.
+  const phone = useMobile();
+  const [day, setDay] = useState(() => (new Date().getDay() + 6) % 7);
+  const [pickHour, setPickHour] = useState<number | null>(null);
+  const [night, setNight] = useState(false);
   const weekFrom = mondayOf(new Date());
   const weekTo = new Date(weekFrom.getFullYear(), weekFrom.getMonth(), weekFrom.getDate() + 7);
   const sched = useGet<{ entries: Entry[] }>(channel ? `/api/schedule?channel=${channel.id}&from=${encodeURIComponent(weekFrom.toISOString())}&to=${encodeURIComponent(weekTo.toISOString())}` : null);
@@ -224,6 +229,15 @@ export function WeekPlanPage() {
     await week.reload();
   };
 
+  const place = (blockId: number, weekday: number, hour: number) => {
+    if (!channel || !canEdit) return;
+    const startMin = hour * 60;
+    const b = blockById.get(blockId);
+    void run(
+      () => post<{ ids: number[] }>("/api/week/slots", { channelId: channel.id, weekdays: [weekday], startMin, durationMin: 60, clockMode: "none", blockId, title: null }).then((r) => setSel(r.ids[0] ?? null)),
+      t("mgmt.plan.week.placed", { name: b?.name ?? "", day: dayName(weekday), time: hh(startMin) }),
+    );
+  };
   const drop = (e: DragEvent, weekday: number, hour: number) => {
     e.preventDefault();
     setOver(null);
@@ -231,13 +245,8 @@ export function WeekPlanPage() {
     dragging = null;
     if (!d || !channel || !canEdit) return;
     const startMin = hour * 60;
-    if (d.kind === "block") {
-      const b = blockById.get(d.blockId);
-      void run(
-        () => post<{ ids: number[] }>("/api/week/slots", { channelId: channel.id, weekdays: [weekday], startMin, durationMin: 60, clockMode: "none", blockId: d.blockId, title: null }).then((r) => setSel(r.ids[0] ?? null)),
-        t("mgmt.plan.week.placed", { name: b?.name ?? "", day: dayName(weekday), time: hh(startMin) }),
-      );
-    } else {
+    if (d.kind === "block") place(d.blockId, weekday, hour);
+    else {
       if (d.slot.weekday === weekday && d.slot.startMin === startMin) return;
       void run(() => put(`/api/week/slots/${d.slot.id}`, { ...slotBody(d.slot), weekday, startMin }), t("mgmt.plan.week.moved", { day: dayName(weekday), time: hh(startMin) }));
     }
@@ -250,11 +259,202 @@ export function WeekPlanPage() {
   const setLength = (durationMin: number) => selected && void run(() => put(`/api/week/slots/${selected.id}/series`, { ...slotBody(selected), durationMin, weekdays: series.length ? series : [selected.weekday] }));
   const toggleWeek = (on: boolean) => channel && void run(() => put(`/api/week/channels/${channel.id}`, { weekEnabled: on, clockId: channel.clockId }).then(() => reloadChannels()));
 
+  const selectedPanel = selected && (
+    <>
+                <div className="flex items-start gap-2">
+                  <span className="mt-1 size-3 shrink-0 rounded" style={{ background: color(selected) }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{label(selected)}</p>
+                    <p className="text-xs text-muted">
+                      {hh(selected.startMin)}–{hh((selected.startMin + selected.durationMin) % 1440)} · {t("mgmt.plan.week.everyWeek")}
+                    </p>
+                  </div>
+                  <button className="rounded p-1 text-muted hover:bg-surface-2" onClick={() => setSel(null)} aria-label={t("common.close")}>
+                    <X className="size-4" />
+                  </button>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs text-muted">{t("mgmt.plan.week.days")}</p>
+                  <div className="flex gap-1">
+                    {DAYS.map((d) => {
+                      const on = series.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          disabled={!canEdit}
+                          onClick={() => setDays(on ? series.filter((x) => x !== d) : [...series, d].sort())}
+                          className={cx("h-8 min-w-0 flex-1 rounded-md border text-xs font-semibold capitalize transition", on ? "border-brand bg-brand text-white" : "border-line bg-surface hover:border-brand/50")}
+                        >
+                          {dayName(d).slice(0, 2)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {[
+                      ["weekdays", [0, 1, 2, 3, 4]],
+                      ["weekend", [5, 6]],
+                      ["all", DAYS],
+                    ].map(([k, days]) => (
+                      <button key={k as string} disabled={!canEdit} onClick={() => setDays(days as number[])} className="rounded-full border border-line px-2.5 py-0.5 text-[11px] font-medium hover:border-brand/50">
+                        {t(`mgmt.plan.week.preset.${k}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {simple(selected) && (
+                  <label className="block text-xs text-muted">
+                    {t("mgmt.plan.week.length")}
+                    <Select className="mt-1" value={selected.durationMin} disabled={!canEdit} onChange={(e) => setLength(Number(e.target.value))}>
+                      {Array.from({ length: Math.max(1, Math.floor(maxLength(selected) / 60)) }, (_, i) => (i + 1) * 60).concat(selected.durationMin % 60 ? [selected.durationMin] : []).map((m) => (
+                        <option key={m} value={m}>
+                          {t("mgmt.plan.week.hours", { count: m / 60 })}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                )}
+                {!simple(selected) && <p className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">{t("mgmt.plan.week.advancedHint")}</p>}
+                <div className="flex flex-wrap gap-2">
+                  {selected.blockId && (
+                    <Link to={`/blocks/${selected.blockId}`}>
+                      <Button size="sm" variant="secondary" icon={<Pencil className="size-3.5" />}>
+                        {t("mgmt.plan.week.openBlock")}
+                      </Button>
+                    </Link>
+                  )}
+                  <Link to={`/rundowns/${selected.id}/${isoDate(dateOf(selected.weekday))}`}>
+                    <Button size="sm" variant="ghost" icon={<CalendarDays className="size-3.5" />}>
+                      {t("mgmt.plan.week.onlyDate", { date: dateOf(selected.weekday).toLocaleDateString(i18n.language, { day: "numeric", month: "short" }) })}
+                    </Button>
+                  </Link>
+                  {canEdit && (
+                    <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={() => void run(() => del(`/api/week/slots/${selected.id}`)).then(() => setSel(null))}>
+                      {t("mgmt.plan.week.removeDay")}
+                    </Button>
+                  )}
+                </div>
+              </>
+  );
+
+  /** Phone: the chosen day as a list of hours; a block covers as many hours as it lasts. */
+  const dayList = () => {
+    const daySlots = slots.filter((s) => s.weekday === day).sort((a, b) => a.startMin - b.startMin);
+    const dayLive = extras.filter((e) => {
+      const st = new Date(e.startAt);
+      return Math.floor((new Date(st.getFullYear(), st.getMonth(), st.getDate()).getTime() - weekFrom.getTime()) / 86400_000 + 0.5) === day;
+    });
+    const rows: ReactElement[] = [];
+    // The night is folded away unless something is planned in it.
+    const from = night || daySlots.some((x) => x.startMin < 360) ? 0 : 6;
+    for (let h = from; h < 24; ) {
+      const s = daySlots.find((x) => x.startMin <= h * 60 && x.startMin + x.durationMin > h * 60);
+      if (s) {
+        const hours = Math.max(1, Math.ceil((s.startMin + s.durationMin) / 60) - h);
+        const b = s.blockId ? blockById.get(s.blockId) : undefined;
+        rows.push(
+          <li key={`s${s.id}-${h}`} className="flex gap-2">
+            <span className="w-11 shrink-0 pt-2 font-mono text-[11px] text-muted">{hh(s.startMin)}</span>
+            <button onClick={() => setSel(s.id)} className="min-w-0 flex-1 rounded-xl px-3 py-2 text-left text-white shadow-sm" style={{ background: color(s), minHeight: 44 * hours + 6 * (hours - 1) }}>
+              <span className="block truncate text-sm font-semibold">{label(s)}</span>
+              <span className="block truncate text-xs opacity-85">
+                {hh(s.startMin)}–{hh((s.startMin + s.durationMin) % 1440)}
+                {b ? ` · ${fmtDuration(b.durationMs)}` : !simple(s) ? ` · ${t("mgmt.plan.week.advancedSlot")}` : ""}
+              </span>
+            </button>
+          </li>,
+        );
+        h += hours;
+      } else {
+        const hour = h;
+        rows.push(
+          <li key={`e${h}`} className="flex gap-2">
+            <span className="w-11 shrink-0 pt-3 font-mono text-[11px] text-muted">{hh(h * 60)}</span>
+            {canEdit ? (
+              <button onClick={() => setPickHour(hour)} className="flex min-h-11 flex-1 items-center gap-2 rounded-xl border-[1.5px] border-dashed border-line px-3 text-sm text-muted active:bg-brand/5">
+                <Plus className="size-4" />
+                {t("mgmt.plan.week.pickBlock")}
+              </button>
+            ) : (
+              <span className="min-h-11 flex-1 rounded-xl border border-line" />
+            )}
+          </li>,
+        );
+        h += 1;
+      }
+    }
+    return (
+      <>
+        <div className="mb-3 flex gap-1">
+          {DAYS.map((d) => (
+            <button key={d} onClick={() => setDay(d)} className={cx("min-w-0 flex-1 rounded-lg border py-1.5 text-center text-[11px] font-semibold capitalize", d === day ? "border-brand bg-brand text-white" : "border-line bg-surface", d === today && d !== day && "text-onair")}>
+              {dayName(d).slice(0, 2)}
+              <span className="block text-sm">{dateOf(d).getDate()}</span>
+            </button>
+          ))}
+        </div>
+        {dayLive.map((e) => {
+          const st = new Date(e.startAt);
+          const en = new Date(e.endAt);
+          return (
+            <div key={`l${e.id}`} className="mb-2 flex items-center gap-2 rounded-xl border-2 border-onair bg-onair/90 px-3 py-2 text-sm font-semibold text-white">
+              <Radio className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">
+                {e.programTitle}
+                <span className="block text-xs font-medium opacity-90">
+                  {hh(st.getHours() * 60 + st.getMinutes())}–{hh(en.getHours() * 60 + en.getMinutes())} · {t("mgmt.plan.live.over")}
+                </span>
+              </span>
+              {canEdit && (
+                <button className="rounded p-1.5 hover:bg-white/20" onClick={() => void run(() => del(`/api/schedule/${e.id}`)).then(() => sched.reload())} aria-label={t("common.delete")}>
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {from > 0 && (
+          <button onClick={() => setNight(true)} className="mb-2 w-full rounded-lg py-1.5 text-xs font-medium text-muted hover:text-brand">
+            {t("mgmt.plan.week.showNight")}
+          </button>
+        )}
+        <ol className="space-y-1.5">{rows}</ol>
+        <Dialog open={pickHour != null} onClose={() => setPickHour(null)} title={t("mgmt.plan.week.pickTitle", { day: dayName(day), time: hh((pickHour ?? 0) * 60) })}>
+          <ul className="space-y-1.5">
+            {blocks.data?.blocks
+              .filter((b) => b.id !== opener)
+              .map((b) => (
+                <li key={b.id}>
+                  <button
+                    onClick={() => {
+                      if (pickHour != null) place(b.id, day, pickHour);
+                      setPickHour(null);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-surface px-3 py-2.5 text-left active:border-brand"
+                  >
+                    <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: b.color }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{b.name}</span>
+                      <span className="block text-xs text-muted">{fmtDuration(b.durationMs)}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            {blocks.data && !blocks.data.blocks.length && <li className="py-6 text-center text-sm text-muted">{t("mgmt.plan.week.noBlocks")}</li>}
+          </ul>
+        </Dialog>
+        <Dialog open={!!selected} onClose={() => setSel(null)} title={selected ? label(selected) : ""}>
+          <div className="space-y-3">{selectedPanel}</div>
+        </Dialog>
+      </>
+    );
+  };
+
   return (
     <>
       <PageHeader
         title={t("mgmt.plan.week.title")}
-        description={t("mgmt.plan.week.intro")}
+        description={t(phone ? "mgmt.plan.week.introPhone" : "mgmt.plan.week.intro")}
         actions={
           <>
           {canEdit && channel && (
@@ -285,6 +485,9 @@ export function WeekPlanPage() {
         </Alert>
       )}
       {channel && <LiveDialog open={liveOpen} onClose={() => setLiveOpen(false)} channelId={channel.id} onDone={(text) => (setMsg({ tone: "ok", text }), void sched.reload())} />}
+      {phone ? (
+        dayList()
+      ) : (
       <div data-wide-page className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <Card className="min-w-0 overflow-hidden">
           <div ref={scroller} className="max-h-[72vh] overflow-auto">
@@ -398,83 +601,9 @@ export function WeekPlanPage() {
         </Card>
 
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          {selected && (
+          {selected && !phone && (
             <Card>
-              <CardBody className="space-y-3">
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 size-3 shrink-0 rounded" style={{ background: color(selected) }} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{label(selected)}</p>
-                    <p className="text-xs text-muted">
-                      {hh(selected.startMin)}–{hh((selected.startMin + selected.durationMin) % 1440)} · {t("mgmt.plan.week.everyWeek")}
-                    </p>
-                  </div>
-                  <button className="rounded p-1 text-muted hover:bg-surface-2" onClick={() => setSel(null)} aria-label={t("common.close")}>
-                    <X className="size-4" />
-                  </button>
-                </div>
-                <div>
-                  <p className="mb-1.5 text-xs text-muted">{t("mgmt.plan.week.days")}</p>
-                  <div className="flex gap-1">
-                    {DAYS.map((d) => {
-                      const on = series.includes(d);
-                      return (
-                        <button
-                          key={d}
-                          disabled={!canEdit}
-                          onClick={() => setDays(on ? series.filter((x) => x !== d) : [...series, d].sort())}
-                          className={cx("h-8 min-w-0 flex-1 rounded-md border text-xs font-semibold capitalize transition", on ? "border-brand bg-brand text-white" : "border-line bg-surface hover:border-brand/50")}
-                        >
-                          {dayName(d).slice(0, 2)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {[
-                      ["weekdays", [0, 1, 2, 3, 4]],
-                      ["weekend", [5, 6]],
-                      ["all", DAYS],
-                    ].map(([k, days]) => (
-                      <button key={k as string} disabled={!canEdit} onClick={() => setDays(days as number[])} className="rounded-full border border-line px-2.5 py-0.5 text-[11px] font-medium hover:border-brand/50">
-                        {t(`mgmt.plan.week.preset.${k}`)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {simple(selected) && (
-                  <label className="block text-xs text-muted">
-                    {t("mgmt.plan.week.length")}
-                    <Select className="mt-1" value={selected.durationMin} disabled={!canEdit} onChange={(e) => setLength(Number(e.target.value))}>
-                      {Array.from({ length: Math.max(1, Math.floor(maxLength(selected) / 60)) }, (_, i) => (i + 1) * 60).concat(selected.durationMin % 60 ? [selected.durationMin] : []).map((m) => (
-                        <option key={m} value={m}>
-                          {t("mgmt.plan.week.hours", { count: m / 60 })}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-                )}
-                {!simple(selected) && <p className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">{t("mgmt.plan.week.advancedHint")}</p>}
-                <div className="flex flex-wrap gap-2">
-                  {selected.blockId && (
-                    <Link to={`/blocks/${selected.blockId}`}>
-                      <Button size="sm" variant="secondary" icon={<Pencil className="size-3.5" />}>
-                        {t("mgmt.plan.week.openBlock")}
-                      </Button>
-                    </Link>
-                  )}
-                  <Link to={`/rundowns/${selected.id}/${isoDate(dateOf(selected.weekday))}`}>
-                    <Button size="sm" variant="ghost" icon={<CalendarDays className="size-3.5" />}>
-                      {t("mgmt.plan.week.onlyDate", { date: dateOf(selected.weekday).toLocaleDateString(i18n.language, { day: "numeric", month: "short" }) })}
-                    </Button>
-                  </Link>
-                  {canEdit && (
-                    <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={() => void run(() => del(`/api/week/slots/${selected.id}`)).then(() => setSel(null))}>
-                      {t("mgmt.plan.week.removeDay")}
-                    </Button>
-                  )}
-                </div>
-              </CardBody>
+              <CardBody className="space-y-3">{selectedPanel}</CardBody>
             </Card>
           )}
           <Card>
@@ -522,6 +651,7 @@ export function WeekPlanPage() {
           </Card>
         </div>
       </div>
+      )}
     </>
   );
 }

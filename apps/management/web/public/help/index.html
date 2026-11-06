@@ -87,6 +87,7 @@ h3 { font: 700 21px/1.25 var(--display); margin: 0; text-wrap: balance; }
 .donebox { display: flex; align-items: center; gap: 9px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; color: var(--muted); cursor: pointer; width: fit-content; }
 .donebox input { width: 18px; height: 18px; accent-color: var(--ok); cursor: pointer; }
 .shots { display: grid; gap: 12px; }
+.shots.phone { grid-template-columns: 1fr 1fr; max-width: 460px; }
 figure { margin: 0; }
 .shot { display: block; padding: 0; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; cursor: zoom-in; background: var(--surface-2); width: 100%; }
 .shot img { display: block; width: 100%; height: auto; }
@@ -195,6 +196,7 @@ details p, details ul { margin: 0 0 14px; color: var(--fg); }
   .shot img { max-height: 98mm; width: auto; max-width: 100%; margin: 0 auto; }
   .shot { width: fit-content; max-width: 100%; margin: 0 auto; }
   .step .shots { grid-template-columns: 1fr; }
+  .step .shots.phone { grid-template-columns: 1fr 1fr; max-width: 120mm; }
   .steps { gap: 0; }
   details { break-inside: avoid; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0; }
   details > summary { list-style: none; }
@@ -243,7 +245,9 @@ const CH = [
   video: { src: 'video/video-4-opnames.mp4', poster: 'video/video-4-opnames.jpg', len: '0:44', title: 'Een opname knippen en herhalen', text: 'Begin en einde zetten, naar de bibliotheek, en met een snelknop een herhaling inplannen.' } },
 { id: 'regionaal', short: 'Regionale info', title: 'Verkeer, evenementen, raad en 112', eyebrow: 'Hoofdstuk 5', where: ['Bibliotheek', 'Beeldkranten', 'Regionaal'],
   lead: 'Kant-en-klare beeldkranten met regionale informatie voor Velsen, Beverwijk en Heemskerk: files en wegwerkzaamheden, evenementen, de agenda van de gemeenteraden en 112-meldingen. Je zet een bron aan, maakt er met één klik een beeldkrant van en zet die in een uurblok. Daarna ververst alles vanzelf.' },
-{ id: 'backup', short: 'Back-ups', title: 'Back-ups naar de NAS of OneDrive', eyebrow: 'Hoofdstuk 6 · beheer', where: ['Systeem', 'Back-up en herstel'],
+{ id: 'mobiel', short: 'Op je telefoon', title: 'Plannen met je telefoon', eyebrow: 'Hoofdstuk 6', where: ['Inloggen op je telefoon'],
+  lead: 'Log je in op je telefoon, dan past het scherm zich vanzelf aan. Het menu staat onderin, blokken versleep je met je vinger en de weekplanning toont één dag tegelijk.' },
+{ id: 'backup', short: 'Back-ups', title: 'Back-ups naar de NAS of OneDrive', eyebrow: 'Hoofdstuk 7 · beheer', where: ['Systeem', 'Back-up en herstel'],
   lead: 'Voor beheerders. De app maakt zelf back-ups van de planning, instellingen en bestanden, en zet ze op een veilige plek buiten de server: een share op de NAS (SMB) of een OneDrive. Ook de orchestrator heeft dit scherm. Gaat er iets mis, dan zet je met een paar klikken een back-up terug.' },
 { id: 'vragen', short: 'Vragen', title: 'Vragen en problemen', eyebrow: 'Naslag', lead: 'Iets werkt anders dan je verwacht? Hier staan de meest gestelde vragen, en een spiekbriefje met waar alles staat.' },
 ];
@@ -359,6 +363,19 @@ backup: [
    b: `<ol><li>Zet onder <b>Planning</b> ${ui('Back-ups automatisch uitvoeren')} aan en klik de locaties aan bij <b>Back-up naar</b>. Standaard: op zondag om 03:00 een volledige back-up, de andere dagen een incrementele.</li><li>Onder <b>Geschiedenis</b> zie je of het gelukt is. Mislukt er een, dan krijgt de beheerder een mail.</li><li>Terugzetten: kies rechts de locatie, klik op ${ui('Back-ups tonen')} en daarna op ${ui('Herstellen')} bij de goede datum.</li></ol>
    <div class="warn"><b>Herstellen vervangt alles</b>De huidige planning en instellingen worden vervangen door die van de back-up en de app start opnieuw op. Dit werkt ook op een nieuwe, lege installatie.</div>` },
 ],
+mobiel: [
+ { t: 'Het menu onderin', phone: true, img: ['70-mobiel-nu-op-tv', 'Nu op TV op een telefoon, met onderin de knoppen Nu op TV, Week, Blokken, Bibliotheek en Meer.'], img2: ['71-mobiel-meer', 'Het volledige menu dat opent met Meer, met onderaan Desktopweergave gebruiken.'],
+   b: `<p>Open de app in de browser van je telefoon en log in zoals altijd. Onderin zie je vijf knoppen:</p><ul><li>${ui('Nu op TV')}, ${ui('Week')}, ${ui('Blokken')} en ${ui('Bibliotheek')}: de vier dingen die je het meest gebruikt.</li><li>${ui('Meer')}: het hele menu, met alle andere pagina’s, de Info-knop en uitloggen.</li></ul>
+   <div class="tip"><b>Toch het gewone scherm?</b>Tik op ${ui('Meer')} en onderaan op ${ui('Desktopweergave gebruiken')}. Je krijgt dan het scherm van de computer, kleiner. Met ${ui('Mobiele weergave gebruiken')} ga je weer terug. Je telefoon onthoudt je keuze.</div>` },
+ { t: 'Een blok openen', phone: true, img: ['77-mobiel-blokken', 'De lijst met blokken op een telefoon.'], img2: ['74-mobiel-blok', 'Een geopend blok met de rundown en links bovenaan Alle blokken.'],
+   b: `<p>Tik op ${ui('Blokken')} en kies een blok. Het blok vult het hele scherm. Met ${ui('‹ Alle blokken')} bovenaan ga je terug naar de lijst.</p><p>Alles uit hoofdstuk 1 werkt hier ook: de uurbalk, ${ui('Opslaan')} en ${ui('Vul de rest van het uur met')}.</p>` },
+ { t: 'Slepen met je vinger', phone: true, img: ['75-mobiel-slepen', 'Een item wordt met de vinger naar een andere plek in de rundown gesleept.'],
+   b: `<ol><li>${m(1)} Houd een item in de rundown <b>even vast</b>, ongeveer een halve seconde, tot het loskomt en je telefoon kort trilt.</li><li>${m(2)} Schuif het zonder los te laten naar de nieuwe plek. Kom je bij de rand van het scherm, dan schuift de lijst vanzelf mee.</li><li>${m(3)} Laat los. Klaar.</li></ol><p>Veeg je meteen, zonder vast te houden, dan scrol je gewoon door de lijst. Liever geen slepen? De pijltjes rechts van elk item schuiven het één plek op of neer.</p>` },
+ { t: 'Clips toevoegen door aan te vinken', phone: true, img: ['76-mobiel-clips-kiezen', 'Het venster Media toevoegen dat van onderen omhoog schuift, met twee aangevinkte clips.'],
+   b: `<p>Op een telefoon staat de bibliotheek niet naast het blok. Tik in het blok op ${ui('Media toevoegen')}. Van onderen schuift een lijst omhoog:</p><ol><li>Zoek of blader naar de clip.</li><li>Tik de clips aan die je wilt toevoegen. Je kunt er meerdere tegelijk kiezen.</li><li>Tik op ${ui('Toevoegen')}. Ze komen onderaan het blok.</li></ol>` },
+ { t: 'De week per dag', phone: true, img: ['72-mobiel-week', 'De weekplanning op een telefoon met de dagen Ma tot Zo bovenaan en de uren van vrijdag.'], img2: ['73-mobiel-kies-blok', 'Het venster om een blok te kiezen voor een leeg uur.'],
+   b: `<p>Tik op ${ui('Week')}. Je ziet één dag tegelijk; met de knoppen ${ui('Ma')} tot ${ui('Zo')} bovenaan kies je een andere dag.</p><ul><li>Bij een leeg uur tik je op ${ui('+ Blok kiezen')} en kies je het blok. Het komt dan elke week op die dag en dat uur.</li><li>Tik op een blok dat er al staat om de dagen, de lengte of <i>alleen deze datum</i> te wijzigen, net als in hoofdstuk 2.</li><li>De nacht van 00:00 tot 06:00 is ingeklapt. Tik op ${ui('00:00–06:00 tonen')} om die uren ook te zien.</li></ul>` },
+],
 };
 
 const FAQ = [
@@ -384,6 +401,7 @@ const CHEAT = [
  ['Programmagids', 'Wat de kijker in de gids ziet.'], ['Regionaal', 'Bibliotheek → Beeldkranten → Regionaal: verkeer, evenementen, raad, 112.'], ['Kanaal & lagen', 'Logo, klok, ticker en de vaste start van elk uur.'],
  ['Back-up en herstel', 'Systeem → Back-up en herstel: back-ups naar de NAS (SMB), OneDrive, SCP of FTP, en terugzetten.'],
  ['Info › Wat is er nieuw', 'Per versie wat er in de app veranderd is.'],
+ ['Op je telefoon', 'Menu onderin; Meer → Desktopweergave gebruiken voor het gewone scherm.'],
 ];
 
 // Progress (per viewer, this browser only)
@@ -403,7 +421,7 @@ function chapterHTML(c, idx) {
     h += '<div class="steps">';
     STEPS[c.id].forEach((s, i) => {
       const key = `${c.id}-${i}`;
-      h += `<article class="step${s.text ? ' textonly' : ''}${done[key] ? ' done' : ''}" id="${key}"><div class="step-text"><div class="step-head"><span class="num">${i + 1}</span><h3>${s.t}</h3></div>${s.b}<label class="donebox"><input type="checkbox" data-key="${key}" ${done[key] ? 'checked' : ''}> Gedaan</label></div>${s.img ? `<div class="shots">${fig(s.img)}${fig(s.img2)}</div>` : ''}</article>`;
+      h += `<article class="step${s.text ? ' textonly' : ''}${done[key] ? ' done' : ''}" id="${key}"><div class="step-text"><div class="step-head"><span class="num">${i + 1}</span><h3>${s.t}</h3></div>${s.b}<label class="donebox"><input type="checkbox" data-key="${key}" ${done[key] ? 'checked' : ''}> Gedaan</label></div>${s.img ? `<div class="shots${s.phone ? ' phone' : ''}">${fig(s.img)}${fig(s.img2)}</div>` : ''}</article>`;
     });
     h += '</div>';
   }
