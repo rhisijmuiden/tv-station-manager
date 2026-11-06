@@ -19,7 +19,7 @@ import { publicUrl } from "./director.js";
 import { beeldkrantPages, beeldkrantSettings } from "./beeldkrantdb.js";
 import { loadRegional } from "./regional.js";
 import type { RegionalItem, RegionalSource } from "./regionallogic.js";
-import { beeldkrantDuration, beeldkrantSchema, mergeItems, parseFeed, wpPostsToItems, wpSite, wpUrls, type BeeldkrantSettings, type FeedItem, type WpCategory } from "./rsslogic.js";
+import { beeldkrantDuration, beeldkrantSchema, screenCount, mergeItems, parseFeed, wpPostsToItems, wpSite, wpUrls, type BeeldkrantSettings, type FeedItem, type WpCategory } from "./rsslogic.js";
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_FEED_BYTES = 8 * 1024 * 1024;
@@ -343,7 +343,7 @@ export function registerRss(app: FastifyInstance, platform: Platform, rss: RssFe
     if (!b) throw new HttpError(404, "not_found");
     const pages = rss.pages(b.settings, b.feedIds, false).length;
     const usedIn = (db.prepare("SELECT COUNT(DISTINCT block_id) AS n FROM block_items WHERE beeldkrant_id = ?").get(id) as { n: number }).n;
-    return { id, name: b.name, feedIds: b.feedIds, settings: b.settings, pageCount: pages, durationMs: beeldkrantDuration(b.settings, pages), usedIn, pageUrl: `${publicUrl(platform)}/beeldkrant/page.html?id=${id}` };
+    return { id, name: b.name, feedIds: b.feedIds, settings: b.settings, pageCount: screenCount(b.settings, pages), itemCount: pages, durationMs: beeldkrantDuration(b.settings, pages), usedIn, pageUrl: `${publicUrl(platform)}/beeldkrant/page.html?id=${id}` };
   };
   const saveFeeds = (id: number, feedIds: number[]) => {
     db.prepare("DELETE FROM beeldkrant_feeds WHERE beeldkrant_id = ?").run(id);

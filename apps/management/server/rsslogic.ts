@@ -291,6 +291,8 @@ export const LAYOUTS = ["photo-left", "photo-right", "photo-top", "photo-full", 
 export const beeldkrantSchema = z.object({
   /** How long each page (news item) stays on screen. */
   secondsPerPage: z.number().int().min(3).max(300).default(12),
+  /** Items shown together on one page: 1 = one big item, more = a list (titles + short text, no photos). */
+  itemsPerPage: z.number().int().min(1).max(6).default(1),
   /** Most recent items shown (over all feeds). */
   maxItems: z.number().int().min(1).max(100).default(10),
   /** Items older than this are left out (0 = no limit). */
@@ -389,9 +391,14 @@ export function buildPages(items: StoredItem[], s: BeeldkrantSettings, feedNames
     });
 }
 
-/** Default on-air length of a beeldkrant: one pass of all pages (at least one page), or the fixed time. */
-export function beeldkrantDuration(s: BeeldkrantSettings, pageCount: number) {
-  return s.duration.mode === "fixed" ? s.duration.fixedSeconds * 1000 : Math.max(1, pageCount) * s.secondsPerPage * 1000;
+/** Screens on air for `itemCount` items: `itemsPerPage` items share one screen. */
+export function screenCount(s: Pick<BeeldkrantSettings, "itemsPerPage">, itemCount: number) {
+  return Math.ceil(itemCount / Math.max(1, s.itemsPerPage ?? 1));
+}
+
+/** Default on-air length of a beeldkrant: one pass of all screens (at least one), or the fixed time. */
+export function beeldkrantDuration(s: BeeldkrantSettings, itemCount: number) {
+  return s.duration.mode === "fixed" ? s.duration.fixedSeconds * 1000 : Math.max(1, screenCount(s, itemCount)) * s.secondsPerPage * 1000;
 }
 
 /** The page on screen at `now` for a beeldkrant that started at `start` (pages loop). */

@@ -9,7 +9,7 @@ import { test } from "node:test";
 import { createPlatform, type Platform } from "@tvsm/platform";
 import { managementOptions, type ManagementHandles } from "../server/app.ts";
 import type { DriverFactory, PlayoutDriver, SwitcherDriver, SwitcherInfo } from "../server/drivers.ts";
-import { beeldkrantDuration, beeldkrantSchema, buildPages, htmlToText, pageAt, parseFeed, truncate, wpPostsToItems, wpSite, wpUrls } from "../server/rsslogic.ts";
+import { beeldkrantDuration, beeldkrantSchema, buildPages, screenCount, htmlToText, pageAt, parseFeed, truncate, wpPostsToItems, wpSite, wpUrls } from "../server/rsslogic.ts";
 
 // ---- pure logic ---------------------------------------------------------------
 
@@ -112,6 +112,10 @@ test("beeldkrant: text is cut to the maximum, pages follow the settings", () => 
 
   assert.equal(beeldkrantDuration(s, 5), 5 * 12_000);
   assert.equal(beeldkrantDuration(s, 0), 12_000);
+  // Four items per page: 5 items = 2 screens.
+  assert.equal(beeldkrantDuration({ ...s, itemsPerPage: 4 }, 5), 2 * 12_000);
+  assert.equal(screenCount({ itemsPerPage: 3 }, 6), 2);
+  assert.equal(screenCount({ itemsPerPage: 1 }, 6), 6);
   assert.equal(beeldkrantDuration({ ...s, duration: { mode: "fixed", fixedSeconds: 300 } }, 5), 300_000);
   assert.deepEqual(pageAt(0, 25_000, 3, 10), { index: 2, elapsedMs: 5000 });
   assert.deepEqual(pageAt(0, 31_000, 3, 10), { index: 0, elapsedMs: 1000 });

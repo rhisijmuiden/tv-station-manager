@@ -4,9 +4,10 @@
  * `ticker` = height of the channel's news ticker when it stays on air over the beeldkrant: the footer moves up.
  * It fetches `/beeldkrant/<id>/data.json` (settings + pages) every minute and shows page
  * floor((now - start) / secondsPerPage) mod pageCount, so a restart or a second output shows the same page.
+ * With settings.itemsPerPage > 1 a page is a list of that many items (title, time, two lines of text, no photo).
  * The clock is corrected with the management node's time (serverTime).
  * Preview: `page.html?preview=1` in an iframe of the editor gets { type: "beeldkrant", settings, pages, logoUrl, pin }
- * through postMessage (pin = page index to hold, or null to cycle).
+ * through postMessage (pin = screen index to hold, or null to cycle).
  */
 export const BEELDKRANT_PAGE = `<!doctype html>
 <html>
@@ -68,6 +69,15 @@ export const BEELDKRANT_PAGE = `<!doctype html>
   .l-text .copy { max-width: 1500px; }
   .l-text .title { font-size: calc(80px * var(--scale)); }
   .l-text .text { font-size: calc(42px * var(--scale)); }
+  .l-list .box { top: 180px; }
+  .l-list .copy { justify-content: flex-start; gap: calc(26px * var(--scale)); }
+  .l-list .row { display: flex; gap: 26px; padding: calc(22px * var(--scale)) 32px; border-radius: 18px; background: color-mix(in srgb, var(--panel) 42%, transparent); border-left: 8px solid var(--accent); }
+  .l-list .row > div { min-width: 0; flex: 1; }
+  .l-list .meta { margin-bottom: 8px; font-size: calc(24px * var(--scale)); }
+  .l-list .chip { font-size: calc(20px * var(--scale)); padding: 5px 14px; }
+  .l-list .title { font-size: calc(46px * var(--scale)); line-height: 1.12; margin: 0 0 8px; }
+  .l-list .text { font-size: calc(30px * var(--scale)); line-height: 1.34; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .l-list .row.n4 .text, .l-list .row.n5 .text, .l-list .row.n6 .text { -webkit-line-clamp: 1; }
   .empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 48px; font-weight: 600; opacity: .85; text-align: center; padding: 0 200px; }
 </style>
 </head>
@@ -150,11 +160,35 @@ export const BEELDKRANT_PAGE = `<!doctype html>
     box.appendChild(copy); page.appendChild(box);
     return page;
   }
+  /** Several items on one page: a list of rows (no photos), shrunk together until it fits. */
+  function renderList(list, s) {
+    var page = el("div", "page l-list"), box = el("div", "box"), copy = el("div", "copy");
+    list.forEach(function (p) {
+      var row = el("div", "row n" + list.length), inner = el("div");
+      var meta = el("div", "meta");
+      if (s.show.category && p.category) meta.appendChild(el("span", "chip", p.category));
+      if (s.show.date && p.date) meta.appendChild(el("span", "when", when(p.date)));
+      if (meta.childNodes.length) inner.appendChild(meta);
+      inner.appendChild(el("h1", "title", p.title));
+      if (p.text) inner.appendChild(el("div", "text", p.text));
+      if (s.show.source && p.source) inner.appendChild(el("div", "src", p.source));
+      row.appendChild(inner); copy.appendChild(row);
+    });
+    box.appendChild(copy); page.appendChild(box);
+    return page;
+  }
+  function fitList(page) {
+    var copy = page.querySelector(".copy"), boxH = copy.parentNode.clientHeight;
+    for (var f = 1; f >= 0.55; f -= 0.05) {
+      page.style.setProperty("--scale", String(sizeScale() * f));
+      if (copy.scrollHeight <= boxH + 1) return;
+    }
+  }
   function show(key, make) {
     if (shown.key === key) return;
     var stage = $("stage"), old = shown.el, page = make();
     stage.appendChild(page);
-    if (page.querySelector(".copy")) fit(page);
+    if (page.classList.contains("l-list")) fitList(page); else if (page.querySelector(".copy")) fit(page);
     void page.offsetWidth;
     page.classList.add("on");
     if (old) { old.classList.remove("on"); old.classList.add("off"); setTimeout(function () { old.remove(); }, 1500); }
@@ -185,12 +219,15 @@ export const BEELDKRANT_PAGE = `<!doctype html>
     var ds = t.toLocaleDateString(lang(), { weekday: "long", day: "numeric", month: "long" });
     setText("date", ds.charAt(0).toUpperCase() + ds.slice(1));
     if (!data) return;
-    var s = data.settings, pages = data.pages || [], n = pages.length, per = s.secondsPerPage * 1000;
+    var s = data.settings, items = data.pages || [], per = s.secondsPerPage * 1000, ipp = Math.max(1, s.itemsPerPage || 1);
+    var pages = [];
+    for (var i = 0; i < items.length; i += ipp) pages.push(items.slice(i, i + ipp));
+    var n = pages.length;
     if (!n) { setText("num", ""); setProgress(0); show("empty:" + s.emptyText, function () { var e = el("div", "page"); e.appendChild(el("div", "empty", s.emptyText)); return e; }); return; }
     var elapsed = Math.max(0, now() - start), idx = pin != null ? Math.min(pin, n - 1) : Math.floor(elapsed / per) % n;
     var p = pages[idx];
-    show(JSON.stringify([p, s]), function () { return render(p, s); });
-    preload(pages[(idx + 1) % n]);
+    show(JSON.stringify([p, s]), function () { return ipp > 1 ? renderList(p, s) : render(p[0], s); });
+    if (ipp === 1) preload(pages[(idx + 1) % n][0]);
     setText("num", (idx + 1) + " / " + n);
     setProgress(pin != null ? 1 : (elapsed % per) / per);
   }

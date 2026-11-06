@@ -32,6 +32,6 @@ A beeldkrant is an item in a TV block (`block_items.type = 'beeldkrant'`). **Mak
 
 ## On air
 
-The director plays `PLAY <ch>-10 [HTML] "<publicUrl>/beeldkrant/page.html?id=<id>&start=<epoch ms>"` on the playout layer and keeps the ATEM on the playout input. The page (1920×1080) loads `/beeldkrant/<id>/data.json` every minute and shows page `floor((now - start) / secondsPerPage) mod pages`, corrected with the management node's clock, so a restart picks up the same page. Set **Settings → public URL** of the management node so the studio node can reach it.
+The director plays `PLAY <ch>-10 [HTML] "<publicUrl>/beeldkrant/page.html?id=<id>&start=<epoch ms>"` on the playout layer and keeps the ATEM on the playout input. The page (1920×1080) loads `/beeldkrant/<id>/data.json` every minute and shows page `floor((now - start) / secondsPerPage) mod pages`, corrected with the management node's clock, so a restart picks up the same page. With `itemsPerPage` > 1 (1–6) a page is a list of that many items (headline, time, short text, no photo); the duration and page numbers count these screens (`screenCount`). Set **Settings → public URL** of the management node so the studio node can reach it.
 
 Code: `server/rsslogic.ts` (pure: parsing, WordPress, text cutting, pages), `server/rss.ts` (feeds, fetching, routes), `server/beeldkrantdb.ts`, `server/beeldkrant-page.ts` (the HTML page), `web/pages/Beeldkrant.tsx`. Tests: `test/beeldkrant.test.ts`.

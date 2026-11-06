@@ -372,6 +372,7 @@ test("regional: sources switched on by the editors feed beeldkranten", async () 
   const data = async () => (await api("GET", `/beeldkrant/${bk.body.beeldkrantId}/data.json`)).body;
   assert.equal((await data()).pages.length, 0); // nothing approved yet
   assert.equal((await data()).settings.headerText, "112 IJmond");
+  assert.equal((await data()).settings.itemsPerPage, 4);
   for (const i of items) await api("POST", `/api/regional/items/${i.id}/approve`);
   // The fire is 30 minutes old (delay 20): on air. The gas leak is 2 minutes old: waits.
   assert.deepEqual((await data()).pages.map((x: { title: string }) => x.title), ["Woningbrand in IJmuiden"]);
