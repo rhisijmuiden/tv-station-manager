@@ -1,0 +1,16 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    22,
+    28
+  ],
+  "changes": [
+    {
+      "kind": "removed",
+      "en": "Visual Radio was tried and then parked for later, so the focus stays on the basic planning.",
+      "nl": "Visual Radio is uitgeprobeerd en daarna geparkeerd voor later, zodat de aandacht bij de basisplanning blijft."
+    }
+  ]
+}

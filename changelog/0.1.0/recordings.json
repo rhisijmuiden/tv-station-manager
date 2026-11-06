@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    27
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Recordings: incoming live streams are recorded, can be trimmed, and go into the library or are planned as a repeat.",
+      "nl": "Opnames: binnenkomende livestreams worden opgenomen, kunnen worden ingekort en gaan naar de bibliotheek of worden ingepland als herhaling."
+    }
+  ]
+}

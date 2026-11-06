@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    47
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "When an hour block is not full, the rest of the hour is filled with a beeldkrant or webcam.",
+      "nl": "Als een uurblok niet vol is, wordt de rest van het uur gevuld met een beeldkrant of webcam."
+    }
+  ]
+}

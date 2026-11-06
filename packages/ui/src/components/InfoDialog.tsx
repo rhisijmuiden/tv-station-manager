@@ -1,4 +1,4 @@
-import { ArrowUpCircle, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import { ArrowUpCircle, CheckCircle2, ExternalLink, RefreshCw, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -165,6 +165,17 @@ export function InfoDialog({ open, onClose, logo }: { open: boolean; onClose: ()
           </div>
         ))}
       </dl>
+      <button
+        type="button"
+        onClick={() => (onClose(), navigate("/system/changelog"))}
+        className="mb-5 flex w-full items-center gap-3 rounded-md border border-line bg-surface-2/60 px-4 py-3 text-left text-sm hover:border-brand"
+      >
+        <Sparkles className="size-5 text-brand" />
+        <span className="flex-1">
+          <span className="block font-medium">{t("info.whatsNew")}</span>
+          <span className="block text-xs text-muted">{t("info.whatsNewHint")}</span>
+        </span>
+      </button>
       <UpdateStatus compact />
     </Dialog>
   );

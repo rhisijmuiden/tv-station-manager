@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [
+    57
+  ],
+  "changes": [
+    {
+      "kind": "improved",
+      "en": "New monitoring page: devices in layers along the signal path, as a 2D overview and a 3D room.",
+      "nl": "Nieuwe monitoringpagina: apparaten in lagen langs het signaalpad, als 2D-overzicht en als 3D-ruimte."
+    }
+  ]
+}

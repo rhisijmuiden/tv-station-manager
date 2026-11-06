@@ -33,6 +33,8 @@ Monorepo (pnpm workspaces, TypeScript, Node 24).
 Rules:
 - Every user-facing string goes through i18n with both `en` and `nl` keys.
 - Admin UIs keep the menu on the left and the Info button (version, check/install updates) in the sidebar.
+- Every feature PR adds a changelog file `changelog/<package.json version>/<feature>.json` (EN + NL, kinds added/changed/improved/fixed/removed; shown under Info > What's new, used as release notes; see `CONTRIBUTING.md`, `docs/changelog.md`) and, when editors use it, extends the editor guide `apps/management/web/public/help/index.html`.
+- On a production release: set `date` in `changelog/<version>/release.json`, then bump the version and create the next `changelog/<next>/release.json` without a date.
 - Branches: feature branch -> PR into `test` -> merge `test` into `production`. Pushes to either publish a release (see `.github/workflows/release.yml`). Bump `package.json` version for a new production release.
 
 Commands: `pnpm install`, `pnpm typecheck`, `pnpm test`, `pnpm dev:orchestrator` (API :8080, UI :5173), `pnpm dev:management` (API :8081, UI :5174).

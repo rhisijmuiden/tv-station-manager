@@ -1,0 +1,21 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [
+    23,
+    26
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "ATEM inventory with a drawing of the front panel and renaming of inputs.",
+      "nl": "ATEM-overzicht met een tekening van het frontpaneel en het hernoemen van ingangen."
+    },
+    {
+      "kind": "added",
+      "en": "Connection diagram of all devices and cables, manual ATEM switching and an automation lock.",
+      "nl": "Aansluitschema van alle apparaten en kabels, handmatig schakelen op de ATEM en een vergrendeling voor de automatisering."
+    }
+  ]
+}

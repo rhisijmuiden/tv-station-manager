@@ -1,0 +1,22 @@
+{
+  "apps": [
+    "management",
+    "platform"
+  ],
+  "pr": [
+    59,
+    60
+  ],
+  "changes": [
+    {
+      "kind": "fixed",
+      "en": "The default password warning no longer stays after signing in with Microsoft or an admin reset.",
+      "nl": "De waarschuwing over het standaardwachtwoord blijft niet meer staan na inloggen met Microsoft of een beheerdersreset."
+    },
+    {
+      "kind": "fixed",
+      "en": "A clip whose file is missing is skipped after 10 seconds and noted in the as-run log.",
+      "nl": "Een clip waarvan het bestand ontbreekt wordt na 10 seconden overgeslagen en genoteerd in het uitzendlogboek."
+    }
+  ]
+}

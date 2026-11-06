@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    71
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Set the size and position of the channel logo, or use a full-frame 1920x1080 logo file, on Channel & layers.",
+      "nl": "Grootte en positie van het kanaallogo instellen, of een logobestand van 1920x1080 gebruiken, onder Kanaal & lagen."
+    }
+  ]
+}

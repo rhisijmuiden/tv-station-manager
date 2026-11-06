@@ -1,0 +1,21 @@
+{
+  "apps": [
+    "orchestrator",
+    "studio"
+  ],
+  "pr": [
+    65
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Agents update themselves and roll back when the new version does not start.",
+      "nl": "Agents werken zichzelf bij en gaan terug naar de vorige versie als de nieuwe niet start."
+    },
+    {
+      "kind": "added",
+      "en": "Change the role of a Windows node and install its software from the orchestrator.",
+      "nl": "De rol van een Windows-node wijzigen en de software installeren vanuit de orchestrator."
+    }
+  ]
+}

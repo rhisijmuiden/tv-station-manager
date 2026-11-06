@@ -1,0 +1,20 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [
+    61
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Teranex support, read only, so the converter in front of the live encoder is never changed.",
+      "nl": "Teranex-ondersteuning, alleen lezen, zodat de omzetter voor de live-encoder nooit wordt aangepast."
+    },
+    {
+      "kind": "removed",
+      "en": "HyperDeck support is parked; the device at that address turned out to be the Teranex.",
+      "nl": "HyperDeck-ondersteuning is geparkeerd; het apparaat op dat adres bleek de Teranex te zijn."
+    }
+  ]
+}
