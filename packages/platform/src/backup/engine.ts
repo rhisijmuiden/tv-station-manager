@@ -98,8 +98,16 @@ export class BackupEngine {
     return out;
   }
 
+  /** Merges changed settings into a stored target (used for rotated OneDrive refresh tokens). */
+  updateTargetConfig(id: number, patch: Record<string, unknown>) {
+    const row = this.ctx.db.prepare("SELECT config FROM backup_targets WHERE id = ?").get(id) as { config: string } | undefined;
+    if (!row) return;
+    const cfg = { ...this.decryptConfig(JSON.parse(row.config)), ...patch };
+    this.ctx.db.prepare("UPDATE backup_targets SET config = ? WHERE id = ?").run(JSON.stringify(this.encryptConfig(cfg)), id);
+  }
+
   target(row: BackupTargetRow): BackupTarget {
-    return createTarget(row.protocol, row.config);
+    return createTarget(row.protocol, row.config, { saveConfig: (patch) => this.updateTargetConfig(row.id, patch) });
   }
 
   // ---- backup ------------------------------------------------------------

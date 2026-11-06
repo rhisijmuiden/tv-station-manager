@@ -1,0 +1,24 @@
+{
+  "apps": [
+    "management",
+    "orchestrator"
+  ],
+  "pr": [],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Backups to an SMB share (NAS or Windows server): SMB3 with optional encryption, connection test, full and incremental backups and restore.",
+      "nl": "Back-ups naar een SMB-share (NAS of Windows-server): SMB3 met versleuteling naar keuze, verbindingstest, volledige en incrementele back-ups en herstellen."
+    },
+    {
+      "kind": "added",
+      "en": "Backups to OneDrive: connect with a Microsoft sign-in code, no password is stored. Reuses the Office 365 sign-in app registration.",
+      "nl": "Back-ups naar OneDrive: koppelen met een Microsoft-aanmeldcode, er wordt geen wachtwoord bewaard. Gebruikt de appregistratie van het aanmelden met Office 365."
+    },
+    {
+      "kind": "added",
+      "en": "New chapter Back-ups in the guide.",
+      "nl": "Nieuw hoofdstuk Back-ups in de handleiding."
+    }
+  ]
+}
