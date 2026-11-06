@@ -72,9 +72,11 @@ export function NowOnTv({ c, now, preview, onPreviewSaved }: { c: NowChannel; no
   const label = (e: NowEv) => (e.type === "filler" ? t("mgmt.control.filler") : e.title || (e.type === "lineup" ? t("mgmt.lineup.item") : e.programTitle));
 
   const p = c.program;
-  const nextItems = p ? p.items.slice(p.index + 1) : c.upcoming;
-  const shown = nextItems.slice(0, 5);
-  const more = nextItems.length - shown.length;
+  // Every item of the hour block on air (played, playing, coming), or what is scheduled next when no block is running.
+  const rows: { e: NowEv; state: "done" | "now" | "next" }[] = p
+    ? p.items.map((e, i) => ({ e, state: i < p.index ? "done" : i === p.index ? "now" : "next" }))
+    : c.upcoming.map((e) => ({ e, state: "next" }));
+  const lastInBlock = !!p && p.index >= p.items.length - 1;
   const after = p?.next ?? null;
 
   let curBox: ReactNode = <p className="text-sm text-muted">{t("mgmt.control.nothing")}</p>;
@@ -130,57 +132,71 @@ export function NowOnTv({ c, now, preview, onPreviewSaved }: { c: NowChannel; no
 
       {showPreview && <PreviewPane channelId={c.channel.id} preview={preview} onClose={() => setShowPreview(false)} onSaved={onPreviewSaved} />}
 
-      {p && (
-        <div className="border-b border-line px-5 py-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t("mgmt.now.block")}</span>
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={p.title}>
-              {p.title}
-            </span>
-            <span className="font-mono text-xs text-muted tabular-nums">
-              {fmtTime(p.startAt)}–{fmtTime(p.endAt)}
-            </span>
-          </div>
-          <Bar value={(now - ms(p.startAt)) / Math.max(1, ms(p.endAt) - ms(p.startAt))} className="mt-2 h-1" fill="bg-muted/50" />
-          <p className="mt-1 text-[11px] text-muted">{t("mgmt.now.itemOf", { n: p.index + 1, total: p.items.length })}</p>
-        </div>
-      )}
-
       {c.pending && <PendingBar channelId={c.channel.id} from={c.pending.from} className="rounded-none border-b border-line px-5" />}
 
-      <div className="px-5 py-4">{curBox}</div>
+      <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="min-w-0 border-line lg:border-r">
+          {p && (
+            <div className="border-b border-line px-5 py-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t("mgmt.now.block")}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={p.title}>
+                  {p.title}
+                </span>
+                <span className="font-mono text-xs text-muted tabular-nums">
+                  {fmtTime(p.startAt)}–{fmtTime(p.endAt)}
+                </span>
+              </div>
+              <Bar value={(now - ms(p.startAt)) / Math.max(1, ms(p.endAt) - ms(p.startAt))} className="mt-2 h-1" fill="bg-muted/50" />
+              <p className="mt-1 text-[11px] text-muted">{t("mgmt.now.itemOf", { n: p.index + 1, total: p.items.length })}</p>
+            </div>
+          )}
 
-      <div className="border-t border-line px-5 py-3">
-        <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted uppercase">{p ? t("mgmt.now.nextInBlock") : t("mgmt.control.next")}</p>
-        {shown.length ? (
-          <ol className="space-y-1.5">
-            {shown.map((e) => {
-              const Icon = typeIcon(e);
-              return (
-                <li key={e.key} className="flex items-center gap-2.5 text-sm">
-                  <span className="w-11 shrink-0 font-mono text-xs text-muted tabular-nums">{fmtTime(e.startAt)}</span>
-                  <Icon className={cx("size-3.5 shrink-0", e.type === "filler" ? "text-line" : "text-muted")} />
-                  <span className={cx("min-w-0 flex-1 truncate", e.type === "filler" && "text-muted")} title={label(e)}>
-                    {label(e)}
-                  </span>
-                  {e.warning && <Badge tone="warn">!</Badge>}
-                  <span className="shrink-0 font-mono text-xs text-muted tabular-nums">{fmtDuration(ms(e.endAt) - ms(e.startAt))}</span>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <p className="text-sm text-muted">{p ? t("mgmt.now.lastInBlock") : t("mgmt.control.emptySchedule")}</p>
-        )}
-        {more > 0 && <p className="mt-1.5 text-xs text-muted">{t("mgmt.now.more", { count: more })}</p>}
-        {after && (
-          <p className="mt-3 flex items-center gap-2 rounded-md bg-surface-2/70 px-3 py-2 text-xs">
-            <span className="font-semibold text-muted uppercase">{t("mgmt.now.after")}</span>
-            <span className="min-w-0 flex-1 truncate font-medium">{after.title}</span>
-            <span className="font-mono text-muted tabular-nums">{fmtTime(after.startAt)}</span>
-          </p>
-        )}
-        {c.lastError && <p className="mt-2 truncate text-xs text-danger">{c.lastError}</p>}
+          <div className="px-5 py-4">{curBox}</div>
+
+          {(after || c.lastError) && (
+            <div className="px-5 pb-4">
+              {after && (
+                <p className="flex items-center gap-2 rounded-md bg-surface-2/70 px-3 py-2 text-xs">
+                  <span className="font-semibold text-muted uppercase">{t("mgmt.now.after")}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{after.title}</span>
+                  <span className="font-mono text-muted tabular-nums">{fmtTime(after.startAt)}</span>
+                </p>
+              )}
+              {c.lastError && <p className="mt-2 truncate text-xs text-danger">{c.lastError}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 border-t border-line px-5 py-3 lg:border-t-0 lg:py-4">
+          <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted uppercase">{p ? t("mgmt.now.allInBlock") : t("mgmt.control.next")}</p>
+          {rows.length ? (
+            <ol className="-mx-2 space-y-0.5">
+              {rows.map(({ e, state }) => {
+                const Icon = typeIcon(e);
+                return (
+                  <li
+                    key={e.key}
+                    aria-current={state === "now" ? "true" : undefined}
+                    className={cx("flex items-center gap-2.5 rounded-md px-2 py-1 text-sm", state === "now" && "bg-onair/10 font-semibold", state === "done" && "text-muted opacity-60")}
+                  >
+                    <span className={cx("w-11 shrink-0 font-mono text-xs tabular-nums", state === "now" ? "text-onair" : "text-muted")}>{fmtTime(e.startAt)}</span>
+                    <Icon className={cx("size-3.5 shrink-0", state === "now" ? "text-onair" : e.type === "filler" ? "text-line" : "text-muted")} />
+                    <span className={cx("min-w-0 flex-1 truncate", e.type === "filler" && "text-muted")} title={label(e)}>
+                      {label(e)}
+                    </span>
+                    {state === "now" && <span className="shrink-0 text-[10px] font-semibold tracking-wide text-onair uppercase">{t("mgmt.now.nowShort")}</span>}
+                    {e.warning && <Badge tone="warn">!</Badge>}
+                    <span className="shrink-0 font-mono text-xs text-muted tabular-nums">{fmtDuration(ms(e.endAt) - ms(e.startAt))}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <p className="text-sm text-muted">{t("mgmt.control.emptySchedule")}</p>
+          )}
+          {lastInBlock && <p className="mt-2 text-xs text-muted">{t("mgmt.now.lastInBlock")}</p>}
+        </div>
       </div>
     </Card>
   );

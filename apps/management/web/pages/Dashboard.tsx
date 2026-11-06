@@ -74,7 +74,7 @@ export function Dashboard() {
       {!!live?.channels.length && (
         <section className="mb-6">
           <h2 className="mb-3 text-sm font-semibold text-muted">{t("mgmt.now.title")}</h2>
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid gap-4">
             {live.channels.map((c) => (
               <NowOnTv key={c.channel.id} c={c} now={now} preview={previews.data?.previews.find((p) => p.channelId === c.channel.id)} onPreviewSaved={() => void previews.reload()} />
             ))}

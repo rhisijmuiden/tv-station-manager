@@ -1,0 +1,18 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [],
+  "changes": [
+    {
+      "kind": "improved",
+      "en": "Now on TV on the dashboard uses the full width and lists every item of the hour block on air: played items greyed out, the current one highlighted, the rest of the hour below it. No more \"+ N more items\".",
+      "nl": "Nu op tv op het dashboard gebruikt de volle breedte en toont alle items van het uurblok dat speelt: gespeelde items grijs, het huidige gemarkeerd, de rest van het uur eronder. Geen \"+ nog N items\" meer."
+    },
+    {
+      "kind": "changed",
+      "en": "Guide: chapter Now on TV updated.",
+      "nl": "Handleiding: hoofdstuk Nu op TV bijgewerkt."
+    }
+  ]
+}
