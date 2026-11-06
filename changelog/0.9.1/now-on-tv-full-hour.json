@@ -2,7 +2,9 @@
   "apps": [
     "management"
   ],
-  "pr": [],
+  "pr": [
+    79
+  ],
   "changes": [
     {
       "kind": "improved",
