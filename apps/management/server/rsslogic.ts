@@ -345,6 +345,8 @@ export interface StoredItem {
   categories: string[];
   publishedAt: string | null;
   seenAt: string;
+  /** Fixed order of a regional source (low first); such items count as current and are never too old. */
+  rank?: number | null;
 }
 export interface Page {
   id: number;
@@ -361,7 +363,7 @@ export function buildPages(items: StoredItem[], s: BeeldkrantSettings, feedNames
   const minDate = s.maxAgeHours > 0 ? now - s.maxAgeHours * 3600_000 : -Infinity;
   const seen = new Set<string>();
   return items
-    .map((i) => ({ i, at: Date.parse(i.publishedAt ?? i.seenAt) }))
+    .map((i) => ({ i, at: i.rank != null ? now - i.rank : Date.parse(i.publishedAt ?? i.seenAt) }))
     .filter(({ at }) => !(at < minDate))
     .sort((a, b) => b.at - a.at || b.i.id - a.i.id)
     .filter(({ i }) => {

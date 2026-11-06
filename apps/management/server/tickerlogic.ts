@@ -48,6 +48,8 @@ export interface TickerHeadline {
   title: string;
   publishedAt: string | null;
   seenAt: string;
+  /** Fixed order of a regional source (traffic, events): current, in this order, without a time in front. */
+  rank?: number | null;
 }
 
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -61,7 +63,7 @@ export function tickerHeadlines(items: TickerHeadline[], s: Pick<TickerSettings,
   const seen = new Set<string>();
   const fmt = new Intl.DateTimeFormat("nl-NL", { hour: "2-digit", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) });
   return items
-    .map((i) => ({ i, title: clean(i.title), at: Date.parse(i.publishedAt ?? i.seenAt) }))
+    .map((i) => ({ i, title: clean(i.title), at: i.rank != null ? now - i.rank : Date.parse(i.publishedAt ?? i.seenAt), timed: i.rank == null }))
     .filter(({ title, at }) => title && !(at < minDate))
     .sort((a, b) => b.at - a.at || b.i.id - a.i.id)
     .filter(({ title }) => {
@@ -69,7 +71,7 @@ export function tickerHeadlines(items: TickerHeadline[], s: Pick<TickerSettings,
       return seen.has(key) ? false : (seen.add(key), true);
     })
     .slice(0, s.maxItems)
-    .map(({ title, at }) => (s.showTime && Number.isFinite(at) ? `${fmt.format(at)} ${title}` : title));
+    .map(({ title, at, timed }) => (s.showTime && timed && Number.isFinite(at) ? `${fmt.format(at)} ${title}` : title));
 }
 
 /** The pieces of text the overlay scrolls, in order. A fixed text is split on new lines into separate pieces. */
