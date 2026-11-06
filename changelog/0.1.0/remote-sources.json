@@ -1,0 +1,28 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    10,
+    12,
+    13,
+    14
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Remote sources: an RTMP or SRT stream straight to a DeckLink output, with stream keys and a guide.",
+      "nl": "Externe bronnen: een RTMP- of SRT-stream direct naar een DeckLink-uitgang, met streamsleutels en uitleg."
+    },
+    {
+      "kind": "added",
+      "en": "\"Identify outputs\" shows a test card on every output of a studio node.",
+      "nl": "\"Uitgangen identificeren\" toont een testbeeld op elke uitgang van een studionode."
+    },
+    {
+      "kind": "improved",
+      "en": "Only DeckLink outputs that the studio node really has are offered, and remote sources play again after a CasparCG restart.",
+      "nl": "Alleen DeckLink-uitgangen die de studionode echt heeft worden aangeboden, en externe bronnen spelen weer na een herstart van CasparCG."
+    }
+  ]
+}

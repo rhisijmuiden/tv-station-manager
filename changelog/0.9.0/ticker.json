@@ -1,0 +1,21 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    53,
+    55
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "News ticker with scrolling RSS headlines, with adjustable speed, size, colours and refresh, and room for it on the beeldkrant.",
+      "nl": "Nieuwsticker met lopende RSS-koppen, met instelbare snelheid, grootte, kleuren en verversing, en ruimte ervoor op de beeldkrant."
+    },
+    {
+      "kind": "fixed",
+      "en": "Overlay data (ticker, logo, clock) now reaches the CasparCG template.",
+      "nl": "De gegevens van de overlay (ticker, logo, klok) komen nu aan in de CasparCG-template."
+    }
+  ]
+}

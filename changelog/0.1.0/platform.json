@@ -1,0 +1,49 @@
+{
+  "apps": [
+    "platform"
+  ],
+  "pr": [
+    1,
+    2,
+    3,
+    16,
+    17
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Shared platform for every app: user accounts with roles, your own SMTP mail server, English and Dutch.",
+      "nl": "Gedeeld platform voor alle apps: gebruikers met rollen, een eigen SMTP-mailserver, Engels en Nederlands."
+    },
+    {
+      "kind": "added",
+      "en": "Backups to FTP, FTPS or SCP, full and incremental, with restore from the remote location.",
+      "nl": "Back-ups naar FTP, FTPS of SCP, volledig en incrementeel, met terugzetten vanaf de externe locatie."
+    },
+    {
+      "kind": "added",
+      "en": "Updates from inside the app, with a test and a production channel you can switch between.",
+      "nl": "Updates vanuit de app zelf, met een test- en een productiekanaal waartussen je kunt wisselen."
+    },
+    {
+      "kind": "added",
+      "en": "A default admin account on first start, and a guide for running behind a reverse proxy.",
+      "nl": "Een standaard beheerdersaccount bij de eerste start, en uitleg voor gebruik achter een reverse proxy."
+    },
+    {
+      "kind": "added",
+      "en": "Sign in with Office 365 (Microsoft Entra ID).",
+      "nl": "Inloggen met Office 365 (Microsoft Entra ID)."
+    },
+    {
+      "kind": "added",
+      "en": "IJmond360 house style, with room for more brands.",
+      "nl": "Huisstijl IJmond360, met ruimte voor meer merken."
+    },
+    {
+      "kind": "fixed",
+      "en": "Release packages get the right names, so install.sh and in-app updates find them.",
+      "nl": "Releasepakketten krijgen de juiste naam, zodat install.sh en updates in de app ze vinden."
+    }
+  ]
+}

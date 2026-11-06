@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    58
+  ],
+  "changes": [
+    {
+      "kind": "changed",
+      "en": "Changes to the hour on air wait for the next whole hour; \"Apply now\" puts them on air straight away.",
+      "nl": "Wijzigingen aan het uur dat nu uitgezonden wordt wachten tot het volgende hele uur; \"Nu toepassen\" zet ze direct op zender."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [
+    4
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Register and approve nodes in the orchestrator, with roles and an agent for Debian and Windows.",
+      "nl": "Nodes aanmelden en goedkeuren in de orchestrator, met rollen en een agent voor Debian en Windows."
+    }
+  ]
+}

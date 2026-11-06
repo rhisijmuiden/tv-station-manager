@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    24
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Beeldkrant: full-screen news pages from RSS feeds (WordPress and other feeds).",
+      "nl": "Beeldkrant: nieuwspagina's over het hele scherm uit RSS-feeds (WordPress en andere feeds)."
+    }
+  ]
+}

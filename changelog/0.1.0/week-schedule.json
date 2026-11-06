@@ -1,0 +1,28 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    18,
+    21,
+    25,
+    29
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Week schedule with hour clocks, categories and per-day rundowns.",
+      "nl": "Weekschema met uurklokken, categorieën en draaiboeken per dag."
+    },
+    {
+      "kind": "added",
+      "en": "Drag and drop from the media library into hour clocks, the week schedule and rundowns.",
+      "nl": "Slepen vanuit de mediabibliotheek naar uurklokken, het weekschema en draaiboeken."
+    },
+    {
+      "kind": "added",
+      "en": "Editorial menu and the \"New hour programme\" wizard, also to plan one hour at several times of the day.",
+      "nl": "Menu Redactie en de wizard \"Nieuw uurprogramma\", ook om één uur op meerdere tijden van de dag te plannen."
+    }
+  ]
+}

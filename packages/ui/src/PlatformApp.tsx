@@ -8,6 +8,7 @@ import { initI18n } from "./i18n";
 import { AccountPage } from "./pages/Account";
 import { LoginPage, SetupPage } from "./pages/Auth";
 import { BackupPage } from "./pages/Backup";
+import { ChangelogPage } from "./pages/Changelog";
 import { MailPage } from "./pages/Mail";
 import { SsoPage } from "./pages/Sso";
 import { UpdatesPage } from "./pages/Updates";
@@ -67,6 +68,7 @@ function Gate({ opts }: { opts: PlatformAppOptions }) {
         <Route path="/system/mail" element={<MailPage />} />
         <Route path="/system/backup" element={<BackupPage />} />
         <Route path="/system/updates" element={<UpdatesPage />} />
+        <Route path="/system/changelog" element={<ChangelogPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

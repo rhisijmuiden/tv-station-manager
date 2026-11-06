@@ -1,0 +1,27 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    41,
+    44,
+    63
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "A dynamic part can follow only the newest subfolder, so a folder per week (wk 44, wk 45) is picked up by itself.",
+      "nl": "Een dynamisch onderdeel kan alleen de nieuwste submap volgen, zodat een map per week (wk 44, wk 45) vanzelf wordt opgepakt."
+    },
+    {
+      "kind": "added",
+      "en": "Dynamic part \"Newest + random\" over all programme folders: the newest first, the rest at random, rebuilt every hour.",
+      "nl": "Dynamisch onderdeel \"Nieuwste + willekeurig\" over alle programmamappen: eerst de nieuwste, de rest willekeurig, elk uur opnieuw."
+    },
+    {
+      "kind": "improved",
+      "en": "The dynamic part dialog saves without waiting for the preview.",
+      "nl": "Het venster voor dynamische onderdelen slaat op zonder op het voorbeeld te wachten."
+    }
+  ]
+}

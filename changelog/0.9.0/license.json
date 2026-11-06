@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "platform"
+  ],
+  "pr": [
+    54
+  ],
+  "changes": [
+    {
+      "kind": "changed",
+      "en": "The project is licensed under AGPL-3.0; the Info window links to the license and the source code.",
+      "nl": "Het project valt onder de AGPL-3.0-licentie; het Info-venster linkt naar de licentie en de broncode."
+    }
+  ]
+}

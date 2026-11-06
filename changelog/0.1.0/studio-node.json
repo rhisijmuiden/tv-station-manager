@@ -1,0 +1,39 @@
+{
+  "apps": [
+    "studio"
+  ],
+  "pr": [
+    6,
+    7,
+    8,
+    9,
+    11,
+    15,
+    30,
+    33,
+    34,
+    35
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Windows studio node installer with CasparCG 2.4, RTMP/SRT ingest and subtitles (.srt/.vtt next to a clip).",
+      "nl": "Installatie voor de Windows-studionode met CasparCG 2.4, RTMP/SRT-ingest en ondertitels (.srt/.vtt naast een clip)."
+    },
+    {
+      "kind": "improved",
+      "en": "HTML graphics are drawn on the graphics card, and the overlay and beeldkrant only redraw when something changes, so the CPU stays low.",
+      "nl": "HTML-graphics worden op de videokaart getekend, en overlay en beeldkrant tekenen alleen opnieuw als er iets verandert, zodat de processor rustig blijft."
+    },
+    {
+      "kind": "fixed",
+      "en": "After a CasparCG restart the director plays the current item again.",
+      "nl": "Na een herstart van CasparCG speelt de regisseur het huidige item opnieuw af."
+    },
+    {
+      "kind": "fixed",
+      "en": "Installer fixes: DeckLink driver detection, configs without BOM, waiting for services to stop, 1080i50 stays the default, and network drives no longer stop the installer.",
+      "nl": "Verbeteringen aan de installatie: DeckLink-driver wordt gevonden, configbestanden zonder BOM, wachten tot services gestopt zijn, 1080i50 blijft standaard, en netwerkschijven breken de installatie niet meer af."
+    }
+  ]
+}

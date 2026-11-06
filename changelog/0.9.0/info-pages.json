@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    64
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Info pages: fixed full-screen pages with your own text and picture, as an item in hour blocks, with the length set on the page.",
+      "nl": "Infopagina's: vaste pagina's over het hele scherm met eigen tekst en foto, als item in uurblokken, met de lengte op de pagina zelf."
+    }
+  ]
+}

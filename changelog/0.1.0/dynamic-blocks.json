@@ -1,0 +1,26 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    37,
+    38
+  ],
+  "changes": [
+    {
+      "kind": "changed",
+      "en": "The media sources are now one folding submenu.",
+      "nl": "De mediabronnen staan nu in één inklapbaar submenu."
+    },
+    {
+      "kind": "added",
+      "en": "Dynamic \"Newest clips\" part: the newest clips from a category or folder, older ones drop out by themselves.",
+      "nl": "Dynamisch onderdeel \"Nieuwste clips\": de nieuwste clips uit een categorie of map, oudere vallen er vanzelf uit."
+    },
+    {
+      "kind": "added",
+      "en": "Hour blocks from folders: pick in turn, at random or the newest, never twice in one broadcast.",
+      "nl": "Uurblokken uit mappen: om de beurt, willekeurig of de nieuwste, nooit twee keer in één uitzending."
+    }
+  ]
+}

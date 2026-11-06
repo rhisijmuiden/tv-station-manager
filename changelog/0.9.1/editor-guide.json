@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    70
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Step-by-step guide for editors in the app, with screenshots and videos, behind the Help link in the menu.",
+      "nl": "Stap-voor-stap handleiding voor redacteuren in de app, met schermafbeeldingen en video's, achter de link Handleiding in het menu."
+    }
+  ]
+}

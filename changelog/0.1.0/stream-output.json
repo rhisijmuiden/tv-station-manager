@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    20
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Stream output: the TV channel or a live event over RTMP(S) to the website stream server, YouTube and Facebook.",
+      "nl": "Streamuitvoer: het tv-kanaal of een live-evenement via RTMP(S) naar de streamserver van de website, YouTube en Facebook."
+    }
+  ]
+}

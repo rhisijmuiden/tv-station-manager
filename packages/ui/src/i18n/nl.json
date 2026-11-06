@@ -108,7 +108,9 @@
     "lastChecked": "Laatst gecontroleerd {{time}}",
     "releaseNotes": "Releasenotes",
     "updated": "Bijgewerkt naar {{version}}.",
-    "updateFailed": "Update mislukt: {{error}}"
+    "updateFailed": "Update mislukt: {{error}}",
+    "whatsNew": "Wat is er nieuw",
+    "whatsNewHint": "Per versie: wat er is toegevoegd, gewijzigd, verbeterd, opgelost en verwijderd"
   },
   "channel": {
     "production": "Productie",
@@ -297,6 +299,28 @@
       "validation": "Controleer de velden.",
       "tenant_id_guid": "De tenant-ID moet de Map-ID (tenant) zijn, een GUID zoals 00000000-0000-0000-0000-000000000000.",
       "sso_incomplete": "Vul tenant-ID, toepassings-ID en clientgeheim in voordat je het aanzet."
+    }
+  },
+  "changelog": {
+    "title": "Wat is er nieuw",
+    "intro": "Elke versie van TV Station Manager: wat er is toegevoegd, gewijzigd, verbeterd, opgelost en verwijderd.",
+    "thisApp": "{{app}}",
+    "allApps": "Alle onderdelen",
+    "inTest": "In test, nog niet uitgebracht",
+    "yourVersion": "Jouw versie",
+    "yourTestBuild": "Jouw versie ({{version}})",
+    "kind": {
+      "added": "Toegevoegd",
+      "changed": "Gewijzigd",
+      "improved": "Verbeterd",
+      "fixed": "Opgelost",
+      "removed": "Verwijderd"
+    },
+    "app": {
+      "management": "Management",
+      "orchestrator": "Orchestrator",
+      "studio": "Studionode",
+      "platform": "Alle apps"
     }
   }
 }
