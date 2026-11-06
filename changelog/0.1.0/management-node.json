@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    5
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Management node: schedule, programme guide (EPG), ad blocks, graphics overlay, ATEM and CasparCG control, media from the UNAS over SMB.",
+      "nl": "Management node: programmering, programmagids (EPG), reclameblokken, graphics-overlay, aansturing van ATEM en CasparCG, media van de UNAS via SMB."
+    }
+  ]
+}

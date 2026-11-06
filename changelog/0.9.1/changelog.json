@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "platform"
+  ],
+  "pr": [
+    72
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "\"What's new\" page from the Info window: per version what was added, changed, improved, fixed and removed.",
+      "nl": "Pagina \"Wat is er nieuw\" vanuit het Info-venster: per versie wat er is toegevoegd, gewijzigd, verbeterd, opgelost en verwijderd."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    39
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "\"Coming up\" slide with the programmes of the coming hour, as an item in an hour block.",
+      "nl": "Straks-slide met de programma's van het komende uur, als item in een uurblok."
+    }
+  ]
+}

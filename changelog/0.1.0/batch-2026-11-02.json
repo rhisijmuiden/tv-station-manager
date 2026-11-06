@@ -1,0 +1,36 @@
+{
+  "apps": [
+    "management",
+    "orchestrator"
+  ],
+  "pr": [
+    32
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Webcams and streams as a source in hour blocks.",
+      "nl": "Webcams en streams als bron in uurblokken."
+    },
+    {
+      "kind": "added",
+      "en": "Audio under the broadcast: a radio stream, line-in or DeckLink under the beeldkrant and blocks.",
+      "nl": "Audio onder de uitzending: een radiostream, line-in of DeckLink onder de beeldkrant en blokken."
+    },
+    {
+      "kind": "added",
+      "en": "Dashboard \"Now on TV\" with what is on air, what comes next and a stream preview.",
+      "nl": "Dashboard \"Nu op tv\" met wat er nu uitgezonden wordt, wat er hierna komt en een streamvoorbeeld."
+    },
+    {
+      "kind": "added",
+      "en": "Switch buttons for editors to go live with one click, with a question about recording and repeat.",
+      "nl": "Schakelknoppen voor redacteuren om met één klik live te gaan, met de vraag of er opgenomen en herhaald moet worden."
+    },
+    {
+      "kind": "added",
+      "en": "Monitoring page in the orchestrator.",
+      "nl": "Monitoringpagina in de orchestrator."
+    }
+  ]
+}

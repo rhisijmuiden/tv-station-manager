@@ -1,0 +1,26 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    50,
+    52
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Simple planning: drag hour blocks onto the week planning, every hour starts with the channel's fixed start, base layers per kind of content, and \"Plan live\".",
+      "nl": "Eenvoudige planning: uurblokken op de weekplanning slepen, elk uur begint met de vaste start van het kanaal, basislagen per soort inhoud, en \"Live plannen\"."
+    },
+    {
+      "kind": "added",
+      "en": "Drag the bottom edge of a block in the week planning to change its length.",
+      "nl": "Sleep de onderrand van een blok in de weekplanning om de lengte te veranderen."
+    },
+    {
+      "kind": "changed",
+      "en": "The editors' menu is now Now on TV, Week planning, Blocks and Library; hour clocks and the old wizard moved to Setup, Advanced planning.",
+      "nl": "Het redactiemenu is nu Nu op tv, Weekplanning, Blokken en Bibliotheek; uurklokken en de oude wizard staan onder Inrichting, Geavanceerde planning."
+    }
+  ]
+}

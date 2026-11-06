@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [
+    31
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "HyperDeck support: status, record, play and stop, and on the diagram.",
+      "nl": "HyperDeck-ondersteuning: status, opnemen, afspelen en stoppen, en in het aansluitschema."
+    }
+  ]
+}

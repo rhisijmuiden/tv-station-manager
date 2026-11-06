@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    19
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "The schedule switches the ATEM between a playout node and a live node.",
+      "nl": "Het schema schakelt de ATEM tussen een playout-node en een live-node."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    62
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "The orchestrator's monitoring page in the management node (On air, Monitoring), read only.",
+      "nl": "De monitoringpagina van de orchestrator in de management node (Uitzending, Monitoring), alleen lezen."
+    }
+  ]
+}

@@ -108,7 +108,9 @@
     "lastChecked": "Last checked {{time}}",
     "releaseNotes": "Release notes",
     "updated": "Updated to {{version}}.",
-    "updateFailed": "Update failed: {{error}}"
+    "updateFailed": "Update failed: {{error}}",
+    "whatsNew": "What's new",
+    "whatsNewHint": "Per version: what was added, changed, improved, fixed and removed"
   },
   "channel": {
     "production": "Production",
@@ -297,6 +299,28 @@
       "validation": "Check the fields.",
       "tenant_id_guid": "The tenant ID must be the Directory (tenant) ID, a GUID like 00000000-0000-0000-0000-000000000000.",
       "sso_incomplete": "Fill in tenant ID, client ID and client secret before enabling."
+    }
+  },
+  "changelog": {
+    "title": "What's new",
+    "intro": "Every version of TV Station Manager: what was added, changed, improved, fixed and removed.",
+    "thisApp": "{{app}}",
+    "allApps": "All parts",
+    "inTest": "In test, not released yet",
+    "yourVersion": "Your version",
+    "yourTestBuild": "Your version ({{version}})",
+    "kind": {
+      "added": "Added",
+      "changed": "Changed",
+      "improved": "Improved",
+      "fixed": "Fixed",
+      "removed": "Removed"
+    },
+    "app": {
+      "management": "Management",
+      "orchestrator": "Orchestrator",
+      "studio": "Studio node",
+      "platform": "All apps"
     }
   }
 }

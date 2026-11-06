@@ -1,0 +1,20 @@
+{
+  "apps": [
+    "management",
+    "studio"
+  ],
+  "pr": [
+    42,
+    43,
+    46,
+    48,
+    49
+  ],
+  "changes": [
+    {
+      "kind": "fixed",
+      "en": "The website stream no longer keeps spinning: stereo audio, correct timestamps, 25p, and an encoder that keeps up.",
+      "nl": "De websitestream blijft niet meer laden: stereogeluid, juiste tijdstempels, 25p en een encoder die het bijhoudt."
+    }
+  ]
+}

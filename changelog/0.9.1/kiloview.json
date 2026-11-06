@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [
+    68
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Kiloview encoders and decoders (E3, D260) in monitoring, read only.",
+      "nl": "Kiloview-encoders en -decoders (E3, D260) in de monitoring, alleen lezen."
+    }
+  ]
+}

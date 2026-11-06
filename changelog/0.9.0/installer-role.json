@@ -1,0 +1,21 @@
+{
+  "apps": [
+    "studio"
+  ],
+  "pr": [
+    51,
+    56
+  ],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "The studio installer asks for the node role: tv, ingest or both.",
+      "nl": "De studio-installatie vraagt naar de rol van de node: tv, ingest of beide."
+    },
+    {
+      "kind": "fixed",
+      "en": "Running the installer again keeps the previous number of channels.",
+      "nl": "De installatie opnieuw uitvoeren houdt het vorige aantal kanalen aan."
+    }
+  ]
+}
