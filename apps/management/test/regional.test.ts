@@ -242,7 +242,7 @@ test("regional: P2000 alerts for the three municipalities, without addresses", (
   const items = p2000Items(P2000, s, NOW);
   assert.deepEqual(items.map((i) => i.title), ["Woningbrand in IJmuiden", "Gaslek in Beverwijk"]);
   const fire = items[0]!;
-  assert.equal(fire.summary, "Brandweer is uitgerukt. Melding om 16:30.");
+  assert.equal(fire.summary, "De brandweer is uitgerukt. Melding om 16:30.");
   assert.doesNotMatch(`${fire.title} ${fire.summary}`, /radarstraat|123456/i);
   assert.equal(fire.hold, "pending");
   assert.equal(fire.showFrom, "2026-11-06T15:50:00.000Z");

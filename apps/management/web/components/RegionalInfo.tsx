@@ -440,11 +440,11 @@ export function RegionalTab({ canEdit }: { canEdit: boolean }) {
     <div className="space-y-5">
       <Alert tone="brand">{t("mgmt.reg.intro")}</Alert>
       {err && <Alert tone="danger">{err}</Alert>}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid items-start gap-5 lg:grid-cols-2">
         {(data.data?.sources ?? []).map((s) => {
           const f = s.feed;
           return (
-            <Card key={s.source} className={cx("flex flex-col", s.source === "p2000" && open === "p2000" && "lg:col-span-2")}>
+            <Card key={s.source} className="flex flex-col">
               <CardBody className="flex flex-1 flex-col gap-3">
                 <div className="flex items-start gap-3">
                   <span className={cx("grid size-10 shrink-0 place-items-center rounded-lg", TINT[s.source])}>{ICONS[s.source]}</span>

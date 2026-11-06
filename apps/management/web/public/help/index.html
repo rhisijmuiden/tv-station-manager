@@ -241,6 +241,8 @@ const CH = [
 { id: 'opnames', short: 'Opnames', title: 'Opnames knippen en herhalen', eyebrow: 'Hoofdstuk 4', where: ['Redactie', 'Bibliotheek', 'Opnames'],
   lead: 'Elke live-uitzending die via een stream binnenkomt wordt vanzelf opgenomen. Jij knipt het begin en einde bij, zet hem in de bibliotheek en plant de herhaling.',
   video: { src: 'video/video-4-opnames.mp4', poster: 'video/video-4-opnames.jpg', len: '0:44', title: 'Een opname knippen en herhalen', text: 'Begin en einde zetten, naar de bibliotheek, en met een snelknop een herhaling inplannen.' } },
+{ id: 'regionaal', short: 'Regionale info', title: 'Verkeer, evenementen, raad en 112', eyebrow: 'Hoofdstuk 5', where: ['Bibliotheek', 'Beeldkranten', 'Regionaal'],
+  lead: 'Kant-en-klare beeldkranten met regionale informatie voor Velsen, Beverwijk en Heemskerk: files en wegwerkzaamheden, evenementen, de agenda van de gemeenteraden en 112-meldingen. Je zet een bron aan, maakt er met één klik een beeldkrant van en zet die in een uurblok. Daarna ververst alles vanzelf.' },
 { id: 'vragen', short: 'Vragen', title: 'Vragen en problemen', eyebrow: 'Naslag', lead: 'Iets werkt anders dan je verwacht? Hier staan de meest gestelde vragen, en een spiekbriefje met waar alles staat.' },
 ];
 
@@ -319,6 +321,27 @@ opnames: [
  { t: 'Automatisch per bron', img: ['54-per-bron', 'Onder Automatisch na de opname, per remote bron staan Raadzaal Velsen en Telstar stadion.'], img2: ['55-bron-instellen', 'Het venster Opname: Raadzaal Velsen met opnemen, meteen naar bibliotheek en herhaaltijden.'],
    b: `<p>Voor vaste uitzendingen, zoals de gemeenteraad, kan de eindredactie alles vooraf instellen. Open onderaan ${ui('Automatisch na de opname, per remote bron')} en klik op het potloodje.</p><ol><li>${m(1)} <b>Deze bron opnemen</b> (staat standaard aan).</li><li>${m(2)} <b>Meteen naar de bibliotheek</b>: zonder nakijken. Knippen kan daarna nog.</li><li>${m(3)} <b>Automatisch herhalen</b>, bijvoorbeeld <i>Volgende dag 10:00</i> en <i>Volgende dag 19:00</i>.</li></ol>` },
 ],
+regionaal: [
+ { t: 'De vier regionale bronnen', img: ['60-regionaal', 'De tab Regionaal met vier kaarten: Files & wegwerkzaamheden, Evenementen, Agenda gemeenteraad en 112-meldingen.'],
+   b: `<p>Ga naar ${ui('Bibliotheek')}, tab ${ui('Beeldkranten')}, en klik op ${ui('Regionaal')}. Je ziet vier kaarten:</p><ul><li><b>Files &amp; wegwerkzaamheden</b>: files, pech, afsluitingen en werkzaamheden op de A9, A22, A208, de N-wegen en in de drie gemeenten. Ververst elke 5 minuten.</li><li><b>Evenementen</b>: wat er te doen is, uit een agenda-link en je eigen lijst.</li><li><b>Agenda gemeenteraad</b>: de komende raads- en commissievergaderingen van Velsen, Beverwijk en Heemskerk.</li><li><b>112-meldingen (P2000)</b>: brandweer en andere hulpdiensten, veilig gefilterd.</li></ul>
+   <p>Staat er nog ${ui('Aanzetten')}? Klik erop, controleer de instellingen en klik op ${ui('Opslaan')}. Met ${ui('Berichten bekijken')} zie je wat er nu binnenkomt.</p>` },
+ { t: 'Files en wegwerkzaamheden instellen', img: ['61-verkeer-instellingen', 'Het venster Instellingen van Files & wegwerkzaamheden met wegen, gemeenten en wat je wilt tonen.'],
+   b: `<p>Klik bij Files &amp; wegwerkzaamheden op ${ui('Instellingen')}.</p><ul><li><b>Wegen</b> en <b>gemeenten</b>: welke wegen en plaatsen meedoen. Standaard staan de wegen rond de IJmond er al in.</li><li>Kies wat je wilt zien: files, ongelukken en pech, afsluitingen, wegwerkzaamheden en afsluitingen voor evenementen.</li><li><b>Werkzaamheden die beginnen binnen</b> … dagen: alleen werk dat binnenkort begint. Heel lange projecten laat hij standaard weg.</li><li>Rechts zie je meteen een voorbeeld met de berichten van nu.</li></ul>
+   <div class="tip"><b>Waar komt het vandaan?</b>De gegevens komen van de Nationale Databank Wegverkeersgegevens (NDW). Huisnummers en vergunningnummers worden weggelaten.</div>` },
+ { t: 'Evenementen toevoegen', img: ['62-evenementen', 'Het venster Evenementen met een agenda-link en een lijst met eigen evenementen.'],
+   b: `<p>Bij <b>Evenementen</b> heb je twee manieren, die je ook samen kunt gebruiken:</p><ol><li><b>Agenda-link</b>: plak de link van een online agenda (een iCal-link, eindigt vaak op <code>.ics</code>, of een RSS-feed). Nieuwe evenementen komen er dan vanzelf bij.</li><li><b>Eigen lijst</b>: klik op ${ui('Evenement toevoegen')} en vul naam, datum, tijd en plaats in.</li></ol><p>Je kiest ook hoeveel dagen vooruit er getoond wordt. Afgelopen evenementen verdwijnen vanzelf.</p>` },
+ { t: 'De agenda van de gemeenteraad', img: ['63-gemeenteraad', 'Het venster Agenda gemeenteraad met Velsen, Beverwijk en Heemskerk.'],
+   b: `<p>Velsen, Beverwijk en Heemskerk staan er al in. De vergaderingen worden opgehaald uit de raadsinformatiesystemen van de gemeenten.</p><ul><li>Je kiest hoeveel dagen vooruit, en of vergaderingen die niet doorgaan getoond worden.</li><li>Een vergadering die niet doorgaat, krijgt dat er vanzelf bij te staan.</li></ul><div class="tip"><b>Tip</b>Combineer de agenda met een live-uitzending van de raad (hoofdstuk 3): de kijker ziet dan wanneer de vergadering is.</div>` },
+ { t: '112-meldingen goedkeuren', img: ['64-p2000-keuren', 'Twee meldingen met Wacht en de knoppen Goedkeuren en Afkeuren, en een melding die op het scherm staat.'],
+   b: `<p>112-meldingen gaan nooit zomaar op zender. Klik op ${ui('Meldingen keuren')}.</p><ul><li><span class="pill p-wait">Wacht</span> De melding wacht op jou. Klik op ${ui('Goedkeuren')} of ${ui('Afkeuren')}.</li><li><span class="pill p-ok">Op het scherm</span> De melding staat in de beeldkrant. Met ${ui('Afkeuren')} haal je hem er weer af.</li></ul>
+   <p>Op zender staat alleen een korte tekst, bijvoorbeeld <i>Woningbrand in IJmuiden. De brandweer is uitgerukt.</i> Daaronder zie jij de oorspronkelijke melding; die is alleen voor de redactie en komt nooit in beeld.</p>
+   <div class="warn"><b>Wees voorzichtig</b>Keur een melding af als hij te persoonlijk is, als er slachtoffers bij betrokken zijn of als de familie het nog niet weet.</div>` },
+ { t: '112: veilig ingesteld', img: ['65-p2000-instellingen', 'Het venster 112-meldingen met hulpdiensten, vertraging, goedkeuring en straatnamen.'],
+   b: `<p>De standaardinstellingen zijn bewust voorzichtig:</p><table><tr><th>Instelling</th><th>Standaard</th></tr><tr><td>Hulpdiensten</td><td>Brandweer en hulp op het water aan; ambulance, politie en traumahelikopter uit.</td></tr><tr><td>Vertraging</td><td>20 minuten, zodat je niet sneller bent dan de hulpdiensten ter plaatse.</td></tr><tr><td>Eerst goedkeuren</td><td>Aan.</td></tr><tr><td>Straatnaam tonen</td><td>Uit: alleen de plaats.</td></tr><tr><td>Automatische brandmeldingen</td><td>Worden overgeslagen.</td></tr><tr><td>Hoe lang tonen</td><td>6 uur.</td></tr></table><p>Huisnummers, namen en medische details komen nooit in beeld.</p>` },
+ { t: 'Maak een beeldkrant en plan hem in', img: ['66-verkeer-op-zender', 'De beeldkrant Verkeer IJmond zoals de kijker hem ziet.'],
+   b: `<ol><li>Klik op de kaart op ${ui('Maak beeldkrant')}. Er komt een beeldkrant in de huisstijl, en een blok met dezelfde naam.</li><li>Zet dat blok in een uurblok, net als elke andere beeldkrant (hoofdstuk 1, stap 6), of kies hem bij ${ui('Vul de rest van het uur met')}.</li></ol>
+   <p>De berichten verversen vanzelf. Je hoeft de beeldkrant nooit opnieuw te maken.</p><div class="tip"><b>Ook in de nieuwsticker</b>Een regionale bron kan ook onderin beeld meelopen: kies hem bij ${ui('Kanaal &amp; lagen')} → Nieuwsticker → Feeds.</div>` },
+],
 };
 
 const FAQ = [
@@ -330,6 +353,8 @@ const FAQ = [
  ['Live gegaan maar het scherm is zwart', 'De inzender stuurt nog geen beeld. Bij een geplande live-uitzending blijft de planning dan gewoon op zender. Na Schakelen blijft het zwart tot de stream begint; ga terug naar de planning als het te lang duurt.'],
  ['Mijn opname staat er niet', 'Opnames korter dan 30 seconden worden weggegooid. Is de schijf van de server bijna vol, dan wordt er niet opgenomen en krijgt de beheerder een mail.'],
  ['Kan ik een fout ongedaan maken?', 'Een blok van één dag haal je weg met Deze dag weghalen; een live-uitzending met het kruisje. Een opname verwijderen kan niet ongedaan worden gemaakt: het bestand in de bibliotheek en ingeplande herhalingen blijven wel staan.'],
+ ['Een 112-melding komt niet op de beeldkrant', 'Meldingen wachten standaard 20 minuten en moeten eerst worden goedgekeurd (hoofdstuk 5, stap 5). Kijk bij Regionaal → Meldingen keuren of hij op Wacht staat. Ambulance en politie staan standaard uit.'],
+ ['Bij een regionale bron staat een waarschuwing', 'De bron kon (deels) niet worden opgehaald, bijvoorbeeld omdat de website van een gemeente even niet bereikbaar is. De laatst bekende berichten blijven op het scherm. Blijft het zo, meld het dan aan de beheerder.'],
  ['De app staat in het Engels', 'Linksonder in de app staat de taalknop EN / NL.'],
 ];
 
@@ -337,7 +362,7 @@ const CHEAT = [
  ['Nu op TV', 'Wat er nu speelt en wat er hierna komt.'], ['Weekplanning', 'Blokken in de week slepen, dagen kiezen, live plannen.'],
  ['Blokken', 'Uurblokken en reclameblokken maken en aanpassen.'], ['Bibliotheek', 'Video’s, Opnames, Beeldkranten, Webcams, Live bronnen.'],
  ['Schakelen', 'Onverwacht live beeld met één knop op zender.'], ['Uitzendschema', 'Alles wat per dag gepland staat, ook herhalingen.'],
- ['Programmagids', 'Wat de kijker in de gids ziet.'], ['Kanaal & lagen', 'Logo, klok, ticker en de vaste start van elk uur.'],
+ ['Programmagids', 'Wat de kijker in de gids ziet.'], ['Regionaal', 'Bibliotheek → Beeldkranten → Regionaal: verkeer, evenementen, raad, 112.'], ['Kanaal & lagen', 'Logo, klok, ticker en de vaste start van elk uur.'],
 ];
 
 // Progress (per viewer, this browser only)

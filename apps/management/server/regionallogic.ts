@@ -166,9 +166,9 @@ const T = {
     allDay: "hele dag",
     cancelled: "Gaat niet door.",
     meetingAt: "om",
-    service: { fire: "Brandweer", ambulance: "Ambulance", police: "Politie", rescue: "Hulpdiensten op het water", helicopter: "Traumahelikopter" },
+    service: { fire: "Brandweer", ambulance: "Ambulance", police: "Politie", rescue: "Hulp op het water", helicopter: "Traumahelikopter" },
     deployed: (s: string, place: string) => `${s} in ${place}`,
-    call: (s: string) => `${s} is uitgerukt.`,
+    call: { fire: "De brandweer is uitgerukt.", ambulance: "Een ambulance is uitgerukt.", police: "De politie is uitgerukt.", rescue: "Hulpdiensten op het water zijn uitgerukt.", helicopter: "De traumahelikopter is opgeroepen." },
     callAt: (time: string) => `Melding om ${time}.`,
     accidentIn: (p: string) => `Ongeval in ${p}`,
     council: (m: string) => `Gemeente ${m}`,
@@ -207,7 +207,7 @@ const T = {
     meetingAt: "at",
     service: { fire: "Fire brigade", ambulance: "Ambulance", police: "Police", rescue: "Water rescue", helicopter: "Trauma helicopter" },
     deployed: (s: string, place: string) => `${s} in ${place}`,
-    call: (s: string) => `${s} has been called out.`,
+    call: { fire: "The fire brigade has been called out.", ambulance: "An ambulance has been called out.", police: "The police have been called out.", rescue: "Water rescue has been called out.", helicopter: "The trauma helicopter has been called." },
     callAt: (time: string) => `Alert at ${time}.`,
     accidentIn: (p: string) => `Accident in ${p}`,
     council: (m: string) => `Municipality of ${m}`,
@@ -768,7 +768,7 @@ export function p2000Items(messages: P2000Raw[], s: P2000Settings, now: number):
     if (at - (seen.get(key) ?? -Infinity) < 3600_000) continue;
     seen.set(key, at);
     out.push(
-      base(`p2000:${m.guid}`, title, join(tx.call(svc), tx.callAt(timeOf(tx, s.timeZone, at))), svc, {
+      base(`p2000:${m.guid}`, title, join(tx.call[c.service], tx.callAt(timeOf(tx, s.timeZone, at))), svc, {
         publishedAt: iso(at),
         hold: s.requireApproval ? "pending" : null,
         showFrom: iso(at + s.delayMinutes * 60_000),
