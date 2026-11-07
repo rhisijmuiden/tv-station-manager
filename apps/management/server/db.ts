@@ -519,4 +519,7 @@ export const MANAGEMENT_MIGRATIONS = [
    ALTER TABLE rss_items ADD COLUMN hold TEXT;
    ALTER TABLE rss_items ADD COLUMN show_from TEXT;
    ALTER TABLE rss_items ADD COLUMN note TEXT;`,
+  // ATEM ports (docs/atem-ports.md): the last input list a switcher reported, so the channel and switch pages can
+  // still say "SDI in 8" while the ATEM is offline.
+  `ALTER TABLE atem_devices ADD COLUMN inputs TEXT;`,
 ];

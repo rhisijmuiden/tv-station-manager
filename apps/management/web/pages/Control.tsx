@@ -1,3 +1,4 @@
+import { portLabel } from "../atemPorts";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, PageHeader, Switch, cx, post, useSession, roleAtLeast } from "@tvsm/ui";
 import { AlertTriangle, AudioLines, Lock, MonitorPlay, Play, Radio, RotateCcw, Scissors, Shuffle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -95,7 +96,7 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
         )}
         {s.onAir && (
           <Badge tone={s.onAir.node === "live" ? "danger" : s.onAir.node === "playout" ? "brand" : "neutral"}>
-            <MonitorPlay className="size-3" /> {t(`mgmt.control.node_${s.onAir.node}`, { studio: s.onAir.studio ?? "", input: s.onAir.input })}
+            <MonitorPlay className="size-3" /> {t(`mgmt.control.node_${s.onAir.node}`, { studio: s.onAir.studio ?? "", input: portLabel(t, s.atem?.inputs, s.onAir.input, { withName: s.onAir.node === "other" || s.onAir.node === "fallback" }) })}
           </Badge>
         )}
         <span className="flex-1" />
@@ -199,10 +200,11 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                       key={i.id}
                       disabled={!canOperate || !!s.atemLock}
                       onClick={() => void act(`/api/control/${id}/atem`, { action: "program", input: i.id })}
-                      title={i.longName}
+                      title={portLabel(t, s.atem!.inputs, i.id)}
                       className={cx("h-10 min-w-12 rounded-md border px-2 text-xs font-semibold transition disabled:cursor-default", program === i.id ? "border-onair bg-onair text-white shadow-md shadow-onair/30" : "border-line bg-surface hover:border-onair/60")}
                     >
-                      {i.shortName}
+                      <span className="block leading-tight">{i.shortName}</span>
+                      {i.external && i.port && <span className="block text-[9px] leading-tight font-medium opacity-70">{portLabel(t, s.atem!.inputs, i.id, { withName: false })}</span>}
                     </button>
                   ))}
                 </div>
@@ -213,10 +215,11 @@ function ChannelControl({ s, offset, live, reload, canOperate }: { s: ChannelSta
                       key={i.id}
                       disabled={!canOperate || !!s.atemLock}
                       onClick={() => void act(`/api/control/${id}/atem`, { action: "preview", input: i.id })}
-                      title={i.longName}
+                      title={portLabel(t, s.atem!.inputs, i.id)}
                       className={cx("h-10 min-w-12 rounded-md border px-2 text-xs font-semibold transition disabled:cursor-default", preview === i.id ? "border-ok bg-ok text-white" : "border-line bg-surface hover:border-ok/60")}
                     >
-                      {i.shortName}
+                      <span className="block leading-tight">{i.shortName}</span>
+                      {i.external && i.port && <span className="block text-[9px] leading-tight font-medium opacity-70">{portLabel(t, s.atem!.inputs, i.id, { withName: false })}</span>}
                     </button>
                   ))}
                 </div>

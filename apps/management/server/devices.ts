@@ -3,7 +3,7 @@ import { HttpError, requireRole } from "@tvsm/platform";
 import { EventEmitter } from "node:events";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { DriverFactory, PlayoutDriver, SwitcherDriver } from "./drivers.js";
+import type { DriverFactory, PlayoutDriver, SwitcherDriver, SwitcherInput } from "./drivers.js";
 import { publicUrl } from "./director.js";
 import { IDENTIFY_LAYER, IDENTIFY_SECONDS, identifyPage } from "./identify.js";
 import type { AtemLock } from "./orchestrator.js";
@@ -158,12 +158,29 @@ export function registerDevices(app: FastifyInstance, platform: Platform, hub: D
 
   // ---- ATEM switchers --------------------------------------------------------
   const atemIn = z.object({ name: z.string().trim().min(1).max(80), host, enabled: z.boolean().default(true) });
-  const atemOut = (r: { id: number; name: string; host: string; enabled: number }) => ({
+  /** The live status, or (offline) the last input list the switcher reported, marked `cached`. */
+  const atemStatus = (r: { id: number; inputs: string | null }) => {
+    const live = hub.switcher(r.id)?.info();
+    if (live?.connected && live.inputs.length) {
+      const json = JSON.stringify(live.inputs);
+      if (json !== r.inputs) db.prepare("UPDATE atem_devices SET inputs = ? WHERE id = ?").run(json, r.id);
+      return { ...live, cached: false };
+    }
+    let inputs: SwitcherInput[] = [];
+    try {
+      inputs = r.inputs ? (JSON.parse(r.inputs) as SwitcherInput[]) : [];
+    } catch {
+      /* keep empty */
+    }
+    const base = live ?? { connected: false, model: null, productName: null, mixEffects: 0, inputs: [], program: [], preview: [] };
+    return { ...base, inputs: base.inputs.length ? base.inputs : inputs, cached: !base.inputs.length && inputs.length > 0 };
+  };
+  const atemOut = (r: { id: number; name: string; host: string; enabled: number; inputs: string | null }) => ({
     id: r.id,
     name: r.name,
     host: r.host,
     enabled: !!r.enabled,
-    status: hub.switcher(r.id)?.info() ?? { connected: false, model: null, productName: null, mixEffects: 0, inputs: [], program: [], preview: [] },
+    status: atemStatus(r),
     lock: hub.lock(r.id),
   });
   app.get("/api/atems", async () => ({ atems: (db.prepare("SELECT * FROM atem_devices ORDER BY name").all() as Parameters<typeof atemOut>[0][]).map(atemOut) }));

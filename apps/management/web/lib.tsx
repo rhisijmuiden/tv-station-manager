@@ -221,7 +221,7 @@ export interface AtemStatus {
   model: string | null;
   productName: string | null;
   mixEffects: number;
-  inputs: { id: number; longName: string; shortName: string; external: boolean }[];
+  inputs: { id: number; longName: string; shortName: string; external: boolean; port?: string | null; namesDefault?: boolean }[];
   program: (number | null)[];
   preview: (number | null)[];
 }

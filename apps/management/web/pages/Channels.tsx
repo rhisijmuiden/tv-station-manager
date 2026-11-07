@@ -3,12 +3,14 @@ import { Pencil, Plus, Trash2, Tv } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MediaPicker } from "../components/MediaPicker";
+import { portSummary } from "../../server/atemports";
+import { PortOptions, portLabel } from "../atemPorts";
 import { errorText, useChannels, useGet, type AtemStatus, type Channel } from "../lib";
 
 interface Atem {
   id: number;
   name: string;
-  status: AtemStatus;
+  status: AtemStatus & { cached?: boolean };
 }
 interface Studio {
   id: number;
@@ -17,15 +19,14 @@ interface Studio {
 }
 
 function InputSelect({ atem, value, onChange, allowNone }: { atem: Atem | undefined; value: number | null; onChange: (v: number | null) => void; allowNone?: string }) {
+  const { t } = useTranslation();
   const inputs = atem?.status.inputs ?? [];
+  const known = value == null || inputs.some((i) => i.id === value);
   return inputs.length ? (
     <Select value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}>
       {allowNone && <option value="">{allowNone}</option>}
-      {inputs.map((i) => (
-        <option key={i.id} value={i.id}>
-          {i.id}: {i.longName}
-        </option>
-      ))}
+      {!known && <option value={value!}>{portLabel(t, inputs, value!)}</option>}
+      <PortOptions inputs={inputs} />
     </Select>
   ) : (
     <Input type="number" min={0} value={value ?? ""} placeholder={allowNone} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />
@@ -41,7 +42,9 @@ export function ChannelsPage() {
   const [fillerName, setFillerName] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const atem = atems.data?.atems.find((a) => a.id === edit?.atemId);
+  const atemOf = (id: number | null | undefined) => atems.data?.atems.find((a) => a.id === id);
+  const atem = atemOf(edit?.atemId);
+  const showMe = (atem?.status.mixEffects ?? 1) > 1 || (edit?.atemMe ?? 0) > 0;
 
   const save = async () => {
     if (!edit) return;
@@ -101,7 +104,15 @@ export function ChannelsPage() {
                   {c.automation && <Badge tone="danger">● {t("mgmt.control.onAir")}</Badge>}
                 </div>
                 <p className="text-muted">
-                  ATEM: {name(atems.data?.atems, c.atemId)} · M/E {c.atemMe + 1} · {t("mgmt.channels.playoutInput")} {c.playoutInput ?? "–"}
+                  ATEM: {name(atems.data?.atems, c.atemId)}
+                  {(c.atemMe > 0 || (atemOf(c.atemId)?.status.mixEffects ?? 1) > 1) && ` · M/E ${c.atemMe + 1}`} · {t("mgmt.channels.playoutInput")}:{" "}
+                  <span className="font-medium text-fg">{c.playoutInput == null ? "–" : portLabel(t, atemOf(c.atemId)?.status.inputs, c.playoutInput)}</span>
+                  {c.fallbackInput != null && (
+                    <>
+                      {" "}
+                      · {t("mgmt.channels.fallbackInput")}: {portLabel(t, atemOf(c.atemId)?.status.inputs, c.fallbackInput)}
+                    </>
+                  )}
                 </p>
                 <p className="text-muted">
                   {t("mgmt.channels.studio")}: {name(studios.data?.studios, c.studioId)} · CasparCG {t("mgmt.channels.channel")} {c.casparChannel}
@@ -146,7 +157,7 @@ export function ChannelsPage() {
             </div>
             <fieldset className="space-y-4 rounded-md border border-line p-4">
               <legend className="px-1 text-sm font-semibold">{t("mgmt.channels.switching")}</legend>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className={showMe ? "grid gap-4 sm:grid-cols-3" : "grid gap-4 sm:grid-cols-2"}>
                 <Field label="ATEM">
                   {(id) => (
                     <Select id={id} value={edit.atemId ?? ""} onChange={(e) => setEdit({ ...edit, atemId: e.target.value ? Number(e.target.value) : null })}>
@@ -159,17 +170,19 @@ export function ChannelsPage() {
                     </Select>
                   )}
                 </Field>
-                <Field label="M/E">
-                  {(id) => (
-                    <Select id={id} value={edit.atemMe ?? 0} onChange={(e) => setEdit({ ...edit, atemMe: Number(e.target.value) })}>
-                      {Array.from({ length: Math.max(1, atem?.status.mixEffects ?? 1) }, (_, i) => (
-                        <option key={i} value={i}>
-                          M/E {i + 1}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
-                </Field>
+                {showMe && (
+                  <Field label={t("mgmt.channels.me")} hint={t("mgmt.channels.meHint")}>
+                    {(id) => (
+                      <Select id={id} value={edit.atemMe ?? 0} onChange={(e) => setEdit({ ...edit, atemMe: Number(e.target.value) })}>
+                        {Array.from({ length: Math.max(1, atem?.status.mixEffects ?? 1, (edit.atemMe ?? 0) + 1) }, (_, i) => (
+                          <option key={i} value={i}>
+                            M/E {i + 1}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                )}
                 <Field label={t("mgmt.channels.transition")}>
                   {(id) => (
                     <Select id={id} value={edit.transition ?? "cut"} onChange={(e) => setEdit({ ...edit, transition: e.target.value as "cut" | "mix" })}>
@@ -179,6 +192,12 @@ export function ChannelsPage() {
                   )}
                 </Field>
               </div>
+              {atem && atem.status.inputs.length > 0 && (
+                <p className="text-xs text-muted">
+                  {t("mgmt.atemPorts.layout", { ports: portSummary(atem.status.inputs) })}
+                  {atem.status.cached && ` · ${t("mgmt.atemPorts.cached")}`}
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label={t("mgmt.channels.playoutInput")} hint={t("mgmt.channels.playoutInputHint")}>{() => <InputSelect atem={atem} value={edit.playoutInput ?? null} onChange={(v) => setEdit({ ...edit, playoutInput: v })} allowNone="–" />}</Field>
                 <Field label={t("mgmt.channels.fallbackInput")} hint={t("mgmt.channels.fallbackInputHint")}>{() => <InputSelect atem={atem} value={edit.fallbackInput ?? null} onChange={(v) => setEdit({ ...edit, fallbackInput: v })} allowNone={t("mgmt.channels.none_")} />}</Field>

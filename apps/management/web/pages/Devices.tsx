@@ -3,6 +3,7 @@ import { Hash, Lock, MonitorPlay, Network, Pencil, Plus, Radio, SlidersHorizonta
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { portSummary } from "../../server/atemports";
 import { Dot } from "./Dashboard";
 import { errorText, useGet, type AtemStatus, type LiveSource } from "../lib";
 
@@ -221,6 +222,7 @@ export function DevicesPage() {
                       <>
                         <p className="text-fg">{a.status.productName ?? a.status.model}</p>
                         <p className="text-xs">{t("mgmt.devices.atemCaps", { inputs: a.status.inputs.filter((i) => i.external).length, me: a.status.mixEffects })}</p>
+                        {a.status.inputs.some((i) => i.external) && <p className="text-xs">{portSummary(a.status.inputs)}</p>}
                       </>
                     ) : !a.enabled ? (
                       t("common.disabled")
@@ -337,7 +339,7 @@ export function DevicesPage() {
                   <td className="px-3 py-3">
                     <Badge tone="neutral">ATEM</Badge>
                   </td>
-                  <td className="px-3 py-3 text-muted">ATEM input {l.atemInput}</td>
+                  <td className="px-3 py-3 text-muted">{t("mgmt.atemPorts.input", { n: l.atemInput })}</td>
                   {actions("live", { id: l.id, name: l.name, atemInput: l.atemInput }, l.name)}
                 </tr>
               ))}
