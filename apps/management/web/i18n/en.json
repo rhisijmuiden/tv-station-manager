@@ -94,10 +94,10 @@
       "noChannels": "No channels yet",
       "noChannelsIntro": "Create a channel first and link it to an ATEM and a studio node.",
       "remoteWaiting": "A remote source on the playout node shows black until the contributor starts streaming. On a separate live node the playout node stays on air until the stream is in.",
-      "node_playout": "Playout node {{studio}}",
-      "node_live": "Live node {{studio}}",
-      "node_fallback": "Fallback input {{input}}",
-      "node_other": "ATEM input {{input}}",
+      "node_playout": "Playout node {{studio}} · {{input}}",
+      "node_live": "Live node {{studio}} · {{input}}",
+      "node_fallback": "Fallback · {{input}}",
+      "node_other": "{{input}}",
       "standby": "Live item {{name}}: no stream yet (since {{since}}). The playout node stays on air and the ATEM cuts to the live node as soon as the stream comes in.",
       "atemLocked": "ATEM locked in the orchestrator by {{by}}",
       "atemLockedHint": "The schedule keeps playing on the servers, but the automation does not switch the ATEM until it is released in the orchestrator."
@@ -312,7 +312,7 @@
       "cut": "Cut",
       "mix": "Mix (auto transition)",
       "playoutInput": "Playout input",
-      "playoutInputHint": "ATEM input the studio node output for this channel is cabled to.",
+      "playoutInputHint": "The connector on the ATEM that the studio node output for this channel is cabled to, e.g. SDI in 8.",
       "fallbackInput": "Fallback input",
       "fallbackInputHint": "Shown when nothing is planned (e.g. colour bars or a station ident).",
       "playout": "Playout",
@@ -323,7 +323,9 @@
       "filler": "Filler clip",
       "fillerHint": "Loops when the schedule has a gap. Without it the fallback input is used.",
       "chooseFiller": "Choose",
-      "confirmDelete": "Delete channel {{name}} and its schedule?"
+      "confirmDelete": "Delete channel {{name}} and its schedule?",
+      "me": "Mix bus (M/E)",
+      "meHint": "Only on switchers with more than one M/E row."
     },
     "devices": {
       "title": "Devices",
@@ -1298,7 +1300,7 @@
       "manage": "Edit buttons",
       "onAirBadge": "ON AIR",
       "sourceGone": "Source removed",
-      "camera": "Camera · ATEM input {{input}}",
+      "camera": "Camera · {{input}}",
       "stream_live": "Picture is coming in",
       "stream_pull": "Stream from the internet",
       "stream_waiting": "No picture yet",
@@ -1348,8 +1350,8 @@
       "editButton": "Edit button",
       "confirmDelete": "Delete the button “{{name}}”?",
       "noneForChannel": "No buttons for this channel yet.",
-      "goesToCamera": "Switches to {{source}} (ATEM input {{input}})",
-      "goesToStream": "Takes the stream {{source}} live (ATEM input {{input}}) and asks whether to record",
+      "goesToCamera": "Switches to {{source}} ({{input}})",
+      "goesToStream": "Takes the stream {{source}} live ({{input}}) and asks whether to record",
       "up": "Move up",
       "down": "Move down",
       "buttonName": "Name on the button",
@@ -1978,6 +1980,14 @@
         "delayHint": "An alert can only go on air after this time.",
         "maxAge": "Remove alerts after"
       }
+    },
+    "atemPorts": {
+      "port": "{{port}} in {{n}}",
+      "input": "ATEM input {{n}}",
+      "physical": "Connectors on the back",
+      "internal": "ATEM sources (black, bars, media player)",
+      "layout": "Connectors on this ATEM: {{ports}}",
+      "cached": "ATEM offline, last known inputs"
     }
   }
 }

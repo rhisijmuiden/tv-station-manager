@@ -94,10 +94,10 @@
       "noChannels": "Nog geen kanalen",
       "noChannelsIntro": "Maak eerst een kanaal aan en koppel het aan een ATEM en een studio-node.",
       "remoteWaiting": "Een remote bron op de playout-node geeft zwart beeld tot de inzender begint met streamen. Op een aparte live-node blijft de playout-node in de uitzending tot de stream binnen is.",
-      "node_playout": "Playout-node {{studio}}",
-      "node_live": "Live-node {{studio}}",
-      "node_fallback": "Reserve-ingang {{input}}",
-      "node_other": "ATEM-ingang {{input}}",
+      "node_playout": "Playout-node {{studio}} · {{input}}",
+      "node_live": "Live-node {{studio}} · {{input}}",
+      "node_fallback": "Reserve · {{input}}",
+      "node_other": "{{input}}",
       "standby": "Live-item {{name}}: nog geen stream (sinds {{since}}). De playout-node blijft in de uitzending en de ATEM schakelt naar de live-node zodra de stream binnenkomt.",
       "atemLocked": "ATEM vastgezet in de orchestrator door {{by}}",
       "atemLockedHint": "Het schema speelt door op de servers, maar de automatiek schakelt de ATEM niet tot hij in de orchestrator wordt vrijgegeven."
@@ -312,7 +312,7 @@
       "cut": "Cut",
       "mix": "Mix (auto-overgang)",
       "playoutInput": "Playout-input",
-      "playoutInputHint": "ATEM-input waarop de output van de studio-node voor dit kanaal is aangesloten.",
+      "playoutInputHint": "De aansluiting op de ATEM waar de uitgang van de studionode voor dit kanaal op zit, bijv. SDI in 8.",
       "fallbackInput": "Reserve-input",
       "fallbackInputHint": "Wordt getoond als er niets gepland is (bijv. kleurenbalken of een stationsident).",
       "playout": "Playout",
@@ -323,7 +323,9 @@
       "filler": "Vulclip",
       "fillerHint": "Speelt in een lus als het schema een gat heeft. Zonder vulclip wordt de reserve-input gebruikt.",
       "chooseFiller": "Kiezen",
-      "confirmDelete": "Kanaal {{name}} en het schema ervan verwijderen?"
+      "confirmDelete": "Kanaal {{name}} en het schema ervan verwijderen?",
+      "me": "Mengbus (M/E)",
+      "meHint": "Alleen bij mengtafels met meer dan één M/E-rij."
     },
     "devices": {
       "title": "Apparatuur",
@@ -1298,7 +1300,7 @@
       "manage": "Knoppen aanpassen",
       "onAirBadge": "OP ZENDER",
       "sourceGone": "Bron verwijderd",
-      "camera": "Camera · ATEM-ingang {{input}}",
+      "camera": "Camera · {{input}}",
       "stream_live": "Beeld komt binnen",
       "stream_pull": "Stream van internet",
       "stream_waiting": "Nog geen beeld",
@@ -1348,8 +1350,8 @@
       "editButton": "Knop aanpassen",
       "confirmDelete": "De knop “{{name}}” verwijderen?",
       "noneForChannel": "Nog geen knoppen voor dit kanaal.",
-      "goesToCamera": "Schakelt naar {{source}} (ATEM-ingang {{input}})",
-      "goesToStream": "Zet de stream {{source}} live (ATEM-ingang {{input}}) en vraagt of hij opgenomen moet worden",
+      "goesToCamera": "Schakelt naar {{source}} ({{input}})",
+      "goesToStream": "Zet de stream {{source}} live ({{input}}) en vraagt of hij opgenomen moet worden",
       "up": "Omhoog",
       "down": "Omlaag",
       "buttonName": "Naam op de knop",
@@ -1978,6 +1980,14 @@
         "delayHint": "Een melding mag pas na deze tijd op het scherm.",
         "maxAge": "Meldingen weghalen na"
       }
+    },
+    "atemPorts": {
+      "port": "{{port}} in {{n}}",
+      "input": "ATEM-ingang {{n}}",
+      "physical": "Aansluitingen achterop",
+      "internal": "ATEM-bronnen (zwart, testbeeld, mediaspeler)",
+      "layout": "Aansluitingen op deze ATEM: {{ports}}",
+      "cached": "ATEM offline, laatst bekende ingangen"
     }
   }
 }

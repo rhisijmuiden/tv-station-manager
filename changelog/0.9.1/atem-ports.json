@@ -1,0 +1,20 @@
+{
+  "apps": [
+    "management"
+  ],
+  "pr": [
+    80
+  ],
+  "changes": [
+    {
+      "kind": "improved",
+      "en": "ATEM inputs are named after the connector on the back of the switcher, e.g. \"SDI in 8 · CASPARCG01\" or \"HDMI in 2\", in Channels, Switch, the control room and Devices. The switcher reports SDI or HDMI per input itself, so it works for every model. Channel pickers list the connectors first, then black, bars and media players; the M/E picker only shows on switchers with more than one M/E row. Labels stay visible while the ATEM is offline.",
+      "nl": "ATEM-ingangen heten nu naar de aansluiting achterop de mengtafel, bijv. \"SDI in 8 · CASPARCG01\" of \"HDMI in 2\", bij Kanalen, Schakelen, de regie en Apparaten. De mengtafel meldt zelf per ingang of het SDI of HDMI is, dus het werkt voor elk model. De kanaalkeuzes tonen eerst de aansluitingen, daarna zwart, testbeeld en mediaspelers; de M/E-keuze staat er alleen bij mengtafels met meer dan één M/E-rij. De namen blijven zichtbaar als de ATEM offline is."
+    },
+    {
+      "kind": "changed",
+      "en": "Guide: chapter Switch mentions the connector under a camera button.",
+      "nl": "Handleiding: hoofdstuk Schakelen noemt de aansluiting onder een cameraknop."
+    }
+  ]
+}

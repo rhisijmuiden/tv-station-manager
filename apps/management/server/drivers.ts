@@ -19,6 +19,9 @@ export interface SwitcherInput {
   longName: string;
   shortName: string;
   external: boolean;
+  /** Connector kind of an external input ("SDI", "HDMI", ...), see server/atemports.ts. */
+  port?: string | null;
+  namesDefault?: boolean;
 }
 export interface SwitcherInfo {
   connected: boolean;
@@ -108,7 +111,11 @@ export class AtemSwitcher extends EventEmitter implements SwitcherDriver {
           i!.internalPortType,
         ),
       )
-      .map((i) => ({ id: i!.inputId, longName: i!.longName, shortName: i!.shortName, external: i!.internalPortType === Enums.InternalPortType.External }))
+      .map((i) => {
+        const external = i!.internalPortType === Enums.InternalPortType.External;
+        const port = external ? ((Enums.ExternalPortType as unknown as Record<number, string>)[i!.externalPortType] ?? null) : null;
+        return { id: i!.inputId, longName: i!.longName, shortName: i!.shortName, external, port, namesDefault: !!i!.areNamesDefault };
+      })
       .sort((a, b) => a.id - b.id);
     return {
       connected: this.connected,

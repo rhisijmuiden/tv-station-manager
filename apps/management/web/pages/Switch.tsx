@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ColorPicker } from "./Categories";
+import { usePortLabel, useChannelInputs } from "../atemPorts";
+import type { PortInput } from "../../server/atemports";
 import { errorText, fmtDuration, fmtTime, useChannels, useGet, type LiveSource } from "../lib";
 
 interface RepeatRule {
@@ -48,13 +50,14 @@ type T = (k: string, o?: Record<string, unknown>) => string;
 const dayWord = (t: T, d: number) => (d === 0 ? t("mgmt.switch.today") : d === 1 ? t("mgmt.switch.tomorrow") : t("mgmt.switch.inDays", { n: d }));
 
 /** What the tile says under its name: a camera, or whether the stream's picture is coming in. */
-function SourceLine({ b }: { b: SwitchButton }) {
+function SourceLine({ b, inputs }: { b: SwitchButton; inputs?: PortInput[] }) {
   const { t } = useTranslation();
+  const port = usePortLabel();
   if (!b.source) return <span>{t("mgmt.switch.sourceGone")}</span>;
   if (b.source.kind === "atem")
     return (
       <span className="flex items-center gap-1.5">
-        <Camera className="size-3.5" /> {t("mgmt.switch.camera", { input: b.source.atemInput })}
+        <Camera className="size-3.5" /> {t("mgmt.switch.camera", { input: port(inputs, b.source.atemInput) })}
       </span>
     );
   const st = b.source.state;
@@ -67,7 +70,7 @@ function SourceLine({ b }: { b: SwitchButton }) {
 }
 
 /** One big button. */
-export function SwitchTile({ b, disabled, onPress }: { b: SwitchButton; disabled?: boolean; onPress?: () => void }) {
+export function SwitchTile({ b, disabled, onPress, inputs }: { b: SwitchButton; disabled?: boolean; onPress?: () => void; inputs?: PortInput[] }) {
   const { t } = useTranslation();
   return (
     <button
@@ -95,7 +98,7 @@ export function SwitchTile({ b, disabled, onPress }: { b: SwitchButton; disabled
         )}
       </span>
       <span className="mt-3 text-xs font-medium opacity-90">
-        <SourceLine b={b} />
+        <SourceLine b={b} inputs={inputs} />
       </span>
     </button>
   );
@@ -217,6 +220,7 @@ function GoLiveDialog({ b, channel, onClose, onDone }: { b: SwitchButton; channe
 
 function ChannelSwitch({ c, canOperate, isAdmin, reload }: { c: SwitchChannel; canOperate: boolean; isAdmin: boolean; reload: () => void }) {
   const { t } = useTranslation();
+  const inputsOf = useChannelInputs();
   const now = useNow();
   const [pressing, setPressing] = useState<SwitchButton | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -319,7 +323,7 @@ function ChannelSwitch({ c, canOperate, isAdmin, reload }: { c: SwitchChannel; c
         {c.buttons.length ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {c.buttons.map((b) => (
-              <SwitchTile key={b.id} b={b} disabled={!canOperate || locked || b.onAir} onPress={() => setPressing(b)} />
+              <SwitchTile key={b.id} b={b} inputs={inputsOf(c.channel.id)} disabled={!canOperate || locked || b.onAir} onPress={() => setPressing(b)} />
             ))}
           </div>
         ) : (
@@ -386,6 +390,8 @@ export function SwitchPage() {
 export function SwitchButtonsPage() {
   const { t } = useTranslation();
   const { channels } = useChannels();
+  const inputsOf = useChannelInputs();
+  const port = usePortLabel();
   const { data, reload } = useGet<{ buttons: SwitchButton[] }>("/api/switch/buttons");
   const { data: live } = useGet<{ sources: LiveSource[] }>("/api/live-sources");
   const [form, setForm] = useState<{ id?: number; channelId: number; name: string; color: string; liveSourceId: number | null } | null>(null);
@@ -472,7 +478,7 @@ export function SwitchButtonsPage() {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{b.name}</span>
                           <span className="block truncate text-xs text-muted">
-                            {b.source ? t(b.source.kind === "rtmp" ? "mgmt.switch.goesToStream" : "mgmt.switch.goesToCamera", { source: b.source.name, input: b.source.atemInput }) : t("mgmt.switch.sourceGone")}
+                            {b.source ? t(b.source.kind === "rtmp" ? "mgmt.switch.goesToStream" : "mgmt.switch.goesToCamera", { source: b.source.name, input: port(inputsOf(b.channelId), b.source.atemInput) }) : t("mgmt.switch.sourceGone")}
                           </span>
                         </span>
                         <Button size="sm" variant="ghost" icon={<ArrowUp className="size-3.5" />} disabled={i === 0} onClick={() => void move(list, i, -1)} title={t("mgmt.switch.up")} />
@@ -522,7 +528,7 @@ export function SwitchButtonsPage() {
                       .filter((s) => s.kind === "atem")
                       .map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.name} · ATEM {s.atemInput}
+                          {s.name} · {port(inputsOf(form.channelId), s.atemInput, { withName: false })}
                         </option>
                       ))}
                   </optgroup>
@@ -531,7 +537,7 @@ export function SwitchButtonsPage() {
                       .filter((s) => s.kind === "rtmp")
                       .map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.name} · ATEM {s.atemInput}
+                          {s.name} · {port(inputsOf(form.channelId), s.atemInput, { withName: false })}
                         </option>
                       ))}
                   </optgroup>
@@ -559,7 +565,7 @@ export function SwitchButtonsPage() {
               <div>
                 <p className="mb-2 text-[13px] font-medium">{t("mgmt.switch.preview")}</p>
                 <div className="max-w-64">
-                  <SwitchTile b={preview} />
+                  <SwitchTile b={preview} inputs={inputsOf(preview.channelId)} />
                 </div>
               </div>
             )}
