@@ -1,0 +1,13 @@
+{
+  "apps": [
+    "orchestrator"
+  ],
+  "pr": [],
+  "changes": [
+    {
+      "kind": "added",
+      "en": "Studio nodes get a calm desktop background in the house style showing the machine's role, channels, service status, CPU, memory and disk, refreshed every 5 minutes (task TVSM Desktop Info, set up by the studio installer).",
+      "nl": "Studionodes krijgen een rustige bureaubladachtergrond in de huisstijl met de rol van de machine, kanalen, status van de diensten, CPU, geheugen en schijf, elke 5 minuten ververst (taak TVSM Desktop Info, ingesteld door de studio-installer)."
+    }
+  ]
+}

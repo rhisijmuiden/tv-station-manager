@@ -454,6 +454,13 @@ for ($i = 0; $i -lt 40 -and -not $ok; $i++) {
 if ($ok) { Write-Host "CasparCG answers on AMCP port 5250" -ForegroundColor Green }
 else { Warn "CasparCG does not answer on port 5250 yet. See $logs (tvsm-casparcg*.log and casparcg\)." }
 
+# Desktop background with this node's role and status (read only, refreshed every 5 minutes for the signed-in user).
+$desktopInfo = Join-Path $studioFiles "desktop-info.ps1"
+if (Test-Path $desktopInfo) {
+  try { & $desktopInfo -Install | Out-Null; Write-Host "Desktop background: TVSM Desktop Info task registered." }
+  catch { Warn "Desktop background not set: $($_.Exception.Message)" }
+}
+
 Write-Host ""
 Write-Host "Studio node ready." -ForegroundColor Green
 Write-Host "  CasparCG $casparTag, $Outputs channel(s) at ${VideoMode}: channel N plays to DeckLink output N."

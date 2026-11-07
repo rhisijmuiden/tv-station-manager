@@ -64,6 +64,22 @@ Every 10 minutes the agent runs `inventory.ps1` (read-only) and reports: Windows
 DeckLink devices, GPU + driver, FFmpeg, VC++ runtime, CasparCG, MediaMTX, stored share login, pending restart.
 Shown under **Role & software** and used by the plan.
 
+## Desktop background
+
+Every studio node gets a calm desktop background in the house style that shows what the machine does: host name,
+role (playout, live / ingest or both) with a short explanation, IP address, the CasparCG channels and DeckLink
+outputs, the state of tvsm-agent / tvsm-casparcg / tvsm-ingest, CPU, memory and disk C:, agent version and uptime.
+`install-studio.ps1` registers the scheduled task **TVSM Desktop Info** (runs `desktop-info.ps1` for the signed-in user
+at logon and every 5 minutes, hidden). The script only reads; it never touches a service.
+
+On an existing node, without reinstalling:
+
+```powershell
+& "C:\Program Files\TVSM\agent\studio\desktop-info.ps1" -Install -Language nl -Description "Playout - channel 2 + stream2"
+```
+
+`-Language en|nl` and `-Description` are kept in `%ProgramData%\TVSM\desktop\desktop.json`; `-Uninstall` removes the task.
+
 ## Notes
 
 - `install-studio.ps1` now stores `-ManagementHost` in `studio.json` and reuses it on a rerun.

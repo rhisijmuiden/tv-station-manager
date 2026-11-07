@@ -33,6 +33,12 @@ cp "$ROOT/packaging/windows/provision.ps1" "$ROOT/packaging/windows/install-stud
 mkdir -p "$STAGE/studio/templates"
 cp "$ROOT/studio/windows/start-casparcg.ps1" "$STAGE/studio/"
 cp -r "$ROOT/studio/casparcg-templates/." "$STAGE/studio/templates/"
+# Desktop background with the node's role and status (desktop-info.ps1 -Install), with the active brand's white logo.
+BRAND="${TVSM_BRAND:-$(tr -d '[:space:]' < "$ROOT/branding/active-brand" 2>/dev/null || echo tvsm)}"
+cp "$ROOT/packaging/windows/desktop-info.ps1" "$STAGE/studio/"
+for f in "$ROOT/branding/$BRAND/tv/logo-white-pink.png" "$ROOT/branding/$BRAND/tv/logo-white.png"; do
+  [[ -f "$f" ]] && { cp "$f" "$STAGE/studio/logo.png"; break; }
+done
 cp "$ROOT/LICENSE" "$STAGE/LICENSE.txt"
 echo "$VERSION" > "$STAGE/VERSION"
 mkdir -p "$OUT"

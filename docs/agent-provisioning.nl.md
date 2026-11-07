@@ -41,4 +41,20 @@ Video, handtekening van Blackmagic gecontroleerd), FFmpeg (BtbN GPL-build, check
 Blackmagic heeft geen vaste downloadlink: download Desktop Video één keer van blackmagicdesign.com/support en zet het
 op de share (of een interne https-server).
 
+## Bureaubladachtergrond
+
+Elke studionode krijgt een rustige achtergrond in de huisstijl die laat zien wat de machine doet: naam, rol
+(playout, live / ingest of beide) met uitleg, IP-adres, de CasparCG-kanalen en DeckLink-uitgangen, de status van
+tvsm-agent / tvsm-casparcg / tvsm-ingest, CPU, geheugen en schijf C:, agentversie en hoe lang hij aanstaat.
+`install-studio.ps1` maakt de taak **TVSM Desktop Info** aan (elke 5 minuten en bij aanmelden, onzichtbaar). Het script
+leest alleen en komt niet aan diensten.
+
+Op een bestaande node zonder herinstallatie:
+
+```powershell
+& "C:\Program Files\TVSM\agent\studio\desktop-info.ps1" -Install -Language nl -Description "Playout - kanaal 2 + stream2"
+```
+
+Met `-Uninstall` haal je de taak weer weg.
+
 Zie [agent-provisioning.md](agent-provisioning.md) voor alle details.
